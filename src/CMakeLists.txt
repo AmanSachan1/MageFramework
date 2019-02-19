@@ -9,13 +9,14 @@ function(buildSource SAMPLE_NAME)
     ${SAMPLE_NAME}/*.tesc
   )
   
+  SET(MAIN_CPP ${SAMPLE_NAME}/main.cpp)
   source_group("Shaders" FILES ${SHADER_SOURCES})
 
   if(WIN32)
-    add_executable(${SAMPLE_NAME} WIN32 ${SAMPLE_SOURCES} ${SHADER_SOURCES})
+    add_executable(${SAMPLE_NAME} WIN32  ${MAIN_CPP} ${SAMPLE_SOURCES} ${SHADER_SOURCES})
     target_link_libraries(${SAMPLE_NAME} ${WINLIBS})
   else(WIN32)
-    add_executable(${SAMPLE_NAME} ${SAMPLE_SOURCES})
+    add_executable(${SAMPLE_NAME} ${MAIN_CPP} ${SAMPLE_SOURCES})
     target_link_libraries(${SAMPLE_NAME} ${CMAKE_THREAD_LIBS_INIT})
   endif(WIN32)
 
@@ -43,4 +44,4 @@ function(buildSource SAMPLE_NAME)
   ExternalTarget("src" ${SAMPLE_NAME})
 endfunction(buildSource)
 
-buildSource(ShaderPlayground)
+buildSource(GraphicsPlayground)
