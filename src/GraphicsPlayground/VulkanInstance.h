@@ -1,9 +1,5 @@
 #pragma once
-
 #include <global.h>
-//#include <bitset>
-//#include <set>
-//#include "VulkanDevice.h"
 
 extern const bool ENABLE_VALIDATION;
 

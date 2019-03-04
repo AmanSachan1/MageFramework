@@ -1,10 +1,54 @@
 #pragma once
-
 #include <global.h>
 
 // Reference: https://github.com/SaschaWillems/Vulkan/blob/master/base/VulkanInitializers.hpp
 namespace VulkanInitializers
 {
+	//--------------------------------------------------------
+	//				Logical Device Creation
+	//--------------------------------------------------------
+
+	inline VkDeviceQueueCreateInfo deviceQueueCreateInfo(VkStructureType sType, uint32_t queueFamilyIndex, uint32_t queueCount, float* pQueuePriorities)
+	{
+		VkDeviceQueueCreateInfo deviceQueueCreateInfo{};
+		deviceQueueCreateInfo.sType = sType;
+		deviceQueueCreateInfo.queueFamilyIndex = queueFamilyIndex;
+		deviceQueueCreateInfo.queueCount = queueCount;
+		deviceQueueCreateInfo.pQueuePriorities = pQueuePriorities;
+
+		return deviceQueueCreateInfo;
+	}
+
+	inline VkDeviceCreateInfo logicalDeviceCreateInfo(VkStructureType sType, uint32_t queueCreateInfoCount,
+		VkDeviceQueueCreateInfo* queueCreateInfos, VkPhysicalDeviceFeatures* deviceFeatures,
+		uint32_t deviceExtensionCount, const char** deviceExtensionNames,
+		uint32_t validationLayerCount, const char* const* validationLayerNames)
+	{
+		// --- Create logical device ---
+		VkDeviceCreateInfo logicalDeviceCreateInfo = {};
+		logicalDeviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+		logicalDeviceCreateInfo.queueCreateInfoCount = queueCreateInfoCount;
+		logicalDeviceCreateInfo.pQueueCreateInfos = queueCreateInfos;
+		logicalDeviceCreateInfo.pEnabledFeatures = deviceFeatures;
+
+		// Enable device-specific extensions and validation layers
+		logicalDeviceCreateInfo.enabledExtensionCount = deviceExtensionCount;
+		logicalDeviceCreateInfo.ppEnabledExtensionNames = deviceExtensionNames;
+		logicalDeviceCreateInfo.enabledLayerCount = validationLayerCount;
+		logicalDeviceCreateInfo.ppEnabledLayerNames = validationLayerNames;
+
+		return logicalDeviceCreateInfo;
+	}
+
+	inline void createLogicalDevice(VkPhysicalDevice &physicalDevice, VkDevice& logicalDevice, VkDeviceCreateInfo& logicalDeviceCreateInfo)
+	{
+		if (vkCreateDevice(physicalDevice, &logicalDeviceCreateInfo, nullptr, &logicalDevice) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to create logical device");
+		}
+	}
+
+
 	//--------------------------------------------------------
 	//				Shader Program Loading
 	//--------------------------------------------------------

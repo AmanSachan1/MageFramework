@@ -1,18 +1,21 @@
 #pragma once
-#include "global.h"
-#include "VulkanInstance.h"
+#include <global.h>
+#include "vulkanInstance.h"
+#include "vulkanDevices.h"
 
 int window_height = 720;
 int window_width = 1284;
 
-class ShaderPlaygroundApplication
+class GraphicsPlaygroundApplication
 {
 public:
 	void run();
 
 private:
-	GLFWwindow * window;
+	GLFWwindow* window;
 	VulkanInstance* instance;
+	VkSurfaceKHR vkSurface;
+	VulkanDevices* devices;
 
 	void initialize();
 	void initWindow(int width, int height, const char* name);
@@ -22,7 +25,7 @@ private:
 	void cleanup();
 };
 
-void ShaderPlaygroundApplication::initWindow(int width, int height, const char* name)
+void GraphicsPlaygroundApplication::initWindow(int width, int height, const char* name)
 {
 	if (!glfwInit())
 	{
@@ -40,24 +43,34 @@ void ShaderPlaygroundApplication::initWindow(int width, int height, const char* 
 	glfwWindowHint(GLFW_RESIZABLE, GL_TRUE);
 	window = glfwCreateWindow(width, height, name, nullptr, nullptr);
 
-	if (!window) {
+	if (!window) 
+	{
 		fprintf(stderr, "Failed to initialize GLFW window\n");
 		glfwTerminate();
 		exit(EXIT_FAILURE);
 	}
 }
 
-void ShaderPlaygroundApplication::initVulkan(const char* applicationName)
+void GraphicsPlaygroundApplication::initVulkan(const char* applicationName)
 {
 	unsigned int glfwExtensionCount = 0;
 	const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
 
 	// Vulkan Instance
 	instance = new VulkanInstance(applicationName, glfwExtensionCount, glfwExtensions);
+	
+	// Create Drawing Surface, i.e. window where things are rendered to
+	if (glfwCreateWindowSurface(instance->GetVkInstance(), window, nullptr, &vkSurface) != VK_SUCCESS)
+	{
+		throw std::runtime_error("failed to create window surface!");
+	}
 
+	// Create The physical and logical devices required by vulkan
+	QueueFlagBits desiredQueues = QueueFlagBit::GraphicsBit | QueueFlagBit::ComputeBit | QueueFlagBit::TransferBit | QueueFlagBit::PresentBit;
+	devices = new VulkanDevices(instance, { VK_KHR_SWAPCHAIN_EXTENSION_NAME }, desiredQueues, vkSurface);
 }
 
-void ShaderPlaygroundApplication::initialize()
+void GraphicsPlaygroundApplication::initialize()
 {
 	static constexpr char* applicationName = "Shader Playground";
 	initWindow(window_width, window_height, applicationName);
@@ -69,7 +82,7 @@ void ShaderPlaygroundApplication::initialize()
 	//glfwSetCursorPosCallback(window, mouseMoveCallback);
 }
 
-void ShaderPlaygroundApplication::mainLoop()
+void GraphicsPlaygroundApplication::mainLoop()
 {
 	// Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Drawing/Rendering_and_presentation
 	while (!glfwWindowShouldClose(window))
@@ -79,18 +92,18 @@ void ShaderPlaygroundApplication::mainLoop()
 	}
 }
 
-void ShaderPlaygroundApplication::cleanup()
+void GraphicsPlaygroundApplication::cleanup()
 {
 	// Wait for the device to finish executing before cleanup
 	//vkDeviceWaitIdle(device->GetVkDevice());
 
-
+	vkDestroySurfaceKHR(instance->GetVkInstance(), vkSurface, nullptr);
 	delete instance;
 	glfwDestroyWindow(window);
 	glfwTerminate();
 }
 
-void ShaderPlaygroundApplication::run()
+void GraphicsPlaygroundApplication::run()
 {
 	initialize();
 	mainLoop();
@@ -99,7 +112,7 @@ void ShaderPlaygroundApplication::run()
 
 int main()
 {
-	ShaderPlaygroundApplication app;
+	GraphicsPlaygroundApplication app;
 
 	try
 	{
