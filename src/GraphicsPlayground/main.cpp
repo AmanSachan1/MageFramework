@@ -2,9 +2,108 @@
 #include <global.h>
 #include "vulkanInstance.h"
 #include "vulkanDevices.h"
+#include "vulkanPresentation.h"
+
+#include "camera.h"
 
 int window_height = 720;
 int window_width = 1284;
+
+VulkanDevices* devices;
+VulkanPresentation* presentation;
+Camera* camera;
+
+namespace InputUtil
+{
+	void resizeCallback(GLFWwindow* window, int width, int height)
+	{
+		if (width == 0 || height == 0) return;
+
+		vkDeviceWaitIdle(devices->GetLogicalDevice());
+		presentation->Recreate(width, height);
+		//renderer->RecreateOnResize(width, height);
+	}
+
+	bool leftMouseDown = false;
+	double previousX = 0.0f;
+	double previousY = 0.0f;
+	float deltaForRotation = 0.25f;
+	float deltaForMovement = 10.0f;
+
+	void keyboardInputs(GLFWwindow* window)
+	{
+		if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
+			glfwSetWindowShouldClose(window, true);
+		}
+
+		if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+			camera->TranslateAlongLook(deltaForMovement);
+		}			
+		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+			camera->TranslateAlongLook(-deltaForMovement);
+		}
+
+		if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+			camera->TranslateAlongRight(-deltaForMovement);
+		}
+		if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+			camera->TranslateAlongRight(deltaForMovement);
+		}			
+
+		if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) {
+			camera->TranslateAlongUp(deltaForMovement);
+		}		
+		if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) {
+			camera->TranslateAlongUp(-deltaForMovement);
+		}
+
+		if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
+			camera->RotateAboutRight(deltaForRotation);
+		}
+		if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
+			camera->RotateAboutRight(-deltaForRotation);
+		}
+		if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
+			camera->RotateAboutUp(deltaForRotation);
+		}
+		if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
+			camera->RotateAboutUp(-deltaForRotation);
+		}
+	}
+
+	void mouseDownCallback(GLFWwindow* window, int button, int action, int mods)
+	{
+		if (button == GLFW_MOUSE_BUTTON_LEFT) {
+			if (action == GLFW_PRESS) {
+				leftMouseDown = true;
+				glfwGetCursorPos(window, &previousX, &previousY);
+			}
+			else if (action == GLFW_RELEASE) {
+				leftMouseDown = false;
+			}
+		}
+	}
+
+	void mouseMoveCallback(GLFWwindow* window, double xPosition, double yPosition)
+	{
+		if (leftMouseDown)
+		{
+			double sensitivity = 0.1;
+			float deltaX = static_cast<float>((previousX - xPosition) * sensitivity);
+			float deltaY = static_cast<float>((previousY - yPosition) * sensitivity);
+			previousX = xPosition;
+			previousY = yPosition;
+
+			camera->RotateAboutUp(deltaX);
+			camera->RotateAboutRight(deltaY);
+		}
+	}
+
+	void scrollCallback(GLFWwindow*, double, double yoffset)
+	{
+		camera->TranslateAlongLook(static_cast<float>(yoffset) * 0.05f);
+	}
+}
 
 class GraphicsPlaygroundApplication
 {
@@ -15,11 +114,13 @@ private:
 	GLFWwindow* window;
 	VulkanInstance* instance;
 	VkSurfaceKHR vkSurface;
-	VulkanDevices* devices;
-
+	
 	void initialize();
 	void initWindow(int width, int height, const char* name);
 	void initVulkan(const char* applicationName);
+
+	void renderInitialize();
+	void renderLoop();
 
 	void mainLoop();
 	void cleanup();
@@ -68,6 +169,8 @@ void GraphicsPlaygroundApplication::initVulkan(const char* applicationName)
 	// Create The physical and logical devices required by vulkan
 	QueueFlagBits desiredQueues = QueueFlagBit::GraphicsBit | QueueFlagBit::ComputeBit | QueueFlagBit::TransferBit | QueueFlagBit::PresentBit;
 	devices = new VulkanDevices(instance, { VK_KHR_SWAPCHAIN_EXTENSION_NAME }, desiredQueues, vkSurface);
+
+	presentation = new VulkanPresentation(devices, vkSurface, window_width, window_height);
 }
 
 void GraphicsPlaygroundApplication::initialize()
@@ -76,11 +179,40 @@ void GraphicsPlaygroundApplication::initialize()
 	initWindow(window_width, window_height, applicationName);
 	initVulkan(applicationName);
 
-	//glfwSetWindowSizeCallback(window, resizeCallback);
-	//glfwSetScrollCallback(window, scrollCallback);
-	//glfwSetMouseButtonCallback(window, mouseDownCallback);	
-	//glfwSetCursorPosCallback(window, mouseMoveCallback);
+	camera = new Camera(glm::vec3(0.0f, 0.0f, 2.0f), glm::vec3(0.0f, 0.0f, 1.0f),
+		window_width, window_height, 45.0f, float(window_width) / float(window_height), 0.1f, 1000.0f);
+
+	renderInitialize();
+	glfwSetWindowSizeCallback(window, InputUtil::resizeCallback);
+	glfwSetScrollCallback(window, InputUtil::scrollCallback);
+	glfwSetMouseButtonCallback(window, InputUtil::mouseDownCallback);
+	glfwSetCursorPosCallback(window, InputUtil::mouseMoveCallback);
 }
+
+
+void GraphicsPlaygroundApplication::renderInitialize()
+{
+	// Command pools manage the memory that is used to store the command buffers, and command buffers are allocated from them.
+	VkCommandPoolCreateInfo poolInfo = {};
+	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	// Command buffers are executed by submitting them on one of the device queues, like the graphics and presentation queues 
+	// we retrieved. Each command pool can only allocate command buffers that are submitted on a single type of queue. We're 
+	// going to record commands for drawing, which is why we've chosen the graphics queue family.
+	poolInfo.queueFamilyIndex = instance->GetQueueFamilyIndices()[QueueFlags::Graphics];
+	poolInfo.flags = 0;
+
+	VkCommandPool commandPool;
+	if (vkCreateCommandPool(device->GetVulkanDevice(), &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
+		throw std::runtime_error("Failed to create command pool");
+	}
+}
+void GraphicsPlaygroundApplication::renderLoop()
+{
+
+}
+
+
+
 
 void GraphicsPlaygroundApplication::mainLoop()
 {
@@ -89,16 +221,22 @@ void GraphicsPlaygroundApplication::mainLoop()
 	{
 		//Mouse inputs and window resize callbacks
 		glfwPollEvents();
+		InputUtil::keyboardInputs(window);
+
+		renderLoop();
 	}
 }
 
 void GraphicsPlaygroundApplication::cleanup()
 {
 	// Wait for the device to finish executing before cleanup
-	//vkDeviceWaitIdle(device->GetVkDevice());
-
+	vkDeviceWaitIdle(devices->GetLogicalDevice());
+		
+	delete presentation;
 	vkDestroySurfaceKHR(instance->GetVkInstance(), vkSurface, nullptr);
+	delete devices;
 	delete instance;
+
 	glfwDestroyWindow(window);
 	glfwTerminate();
 }

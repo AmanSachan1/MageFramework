@@ -100,7 +100,7 @@ void VulkanDevices::pickPhysicalDevice(std::vector<const char*> deviceExtensions
 	physicalDevice = VK_NULL_HANDLE;
 	for (const auto& device : physicalDevices)
 	{
-		if (isPhysicalDeviceSuitable(device, deviceExtensions, requiredQueues))
+		if (isPhysicalDeviceSuitable(device, deviceExtensions, requiredQueues, surface))
 		{
 			physicalDevice = device;
 			break;
@@ -172,10 +172,16 @@ bool VulkanDevices::isPhysicalDeviceSuitable(VkPhysicalDevice pDevice, std::vect
 	}
 
 	bool deviceExtensionsSupported = DeviceUtils::checkDeviceExtensionSupport(pDevice, deviceExtensions);
-	bool presentationNotRequired = (!requiredQueues[QueueFlags::Present]) || 
-								   (!surfaceFormats.empty() && !presentModes.empty());
 
-	return queueSupport & presentationNotRequired & desiredFeaturesSupported & deviceExtensionsSupported;
+	// Swap chain support is sufficient if:
+	//		- For the Surface we have there is:
+	//			-- one supported image format 
+	//			-- one supported presentation mode 
+	//		- the surface has a maxImageCount of atleast 2 to support double buffering
+	bool swapChainSupportAdequate = (!requiredQueues[QueueFlags::Present] || (!surfaceFormats.empty() && !presentModes.empty()));
+	swapChainSupportAdequate = (swapChainSupportAdequate &&	(surfaceCapabilities.maxImageCount > 1));
+
+	return queueSupport & swapChainSupportAdequate  & desiredFeaturesSupported & deviceExtensionsSupported;
 }
 
 // --------
@@ -205,4 +211,9 @@ VkQueue VulkanDevices::GetQueue(QueueFlags flag)
 unsigned int VulkanDevices::GetQueueIndex(QueueFlags flag)
 {
 	return queueFamilyIndices[flag];
+}
+
+QueueFamilyIndices VulkanDevices::GetQueueFamilyIndices()
+{
+	return queueFamilyIndices;
 }

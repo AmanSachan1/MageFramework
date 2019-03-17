@@ -23,6 +23,7 @@ public:
 	VkPhysicalDevice GetPhysicalDevice();
 	VkQueue GetQueue(QueueFlags flag);
 	unsigned int GetQueueIndex(QueueFlags flag);
+	QueueFamilyIndices GetQueueFamilyIndices();
 
 	//Public member variables
 	VkSurfaceCapabilitiesKHR surfaceCapabilities;

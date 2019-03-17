@@ -13,7 +13,7 @@ function(buildSource SAMPLE_NAME)
   source_group("Shaders" FILES ${SHADER_SOURCES})
 
   if(WIN32)
-    add_executable(${SAMPLE_NAME} WIN32  ${MAIN_CPP} ${SAMPLE_SOURCES} ${SHADER_SOURCES})
+    add_executable(${SAMPLE_NAME} ${MAIN_CPP} ${SAMPLE_SOURCES} ${SHADER_SOURCES})
     target_link_libraries(${SAMPLE_NAME} ${WINLIBS})
   else(WIN32)
     add_executable(${SAMPLE_NAME} ${MAIN_CPP} ${SAMPLE_SOURCES})
