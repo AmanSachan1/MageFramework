@@ -1,10 +1,12 @@
 #pragma once
 #include <global.h>
+#include <forward.h>
 #include "vulkanInstance.h"
 #include "vulkanDevices.h"
 #include "vulkanPresentation.h"
 
 #include "camera.h"
+#include "Renderer.h"
 
 int window_height = 720;
 int window_width = 1284;
@@ -113,14 +115,12 @@ public:
 private:
 	GLFWwindow* window;
 	VulkanInstance* instance;
+	Renderer* renderer;
 	VkSurfaceKHR vkSurface;
-	
+
 	void initialize();
 	void initWindow(int width, int height, const char* name);
 	void initVulkan(const char* applicationName);
-
-	void renderInitialize();
-	void renderLoop();
 
 	void mainLoop();
 	void cleanup();
@@ -182,37 +182,15 @@ void GraphicsPlaygroundApplication::initialize()
 	camera = new Camera(glm::vec3(0.0f, 0.0f, 2.0f), glm::vec3(0.0f, 0.0f, 1.0f),
 		window_width, window_height, 45.0f, float(window_width) / float(window_height), 0.1f, 1000.0f);
 
-	renderInitialize();
+	VkDevice logicalDevice = devices->GetLogicalDevice();
+	VkPhysicalDevice physicalDevice = devices->GetPhysicalDevice();
+	renderer = new Renderer(logicalDevice, physicalDevice, presentation, camera, window_width, window_height);
+
 	glfwSetWindowSizeCallback(window, InputUtil::resizeCallback);
 	glfwSetScrollCallback(window, InputUtil::scrollCallback);
 	glfwSetMouseButtonCallback(window, InputUtil::mouseDownCallback);
 	glfwSetCursorPosCallback(window, InputUtil::mouseMoveCallback);
 }
-
-
-void GraphicsPlaygroundApplication::renderInitialize()
-{
-	// Command pools manage the memory that is used to store the command buffers, and command buffers are allocated from them.
-	VkCommandPoolCreateInfo poolInfo = {};
-	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	// Command buffers are executed by submitting them on one of the device queues, like the graphics and presentation queues 
-	// we retrieved. Each command pool can only allocate command buffers that are submitted on a single type of queue. We're 
-	// going to record commands for drawing, which is why we've chosen the graphics queue family.
-	poolInfo.queueFamilyIndex = instance->GetQueueFamilyIndices()[QueueFlags::Graphics];
-	poolInfo.flags = 0;
-
-	VkCommandPool commandPool;
-	if (vkCreateCommandPool(device->GetVulkanDevice(), &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
-		throw std::runtime_error("Failed to create command pool");
-	}
-}
-void GraphicsPlaygroundApplication::renderLoop()
-{
-
-}
-
-
-
 
 void GraphicsPlaygroundApplication::mainLoop()
 {
@@ -223,7 +201,7 @@ void GraphicsPlaygroundApplication::mainLoop()
 		glfwPollEvents();
 		InputUtil::keyboardInputs(window);
 
-		renderLoop();
+		renderer->renderLoop();
 	}
 }
 
@@ -231,7 +209,8 @@ void GraphicsPlaygroundApplication::cleanup()
 {
 	// Wait for the device to finish executing before cleanup
 	vkDeviceWaitIdle(devices->GetLogicalDevice());
-		
+	
+	delete renderer;
 	delete presentation;
 	vkDestroySurfaceKHR(instance->GetVkInstance(), vkSurface, nullptr);
 	delete devices;

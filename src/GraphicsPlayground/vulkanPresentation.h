@@ -20,17 +20,17 @@ public:
 	void createSwapChain(VkExtent2D extent);
 	void createImageViews();
 
-	inline VkSwapchainKHR GetVulkanSwapChain() const;
-	inline VkImage GetVkImage(uint32_t index) const;
-	inline VkImageView GetVkImageView(uint32_t index) const;
-	inline VkFormat GetVkImageFormat() const;
-	inline VkExtent2D GetVkExtent() const;
-	inline uint32_t GetCount() const;
-	inline uint32_t GetIndex() const;
-	inline VkSemaphore GetImageAvailableVkSemaphore() const;
-	inline VkSemaphore GetRenderFinishedVkSemaphore() const;
+	VkSwapchainKHR GetVulkanSwapChain() const;
+	VkImage GetVkImage(uint32_t index) const;
+	VkImageView GetVkImageView(uint32_t index) const;
+	VkFormat GetVkImageFormat() const;
+	VkExtent2D GetVkExtent() const;
+	uint32_t GetCount() const;
+	uint32_t GetIndex() const;
+	VkSemaphore GetImageAvailableVkSemaphore() const;
+	VkSemaphore GetRenderFinishedVkSemaphore() const;
 
-private:
+public:
 	VulkanDevices* vulkanDevices;
 	VkSurfaceKHR vkSurface;
 

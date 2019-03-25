@@ -15,6 +15,8 @@
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 enum QueueFlags
 {
@@ -33,5 +35,5 @@ enum QueueFlagBit
 };
 
 using QueueFlagBits = std::bitset<sizeof(QueueFlags)>;
-using QueueFamilyIndices = std::array<int, sizeof(QueueFlags)>;
+using QueueFamilyIndices = std::array<unsigned int, sizeof(QueueFlags)>;
 using Queues = std::array<VkQueue, sizeof(QueueFlags)>;

@@ -113,39 +113,39 @@ void VulkanPresentation::createImageViews()
 //----------
 //Getters
 //----------
-inline VkSwapchainKHR VulkanPresentation::GetVulkanSwapChain() const
+VkSwapchainKHR VulkanPresentation::GetVulkanSwapChain() const
 {
 	return vkSwapChain;
 }
-inline VkImage VulkanPresentation::GetVkImage(uint32_t index) const
+VkImage VulkanPresentation::GetVkImage(uint32_t index) const
 {
 	return vkSwapChainImages[index];
 }
-inline VkImageView VulkanPresentation::GetVkImageView(uint32_t index) const
+VkImageView VulkanPresentation::GetVkImageView(uint32_t index) const
 {
 	return vkSwapChainImageViews[index];
 }
-inline VkFormat VulkanPresentation::GetVkImageFormat() const
+VkFormat VulkanPresentation::GetVkImageFormat() const
 {
 	return vkSwapChainImageFormat;
 }
-inline VkExtent2D VulkanPresentation::GetVkExtent() const
+VkExtent2D VulkanPresentation::GetVkExtent() const
 {
 	return vkSwapChainExtent;
 }
-inline uint32_t VulkanPresentation::GetCount() const
+uint32_t VulkanPresentation::GetCount() const
 {
 	return static_cast<uint32_t>(vkSwapChainImages.size());
 }
-inline uint32_t VulkanPresentation::GetIndex() const
+uint32_t VulkanPresentation::GetIndex() const
 {
 	return imageIndex;
 }
-inline VkSemaphore VulkanPresentation::GetImageAvailableVkSemaphore() const
+VkSemaphore VulkanPresentation::GetImageAvailableVkSemaphore() const
 {
 	return imageAvailableSemaphore;
 }
-inline VkSemaphore VulkanPresentation::GetRenderFinishedVkSemaphore() const
+VkSemaphore VulkanPresentation::GetRenderFinishedVkSemaphore() const
 {
 	return renderFinishedSemaphore;
 }

@@ -176,7 +176,7 @@ namespace SwapChainUtils
 
 namespace ShaderUtils
 {
-	std::vector<char> readFile(const std::string& filename) 
+	inline std::vector<char> readFile(const std::string& filename) 
 	{
 		std::ifstream file(filename, std::ios::ate | std::ios::binary);
 
@@ -196,7 +196,7 @@ namespace ShaderUtils
 	}
 
 	// Wrap the shaders in shader modules
-	VkShaderModule createShaderModule(const std::vector<char>& code, VkDevice logicalDevice)
+	inline VkShaderModule createShaderModule(const std::vector<char>& code, VkDevice logicalDevice)
 	{
 		VkShaderModuleCreateInfo createInfo = {};
 		createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -211,8 +211,18 @@ namespace ShaderUtils
 
 		return shaderModule;
 	}
-	VkShaderModule createShaderModule(const std::string& filename, VkDevice logicalDevice)
+	inline VkShaderModule createShaderModule(const std::string& filename, VkDevice logicalDevice)
 	{
 		return createShaderModule(readFile(filename), logicalDevice);
+	}
+
+	inline VkPipelineShaderStageCreateInfo shaderStageCreateInfo(VkShaderStageFlagBits stage, VkShaderModule module,	const char* pName)
+	{
+		VkPipelineShaderStageCreateInfo l_vertexShaderStageCreateInfo{};
+		l_vertexShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		l_vertexShaderStageCreateInfo.stage = stage;
+		l_vertexShaderStageCreateInfo.module = module;
+		l_vertexShaderStageCreateInfo.pName = pName;
+		return l_vertexShaderStageCreateInfo;
 	}
 }

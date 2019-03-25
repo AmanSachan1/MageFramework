@@ -9,7 +9,7 @@ class VulkanDevices
 public:
 	VulkanDevices() = delete;
 	VulkanDevices(VulkanInstance* _instance, std::vector<const char*> deviceExtensions, 
-					QueueFlagBits& requiredQueues, VkSurfaceKHR& vkSurface);
+		QueueFlagBits& requiredQueues, VkSurfaceKHR& vkSurface);
 	~VulkanDevices();
 
 	void pickPhysicalDevice(std::vector<const char*> deviceExtensions, QueueFlagBits& requiredQueues, VkSurfaceKHR& surface);

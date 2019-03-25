@@ -1,7 +1,6 @@
 #pragma once
 #include <global.h>
 
-// Reference: https://github.com/SaschaWillems/Vulkan/blob/master/base/VulkanInitializers.hpp
 namespace VulkanInitializers
 {
 	//--------------------------------------------------------
@@ -124,21 +123,6 @@ namespace VulkanInitializers
 	}
 
 	//--------------------------------------------------------
-	//				Shader Program Loading
-	//--------------------------------------------------------
-
-	inline VkPipelineShaderStageCreateInfo loadShader(VkShaderStageFlagBits shaderStageBits ,VkShaderModule shadermodule)
-	{
-		VkPipelineShaderStageCreateInfo shaderStageCreateInfo = {};
-		shaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-		shaderStageCreateInfo.stage = shaderStageBits;
-		shaderStageCreateInfo.module = shadermodule;
-		shaderStageCreateInfo.pName = "main";
-
-		return shaderStageCreateInfo;
-	}
-
-	//--------------------------------------------------------
 	//			PipeLine Layouts and Pipeline Cache
 	// Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Graphics_pipeline_basics/Fixed_functions
 	//--------------------------------------------------------
@@ -168,162 +152,6 @@ namespace VulkanInitializers
 		if (vkCreatePipelineCache(logicalDevice, &pipelineCacheCreateInfo, nullptr, &pipelineCache) != VK_SUCCESS) {
 			throw std::runtime_error("Failed to create pipeline cache");
 		}
-	}
-
-	//--------------------------------------------------------
-	//				PipeLine State Info Creation
-	//--------------------------------------------------------
-
-	inline VkPipelineVertexInputStateCreateInfo pipelineVertexInputStateCreateInfo()
-	{
-		// -------- Vertex input --------
-		// Because we're hard coding the vertex data directly in the vertex shader, we'll fill in this structure to specify 
-		// that there is no vertex data to load for now. We'll write the vertex buffers later.
-		VkPipelineVertexInputStateCreateInfo pipelineVertexInputStateCreateInfo{};
-		pipelineVertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-		return pipelineVertexInputStateCreateInfo;
-	}
-
-	inline VkPipelineInputAssemblyStateCreateInfo pipelineInputAssemblyStateCreateInfo( VkPrimitiveTopology topology,
-																						VkPipelineInputAssemblyStateCreateFlags flags,
-																						VkBool32 primitiveRestartEnable)
-	{
-		// -------- Input assembly --------
-		// The VkPipelineInputAssemblyStateCreateInfo struct describes two things: what kind of geometry will be drawn 
-		// from the vertices and if primitive restart should be enabled.
-		VkPipelineInputAssemblyStateCreateInfo pipelineInputAssemblyStateCreateInfo{};
-		pipelineInputAssemblyStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-		pipelineInputAssemblyStateCreateInfo.topology = topology;
-		pipelineInputAssemblyStateCreateInfo.flags = flags;
-		pipelineInputAssemblyStateCreateInfo.primitiveRestartEnable = primitiveRestartEnable;
-		return pipelineInputAssemblyStateCreateInfo;
-	}
-
-	inline VkPipelineRasterizationStateCreateInfo pipelineRasterizationStateCreateInfo( VkPolygonMode polygonMode,
-																						VkCullModeFlags cullMode, VkFrontFace frontFace,
-																						VkPipelineRasterizationStateCreateFlags flags = 0)
-	{
-		// -------- Rasterization State --------
-		// The rasterizer takes the geometry that is shaped by the vertices from the vertex shader and turns
-		// it into fragments to be colored by the fragment shader.
-		// It also performs depth testing, face culling and the scissor test, and it can be configured to output 
-		// fragments that fill entire polygons or just the edges (wireframe rendering). All this is configured 
-		// using the VkPipelineRasterizationStateCreateInfo structure.
-		VkPipelineRasterizationStateCreateInfo pipelineRasterizationStateCreateInfo{};
-		pipelineRasterizationStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-		pipelineRasterizationStateCreateInfo.depthClampEnable = VK_FALSE;
-		pipelineRasterizationStateCreateInfo.rasterizerDiscardEnable = VK_FALSE; // If rasterizerDiscardEnable is set to VK_TRUE, then geometry never 
-															// passes through the rasterizer stage. This basically disables any output to the framebuffer.
-		pipelineRasterizationStateCreateInfo.depthBiasEnable = VK_FALSE;  // The rasterizer can alter the depth values by adding a constant value or biasing 
-															// them based on a fragment's slope. This is sometimes used for shadow mapping, but we won't 
-															// be using it.Just set depthBiasEnable to VK_FALSE.
-		pipelineRasterizationStateCreateInfo.polygonMode = polygonMode;
-		pipelineRasterizationStateCreateInfo.cullMode = cullMode;
-		pipelineRasterizationStateCreateInfo.frontFace = frontFace;
-		pipelineRasterizationStateCreateInfo.flags = flags;
-		pipelineRasterizationStateCreateInfo.lineWidth = 1.0f;
-		return pipelineRasterizationStateCreateInfo;
-	}
-
-	inline VkPipelineColorBlendAttachmentState pipelineColorBlendAttachmentState( VkColorComponentFlags colorWriteMask,
-																				  VkBool32 blendEnable)
-	{
-		// -------- Color Blending ---------
-		// --> Color Blending is usually for transparency
-		// --> Configuration per attached framebuffer
-		VkPipelineColorBlendAttachmentState pipelineColorBlendAttachmentState{};
-		pipelineColorBlendAttachmentState.colorWriteMask = colorWriteMask;
-		pipelineColorBlendAttachmentState.blendEnable = blendEnable;
-		return pipelineColorBlendAttachmentState;
-	}
-
-	inline VkPipelineColorBlendStateCreateInfo pipelineColorBlendStateCreateInfo( uint32_t attachmentCount,
-																				  const VkPipelineColorBlendAttachmentState * pAttachments)
-	{
-		// --> Global color blending settings
-		VkPipelineColorBlendStateCreateInfo pipelineColorBlendStateCreateInfo{};
-		pipelineColorBlendStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-		pipelineColorBlendStateCreateInfo.attachmentCount = attachmentCount;
-		pipelineColorBlendStateCreateInfo.pAttachments = pAttachments;
-		return pipelineColorBlendStateCreateInfo;
-	}
-
-	inline VkPipelineDepthStencilStateCreateInfo pipelineDepthStencilStateCreateInfo( VkBool32 depthTestEnable, VkBool32 depthWriteEnable,
-																					  VkCompareOp depthCompareOp)
-	{
-		//The depthTestEnable field specifies if the depth of new fragments should be compared to the 
-		//depth buffer to see if they should be discarded. The depthWriteEnable field specifies if the 
-		//new depth of fragments that pass the depth test should actually be written to the depth buffer. 
-		//This is useful for drawing transparent objects. They should be compared to the previously rendered 
-		//opaque objects, but not cause further away transparent objects to not be drawn.
-		VkPipelineDepthStencilStateCreateInfo pipelineDepthStencilStateCreateInfo{};
-		pipelineDepthStencilStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-		pipelineDepthStencilStateCreateInfo.depthTestEnable = depthTestEnable;
-		pipelineDepthStencilStateCreateInfo.depthWriteEnable = depthWriteEnable;
-		pipelineDepthStencilStateCreateInfo.depthCompareOp = depthCompareOp; // specifies the comparison that is performed to keep or discard fragments.
-		pipelineDepthStencilStateCreateInfo.depthBoundsTestEnable = VK_FALSE;
-		pipelineDepthStencilStateCreateInfo.minDepthBounds = 0.0f;
-		pipelineDepthStencilStateCreateInfo.maxDepthBounds = 1.0f;
-		pipelineDepthStencilStateCreateInfo.stencilTestEnable = VK_FALSE;
-		pipelineDepthStencilStateCreateInfo.front = pipelineDepthStencilStateCreateInfo.back;
-		pipelineDepthStencilStateCreateInfo.back.compareOp = VK_COMPARE_OP_ALWAYS;
-		return pipelineDepthStencilStateCreateInfo;
-	}
-
-	inline VkPipelineViewportStateCreateInfo pipelineViewportStateCreateInfo( uint32_t viewportCount, uint32_t scissorCount, 
-																			  VkPipelineViewportStateCreateFlags flags = 0)
-	{
-		// Now this viewport and scissor rectangle need to be combined into a viewport state using the 
-		// VkPipelineViewportStateCreateInfo struct. It is possible to use multiple viewports and scissor
-		// rectangles on some graphics cards, so its members reference an array of them. Using multiple requires 
-		// enabling a GPU feature (see logical device creation).
-		VkPipelineViewportStateCreateInfo pipelineViewportStateCreateInfo{};
-		pipelineViewportStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-		pipelineViewportStateCreateInfo.viewportCount = viewportCount;
-		pipelineViewportStateCreateInfo.scissorCount = scissorCount;
-		pipelineViewportStateCreateInfo.flags = flags;
-		return pipelineViewportStateCreateInfo;
-	}
-
-	inline VkPipelineMultisampleStateCreateInfo pipelineMultisampleStateCreateInfo( VkSampleCountFlagBits rasterizationSamples,
-																					VkPipelineMultisampleStateCreateFlags flags = 0)
-	{
-		// -------- Multisampling --------
-		// The VkPipelineMultisampleStateCreateInfo struct configures multisampling, which is one of the ways to perform anti-aliasing. 
-		// It works by combining the fragment shader results of multiple polygons that rasterize to the same pixel. This mainly occurs 
-		// along edges, which is also where the most noticeable aliasing artifacts occur. Because it doesn't need to run the fragment 
-		// shader multiple times if only one polygon maps to a pixel, it is significantly less expensive than simply rendering to a 
-		// higher resolution and then downscaling. Enabling it requires enabling a GPU feature.
-		VkPipelineMultisampleStateCreateInfo pipelineMultisampleStateCreateInfo{};
-		pipelineMultisampleStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-		pipelineMultisampleStateCreateInfo.rasterizationSamples = rasterizationSamples;
-		pipelineMultisampleStateCreateInfo.flags = flags;
-		return pipelineMultisampleStateCreateInfo;
-	}
-
-	inline VkPipelineDynamicStateCreateInfo pipelineDynamicStateCreateInfo( const std::vector<VkDynamicState>& pDynamicStates,
-																			VkPipelineDynamicStateCreateFlags flags = 0)
-	{
-		VkPipelineDynamicStateCreateInfo pipelineDynamicStateCreateInfo{};
-		pipelineDynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-		pipelineDynamicStateCreateInfo.pDynamicStates = pDynamicStates.data();
-		pipelineDynamicStateCreateInfo.dynamicStateCount = static_cast<uint32_t>(pDynamicStates.size());
-		pipelineDynamicStateCreateInfo.flags = flags;
-		return pipelineDynamicStateCreateInfo;
-	}
-
-	inline VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo( VkPipelineLayout layout, VkRenderPass renderPass,
-																	VkPipelineCreateFlags flags = 0)
-	{
-		VkGraphicsPipelineCreateInfo pipelineCreateInfo{};
-		pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-		pipelineCreateInfo.layout = layout;
-		pipelineCreateInfo.renderPass = renderPass;
-		pipelineCreateInfo.flags = flags;
-		pipelineCreateInfo.basePipelineIndex = VK_NULL_HANDLE; // Vulkan allows you to create a new graphics pipeline by deriving from an existing pipeline. 
-															   // We aren't doing this.
-		pipelineCreateInfo.basePipelineIndex = -1;
-		return pipelineCreateInfo;
 	}
 
 	//--------------------------------------------------------
@@ -384,5 +212,357 @@ namespace VulkanInitializers
 		if (vkCreateCommandPool(logicalDevice, &cmdPoolInfo, nullptr, &cmdPool) != VK_SUCCESS) {
 			throw std::runtime_error("Failed to create command pool");
 		}
+	}
+};
+
+//--------------------------------------------------------
+//			Miscellaneous Vulkan Structures
+//--------------------------------------------------------
+
+namespace VulkanStructures
+{
+	inline VkViewport createViewport(float x, float y, float width, float height, float minDepth, float maxDepth)
+	{
+		return { x, y, width, height, minDepth, maxDepth };
+	}
+
+	inline VkRect2D createRectangle(VkOffset2D offset, VkExtent2D extent)
+	{
+		return { offset, extent };
+	}
+};
+
+//--------------------------------------------------------
+//			Render Pass Structures and Creation
+//--------------------------------------------------------
+
+namespace RenderPassUtility
+{
+	inline VkSubpassDescription subpassDescription(
+		VkPipelineBindPoint pipelineBindPoint,
+		uint32_t inputAttachmentCount, const VkAttachmentReference* pInputAttachments,
+		uint32_t colorAttachmentCount, const VkAttachmentReference* pColorAttachments,
+		const VkAttachmentReference* pResolveAttachments,
+		const VkAttachmentReference* pDepthStencilAttachment,
+		uint32_t preserveAttachmentCount, const uint32_t* pPreserveAttachments)
+	{
+		// The following other types of attachments can be referenced by a subpass:
+		// - pInputAttachments: Attachments that are read from a shader
+		// - pResolveAttachments : Attachments used for multisampling color attachments
+		// - pDepthStencilAttachment : Attachments for depth and stencil data
+		// - pPreserveAttachments : Attachments that are not used by this subpass, but for which the data must be preserved
+
+		VkSubpassDescription l_subpassDescription = {};
+		l_subpassDescription.pipelineBindPoint = pipelineBindPoint;
+		l_subpassDescription.inputAttachmentCount = inputAttachmentCount;
+		l_subpassDescription.pInputAttachments = pInputAttachments;
+		l_subpassDescription.colorAttachmentCount = colorAttachmentCount;
+		l_subpassDescription.pColorAttachments = pColorAttachments;
+		l_subpassDescription.pResolveAttachments = pResolveAttachments;
+		l_subpassDescription.pDepthStencilAttachment = pDepthStencilAttachment;
+		l_subpassDescription.preserveAttachmentCount = preserveAttachmentCount;
+		l_subpassDescription.pPreserveAttachments = pPreserveAttachments;
+
+		return l_subpassDescription;
+	}
+
+	inline void createRenderPass(VkDevice& logicalDevice, VkRenderPass& renderPass,
+		uint32_t attachmentCount, const VkAttachmentDescription* pAttachments,
+		uint32_t subpassCount, const VkSubpassDescription* pSubpasses,
+		uint32_t dependencyCount, const VkSubpassDependency* pDependencies)
+	{
+		VkRenderPassCreateInfo renderPassInfo = {};
+		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+		renderPassInfo.attachmentCount = attachmentCount;
+		renderPassInfo.pAttachments = pAttachments;
+		renderPassInfo.subpassCount = subpassCount;
+		renderPassInfo.pSubpasses = pSubpasses;
+		renderPassInfo.dependencyCount = dependencyCount;
+		renderPassInfo.pDependencies = pDependencies;
+
+		if (vkCreateRenderPass(logicalDevice, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) 
+		{
+			throw std::runtime_error("failed to create render pass!");
+		}
+	}
+};
+
+//--------------------------------------------------------
+//			PipeLine State Info and Creation
+//--------------------------------------------------------
+
+namespace VulkanPipelineStructures
+{
+	inline VkVertexInputBindingDescription vertexInputBindingDesc(uint32_t binding, uint32_t stride)
+	{
+		VkVertexInputBindingDescription l_vertexInputBindingDesc{};
+		l_vertexInputBindingDesc.binding = binding;
+		l_vertexInputBindingDesc.stride = stride;
+		l_vertexInputBindingDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+		return l_vertexInputBindingDesc;
+	}
+
+	inline VkVertexInputAttributeDescription vertexInputAttributeDesc(uint32_t location, uint32_t binding, VkFormat format, uint32_t offset)
+	{
+		VkVertexInputAttributeDescription l_vertexInputAttributeDesc{};
+		l_vertexInputAttributeDesc.location = location;
+		l_vertexInputAttributeDesc.binding = binding;
+		l_vertexInputAttributeDesc.format = format;
+		l_vertexInputAttributeDesc.offset = offset;
+		return l_vertexInputAttributeDesc;
+	}
+
+	inline VkPipelineVertexInputStateCreateInfo vertexInputInfo(
+		uint32_t vertexBindingDescriptionCount, const VkVertexInputBindingDescription* pVertexBindingDescriptions, 
+		uint32_t vertexAttributeDescriptionCount, const VkVertexInputAttributeDescription* pVertexAttributeDescriptions)
+	{
+		VkPipelineVertexInputStateCreateInfo l_vertexInputInfo{};
+		l_vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+		l_vertexInputInfo.vertexBindingDescriptionCount = vertexBindingDescriptionCount;
+		l_vertexInputInfo.pVertexBindingDescriptions = pVertexBindingDescriptions;
+		l_vertexInputInfo.vertexAttributeDescriptionCount = vertexAttributeDescriptionCount;
+		l_vertexInputInfo.pVertexAttributeDescriptions = pVertexAttributeDescriptions;
+		return l_vertexInputInfo;
+	}
+
+	inline VkPipelineInputAssemblyStateCreateInfo inputAssemblyStateCreationInfo(VkPrimitiveTopology topology, VkBool32 primitiveRestartEnable)
+	{
+		VkPipelineInputAssemblyStateCreateInfo l_inputAssemblyStateCreationInfo{};
+		l_inputAssemblyStateCreationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+		l_inputAssemblyStateCreationInfo.topology = topology;
+		l_inputAssemblyStateCreationInfo.primitiveRestartEnable = primitiveRestartEnable;
+		return l_inputAssemblyStateCreationInfo;
+	}
+
+	inline VkPipelineViewportStateCreateInfo viewportStateCreationInfo(
+		uint32_t viewportCount,	const VkViewport* pViewports,
+		uint32_t scissorCount, const VkRect2D* pScissors)
+	{
+		VkPipelineViewportStateCreateInfo l_viewportStateCreationInfo{};
+		l_viewportStateCreationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+		l_viewportStateCreationInfo.viewportCount = viewportCount;
+		l_viewportStateCreationInfo.pViewports = pViewports;
+		l_viewportStateCreationInfo.scissorCount = scissorCount;
+		l_viewportStateCreationInfo.pScissors = pScissors;
+		return l_viewportStateCreationInfo;
+	}
+
+	inline VkPipelineRasterizationStateCreateInfo rasterizerCreationInfo(
+		VkBool32 depthClampEnable, VkBool32 rasterizerDiscardEnable,
+		VkPolygonMode polygonMode, float lineWidth, VkCullModeFlags cullMode, VkFrontFace frontFace,
+		VkBool32 depthBiasEnable, float depthBiasConstantFactor, float depthBiasClamp, float depthBiasSlopeFactor)
+	{
+		VkPipelineRasterizationStateCreateInfo l_rasterizerCreationInfo{};
+		l_rasterizerCreationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+		l_rasterizerCreationInfo.depthClampEnable = depthClampEnable;
+		l_rasterizerCreationInfo.rasterizerDiscardEnable = rasterizerDiscardEnable;
+		l_rasterizerCreationInfo.polygonMode = polygonMode;
+		l_rasterizerCreationInfo.lineWidth = lineWidth;
+		l_rasterizerCreationInfo.cullMode = cullMode;
+		l_rasterizerCreationInfo.frontFace = frontFace;
+		l_rasterizerCreationInfo.depthBiasEnable = depthBiasEnable;
+		l_rasterizerCreationInfo.depthBiasConstantFactor = depthBiasConstantFactor;
+		l_rasterizerCreationInfo.depthBiasClamp = depthBiasClamp;
+		l_rasterizerCreationInfo.depthBiasSlopeFactor = depthBiasSlopeFactor;
+		return l_rasterizerCreationInfo;
+	}
+
+	inline VkPipelineMultisampleStateCreateInfo multiSampleStateCreationInfo(
+		VkSampleCountFlagBits rasterizationSamples,	
+		VkBool32 sampleShadingEnable, float minSampleShading,	const VkSampleMask* pSampleMask,
+		VkBool32 alphaToCoverageEnable,	VkBool32 alphaToOneEnable)
+	{
+		// Multisampling is one of the ways to perform anti-aliasing. 
+		// It works by combining the fragment shader results of multiple polygons that rasterize to the same pixel. This mainly occurs 
+		// along edges, which is also where the most noticeable aliasing artifacts occur. Because it doesn't need to run the fragment 
+		// shader multiple times if only one polygon maps to a pixel, it is significantly less expensive than simply rendering to a 
+		// higher resolution and then downscaling. Enabling it requires enabling the respective GPU feature.
+
+		VkPipelineMultisampleStateCreateInfo l_multiSampleStateCtreationInfo{};
+		l_multiSampleStateCtreationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+		l_multiSampleStateCtreationInfo.sampleShadingEnable = sampleShadingEnable;
+		l_multiSampleStateCtreationInfo.rasterizationSamples = rasterizationSamples;
+		l_multiSampleStateCtreationInfo.minSampleShading = minSampleShading;
+		l_multiSampleStateCtreationInfo.pSampleMask = pSampleMask;
+		l_multiSampleStateCtreationInfo.alphaToCoverageEnable = alphaToCoverageEnable;
+		l_multiSampleStateCtreationInfo.alphaToOneEnable = alphaToOneEnable;
+		return l_multiSampleStateCtreationInfo;
+	}
+
+	inline VkPipelineDepthStencilStateCreateInfo depthStencilStateCreationInfo(
+		VkBool32 depthTestEnable, VkBool32 depthWriteEnable, VkCompareOp depthCompareOp, VkBool32 depthBoundsTestEnable,
+		VkBool32 stencilTestEnable, VkStencilOpState front, VkStencilOpState back, float minDepthBounds, float maxDepthBounds)
+	{
+		VkPipelineDepthStencilStateCreateInfo l_depthStencilStateCreationInfo{};
+
+		l_depthStencilStateCreationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+		l_depthStencilStateCreationInfo.depthTestEnable = depthTestEnable;
+		l_depthStencilStateCreationInfo.depthWriteEnable = depthWriteEnable;
+		l_depthStencilStateCreationInfo.depthCompareOp = depthCompareOp;
+		l_depthStencilStateCreationInfo.depthBoundsTestEnable = depthBoundsTestEnable;
+		l_depthStencilStateCreationInfo.stencilTestEnable = stencilTestEnable;
+		l_depthStencilStateCreationInfo.front = front;
+		l_depthStencilStateCreationInfo.back = back;
+		l_depthStencilStateCreationInfo.minDepthBounds = minDepthBounds;
+		l_depthStencilStateCreationInfo.maxDepthBounds = maxDepthBounds;
+		return l_depthStencilStateCreationInfo;
+	}
+
+	inline VkPipelineColorBlendAttachmentState colorBlendAttachmentStateInfo(
+		VkBool32 blendEnable, VkBlendOp colorBlendOp, VkBlendOp alphaBlendOp, VkColorComponentFlags colorWriteMask,
+		VkBlendFactor srcColorBlendFactor, VkBlendFactor dstColorBlendFactor,
+		VkBlendFactor srcAlphaBlendFactor, VkBlendFactor dstAlphaBlendFactor )
+	{
+		// Configuration per attached framebuffer (To set this globally use VkPipelineColorBlendStateCreateInfo)
+		VkPipelineColorBlendAttachmentState l_colorBlendAttachmentStateInfo{};
+		l_colorBlendAttachmentStateInfo.blendEnable = blendEnable;
+		l_colorBlendAttachmentStateInfo.colorBlendOp = colorBlendOp;
+		l_colorBlendAttachmentStateInfo.alphaBlendOp = alphaBlendOp;
+		l_colorBlendAttachmentStateInfo.colorWriteMask = colorWriteMask;
+		l_colorBlendAttachmentStateInfo.srcColorBlendFactor = srcColorBlendFactor;
+		l_colorBlendAttachmentStateInfo.dstColorBlendFactor = dstColorBlendFactor;
+		l_colorBlendAttachmentStateInfo.srcAlphaBlendFactor = srcAlphaBlendFactor;
+		l_colorBlendAttachmentStateInfo.dstAlphaBlendFactor = dstAlphaBlendFactor;
+		return l_colorBlendAttachmentStateInfo;
+	}
+
+	inline VkPipelineColorBlendStateCreateInfo colorBlendStateCreationInfo(
+		VkBool32 logicOpEnable,	VkLogicOp logicOp, 
+		uint32_t attachmentCount, const VkPipelineColorBlendAttachmentState* pAttachments,
+		float blendConstant0, float blendConstant1, float blendConstant2, float blendConstant3)
+	{
+		// Configuration for entire pipeline (use VkPipelineColorBlendAttachmentState to configure per-framebuffer)
+		VkPipelineColorBlendStateCreateInfo l_colorBlendStateCreationInfo{};
+		l_colorBlendStateCreationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+		l_colorBlendStateCreationInfo.logicOpEnable = logicOpEnable;
+		l_colorBlendStateCreationInfo.logicOp = logicOp;
+		l_colorBlendStateCreationInfo.attachmentCount = attachmentCount;
+		l_colorBlendStateCreationInfo.pAttachments = pAttachments;
+		l_colorBlendStateCreationInfo.blendConstants[0] = blendConstant0;
+		l_colorBlendStateCreationInfo.blendConstants[1] = blendConstant1;
+		l_colorBlendStateCreationInfo.blendConstants[2] = blendConstant2;
+		l_colorBlendStateCreationInfo.blendConstants[3] = blendConstant3;
+		return l_colorBlendStateCreationInfo;
+	}
+
+	inline VkPipelineDynamicStateCreateInfo dynamicStateCreationInfo(uint32_t dynamicStateCount, const VkDynamicState* pDynamicStates)
+	{
+		VkPipelineDynamicStateCreateInfo l_dynamicStateCreationInfo{};
+		l_dynamicStateCreationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+		l_dynamicStateCreationInfo.dynamicStateCount = dynamicStateCount;
+		l_dynamicStateCreationInfo.pDynamicStates = pDynamicStates;
+		return l_dynamicStateCreationInfo;
+	}
+
+	inline VkGraphicsPipelineCreateInfo graphicsPipelineCreationInfo(
+		uint32_t stageCount, const VkPipelineShaderStageCreateInfo* pStages,
+		const VkPipelineVertexInputStateCreateInfo* pVertexInputState,
+		const VkPipelineInputAssemblyStateCreateInfo* pInputAssemblyState,
+		const VkPipelineTessellationStateCreateInfo* pTessellationState,
+		const VkPipelineViewportStateCreateInfo* pViewportState,
+		const VkPipelineRasterizationStateCreateInfo* pRasterizationState,
+		const VkPipelineMultisampleStateCreateInfo* pMultisampleState,
+		const VkPipelineDepthStencilStateCreateInfo* pDepthStencilState,
+		const VkPipelineColorBlendStateCreateInfo* pColorBlendState,
+		const VkPipelineDynamicStateCreateInfo* pDynamicState,
+		VkPipelineLayout layout,
+		VkRenderPass renderPass, uint32_t subpass,
+		VkPipeline basePipelineHandle, int32_t basePipelineIndex)
+	{
+		VkGraphicsPipelineCreateInfo l_graphicsPipelineCreationInfo{};		
+		l_graphicsPipelineCreationInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+		// Shader stages refer to the vertex, fragment, tesselation, geometry shaders (maybe more with RTX stuff) 
+		// associated with the pipeline.
+		// stage count refers to all the stages being used in the pipeline
+		l_graphicsPipelineCreationInfo.stageCount = stageCount;
+		l_graphicsPipelineCreationInfo.pStages = pStages;
+		l_graphicsPipelineCreationInfo.pVertexInputState = pVertexInputState;
+		l_graphicsPipelineCreationInfo.pInputAssemblyState = pInputAssemblyState;
+		l_graphicsPipelineCreationInfo.pTessellationState = pTessellationState;
+		l_graphicsPipelineCreationInfo.pViewportState = pViewportState;
+		l_graphicsPipelineCreationInfo.pRasterizationState = pRasterizationState;
+		l_graphicsPipelineCreationInfo.pMultisampleState = pMultisampleState;
+		l_graphicsPipelineCreationInfo.pDepthStencilState = pDepthStencilState;
+		l_graphicsPipelineCreationInfo.pColorBlendState = pColorBlendState;
+		l_graphicsPipelineCreationInfo.pDynamicState = pDynamicState;
+		l_graphicsPipelineCreationInfo.layout = layout;
+		l_graphicsPipelineCreationInfo.renderPass = renderPass;
+		l_graphicsPipelineCreationInfo.subpass = subpass;
+		// Vulkan allows you to create a new graphics pipeline by deriving from an existing pipeline.
+		// Specify the basePipelineHandle and basePipelineIndex to derive a pipeline from an existing one.
+		l_graphicsPipelineCreationInfo.basePipelineHandle = basePipelineHandle;
+		l_graphicsPipelineCreationInfo.basePipelineIndex = basePipelineIndex;
+		return l_graphicsPipelineCreationInfo;
+	}
+};
+
+namespace VulkanPipelineCreation
+{
+	inline VkPipelineLayout createPipelineLayout(
+		VkDevice& logicalDevice, std::vector<VkDescriptorSetLayout> descriptorSetLayouts,
+		uint32_t pushConstantRangeCount, const VkPushConstantRange* pPushConstantRanges)
+	{
+		VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
+		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+		pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
+		pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
+		pipelineLayoutInfo.pushConstantRangeCount = pushConstantRangeCount;
+		pipelineLayoutInfo.pPushConstantRanges = pPushConstantRanges;
+
+		VkPipelineLayout pipelineLayout;
+		if (vkCreatePipelineLayout(logicalDevice, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to create pipeline layout");
+		}
+
+		return pipelineLayout;
+	}
+
+	inline bool createGraphicsPipelines(
+		VkDevice& logicalDevice, VkPipelineCache pipelineCache, 
+		uint32_t createInfoCount, const VkGraphicsPipelineCreateInfo* pCreateInfos, VkPipeline* pPipelines)
+	{
+		if (vkCreateGraphicsPipelines(logicalDevice, pipelineCache, createInfoCount, pCreateInfos, nullptr, pPipelines) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to create pipeline(s)");
+			return false;
+		}
+		return true;
+	}
+};
+
+namespace VulkanImageStructures
+{
+	inline VkAttachmentDescription attachmentDescription(
+		VkFormat format, VkSampleCountFlagBits samples,
+		VkAttachmentLoadOp loadOp, VkAttachmentStoreOp storeOp,
+		VkAttachmentLoadOp stencilLoadOp, VkAttachmentStoreOp stencilStoreOp,
+		VkImageLayout initialLayout, VkImageLayout finalLayout)
+	{
+		VkAttachmentDescription l_attachmentDescription{};
+		l_attachmentDescription.format = format;
+		l_attachmentDescription.samples = samples;
+		// The loadOp and storeOp determine what to do with the data in the attachment before and after rendering
+		l_attachmentDescription.loadOp = loadOp;
+		l_attachmentDescription.storeOp = storeOp;
+		// The loadOp and storeOp apply to color and depth data, and stencilLoadOp / stencilStoreOp apply to stencil data. 
+		l_attachmentDescription.stencilLoadOp = stencilLoadOp;
+		l_attachmentDescription.stencilStoreOp = stencilStoreOp;
+		// VkImage objects can be optimized by storing them in certain memory layouts depending on their usecase.
+		l_attachmentDescription.initialLayout = initialLayout;
+		l_attachmentDescription.finalLayout = finalLayout;
+
+		return l_attachmentDescription;
+	}
+
+	inline VkAttachmentReference attachmentReference(uint32_t attachment, VkImageLayout layout)
+	{
+		VkAttachmentReference l_attachmentRef = {};
+		// The attachment parameter specifies which attachment to reference by its index in the attachment descriptions array.
+		l_attachmentRef.attachment = attachment;
+		// The layout specifies which layout we would like the attachment to have during a subpass that uses this reference.
+		l_attachmentRef.layout = layout;
+
+		return l_attachmentRef;
 	}
 };
