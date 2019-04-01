@@ -14,7 +14,7 @@ public:
     VulkanInstance(const char* applicationName, unsigned int additionalExtensionCount = 0, const char** additionalExtensions = nullptr);
 	~VulkanInstance();
 
-    VkInstance GetVkInstance();
+    VkInstance getVkInstance();
 
 private:
 	// Debug Functions
@@ -25,9 +25,9 @@ private:
 	std::vector<const char*> getRequiredExtensions();
 
 	// Callback function to allow messages from validation layers to be received
-	VkResult CreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,
+	VkResult createDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,
 		const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger);
-	void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger,
+	void destroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger,
 		const VkAllocationCallbacks* pAllocator);
 
 	static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
@@ -36,6 +36,6 @@ private:
 
 
 	// Variables
-	VkInstance instance;
-	VkDebugUtilsMessengerEXT debugMessenger;
+	VkInstance m_instance;
+	VkDebugUtilsMessengerEXT m_debugMessenger;
 };

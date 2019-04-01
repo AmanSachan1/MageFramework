@@ -1,52 +1,42 @@
 #include "vulkanPresentation.h"
 
 VulkanPresentation::VulkanPresentation(VulkanDevices* _devices, VkSurfaceKHR& _vkSurface, uint32_t  width, uint32_t height)
-	: vulkanDevices(_devices), vkSurface(_vkSurface)
+	: m_vulkanDevices(_devices), m_surface(_vkSurface)
 {
-	Create(width, height);
-
-	VkSemaphoreCreateInfo semaphoreInfo = {};
-	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-	if (vkCreateSemaphore(vulkanDevices->GetLogicalDevice(), &semaphoreInfo, nullptr, &imageAvailableSemaphore) != VK_SUCCESS ||
-		vkCreateSemaphore(vulkanDevices->GetLogicalDevice(), &semaphoreInfo, nullptr, &renderFinishedSemaphore) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create semaphores");
-	}
+	create(width, height);
+	createSemaphores();
 }
 
 VulkanPresentation::~VulkanPresentation()
 {
-	vkDestroySemaphore(vulkanDevices->GetLogicalDevice(), imageAvailableSemaphore, nullptr);
-	vkDestroySemaphore(vulkanDevices->GetLogicalDevice(), renderFinishedSemaphore, nullptr);
+	vkDestroySemaphore(m_vulkanDevices->getLogicalDevice(), m_imageAvailableSemaphore, nullptr);
+	vkDestroySemaphore(m_vulkanDevices->getLogicalDevice(), m_renderFinishedSemaphore, nullptr);
 
-	for (auto imageView : vkSwapChainImageViews) 
+	for (auto imageView : m_swapChainImageViews)
 	{
-		vkDestroyImageView(vulkanDevices->GetLogicalDevice(), imageView, nullptr);
+		vkDestroyImageView(m_vulkanDevices->getLogicalDevice(), imageView, nullptr);
 	}
-	vkDestroySwapchainKHR(vulkanDevices->GetLogicalDevice(), vkSwapChain, nullptr);
+	vkDestroySwapchainKHR(m_vulkanDevices->getLogicalDevice(), m_swapChain, nullptr);
 }
 
-void VulkanPresentation::Create(uint32_t  width, uint32_t height)
+void VulkanPresentation::create(uint32_t  width, uint32_t height)
 {
 	VkExtent2D extent = { static_cast<uint32_t>(width), static_cast<uint32_t>(height) };
 	createSwapChain(extent);
 	createImageViews();
 }
 
-void VulkanPresentation::Recreate(uint32_t  width, uint32_t height)
+void VulkanPresentation::recreate(uint32_t  width, uint32_t height)
 {
-	vkDestroySwapchainKHR(vulkanDevices->GetLogicalDevice(), vkSwapChain, nullptr);
-	Create(width, height);
+	vkDestroySwapchainKHR(m_vulkanDevices->getLogicalDevice(), m_swapChain, nullptr);
+	create(width, height);
 }
-
-
 
 void VulkanPresentation::createSwapChain(VkExtent2D extent)
 {
-	const auto& surfaceCapabilities = vulkanDevices->surfaceCapabilities;
-	VkSurfaceFormatKHR surfaceFormat = SwapChainUtils::chooseSwapSurfaceFormat(vulkanDevices->surfaceFormats);
-	VkPresentModeKHR presentMode = SwapChainUtils::chooseSwapPresentMode(vulkanDevices->presentModes);
+	const auto& surfaceCapabilities = m_vulkanDevices->surfaceCapabilities;
+	VkSurfaceFormatKHR surfaceFormat = SwapChainUtils::chooseSwapSurfaceFormat(m_vulkanDevices->surfaceFormats);
+	VkPresentModeKHR presentMode = SwapChainUtils::chooseSwapPresentMode(m_vulkanDevices->presentModes);
 
 	// Can do multiple buffering here!
 	// minImageCount is almost definitely 1 (or it doesnt support presentation)
@@ -59,14 +49,14 @@ void VulkanPresentation::createSwapChain(VkExtent2D extent)
 	}
 
 	VkSwapchainCreateInfoKHR swapChainCreateInfo = VulkanInitializers::basicSwapChainCreateInfo(
-		vkSurface, imageCount, surfaceFormat.format, surfaceFormat.colorSpace,
+		m_surface, imageCount, surfaceFormat.format, surfaceFormat.colorSpace,
 		extent, 1, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
 		surfaceCapabilities.currentTransform,
 		VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
 		presentMode,
 		VK_NULL_HANDLE);
 
-	const auto& queueFamilyIndices = vulkanDevices->GetQueueFamilyIndices();
+	const auto& queueFamilyIndices = m_vulkanDevices->getQueueFamilyIndices();
 	if (queueFamilyIndices[QueueFlags::Graphics] != queueFamilyIndices[QueueFlags::Present])
 	{
 		// Images can be used across multiple queue families without explicit ownership transfers
@@ -86,66 +76,132 @@ void VulkanPresentation::createSwapChain(VkExtent2D extent)
 	// Specify whether we can clip pixels that are obscured by other windows
 	swapChainCreateInfo.clipped = VK_TRUE;
 
-	VulkanInitializers::createSwapChain(vulkanDevices->GetLogicalDevice(), swapChainCreateInfo, vkSwapChain);
+	VulkanInitializers::createSwapChain(m_vulkanDevices->getLogicalDevice(), swapChainCreateInfo, m_swapChain);
 
 	// --- Retrieve swap chain images ---
-	vkGetSwapchainImagesKHR(vulkanDevices->GetLogicalDevice(), vkSwapChain, &imageCount, nullptr);
-	vkSwapChainImages.resize(imageCount);
-	vkGetSwapchainImagesKHR(vulkanDevices->GetLogicalDevice(), vkSwapChain, &imageCount, vkSwapChainImages.data());
+	vkGetSwapchainImagesKHR(m_vulkanDevices->getLogicalDevice(), m_swapChain, &imageCount, nullptr);
+	m_swapChainImages.resize(imageCount);
+	vkGetSwapchainImagesKHR(m_vulkanDevices->getLogicalDevice(), m_swapChain, &imageCount, m_swapChainImages.data());
 
-	vkSwapChainImageFormat = surfaceFormat.format;
-	vkSwapChainExtent = extent;
+	m_swapChainImageFormat = surfaceFormat.format;
+	m_swapChainExtent = extent;
 }
 
 void VulkanPresentation::createImageViews() 
 {
-	vkSwapChainImageViews.resize(vkSwapChainImages.size());
+	m_swapChainImageViews.resize(m_swapChainImages.size());
 
-	for (int i = 0; i < vkSwapChainImages.size(); i++) 
+	for (int i = 0; i < m_swapChainImages.size(); i++)
 	{
 		VkImageViewCreateInfo swapChainImageViewCreateInfo =
-			VulkanInitializers::basicImageViewCreateInfo(vkSwapChainImages[i], VK_IMAGE_VIEW_TYPE_2D, vkSwapChainImageFormat);
+			VulkanInitializers::basicImageViewCreateInfo(m_swapChainImages[i], VK_IMAGE_VIEW_TYPE_2D, m_swapChainImageFormat);
 
-		VulkanInitializers::createImageView(vulkanDevices->GetLogicalDevice(), &vkSwapChainImageViews[i], &swapChainImageViewCreateInfo, nullptr);
+		VulkanInitializers::createImageView(m_vulkanDevices->getLogicalDevice(), &m_swapChainImageViews[i], &swapChainImageViewCreateInfo, nullptr);
 	}
 }
 
+void VulkanPresentation::createSemaphores()
+{
+	// There are two ways of synchronizing swap chain events: fences and semaphores. 
+	// The difference is that the state of fences can be accessed from your program using calls like vkWaitForFences and semaphores cannot be. 
+	// Fences are mainly designed to synchronize your application itself with rendering operation
+	// Semaphores are used to synchronize operations within or across command queues. 
+
+	// Can synchronize between queues by using certain supported features
+	// VkEvent: Versatile waiting, but limited to a single queue
+	// VkSemaphore: GPU to GPU synchronization
+	// vkFence: GPU to CPU synchronization
+
+
+	// A render loop will perform the following operations:
+	// - Acquire an image from the swap chain
+	// - Execute the command buffer with that image as attachment in the framebuffer
+	// - Return the image to the swap chain for presentation
+
+	// Each of these operations are executed asynchronously. 
+	// The function calls associated with the operations return before the operations actually finish executing.
+	// The order of their execution is also undefined but each of the operations depends on the previous one finishing.
+	// We want to synchronize the queue operations of draw commands and presentation, which makes semaphores the best fit.
+
+	
+	// Create Semaphores
+	VkSemaphoreCreateInfo semaphoreInfo = {};
+	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+	if (vkCreateSemaphore(m_vulkanDevices->getLogicalDevice(), &semaphoreInfo, nullptr, &m_imageAvailableSemaphore) != VK_SUCCESS ||
+		vkCreateSemaphore(m_vulkanDevices->getLogicalDevice(), &semaphoreInfo, nullptr, &m_renderFinishedSemaphore) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create semaphores");
+	}
+}
+
+void VulkanPresentation::acquireNextSwapChainImage(VkDevice& logicalDevice)
+{
+	// It is possible to use a semaphore, fence, or both as the synchronization objects that are to be signaled 
+	// when the presentation engine is finished using the image
+	vkAcquireNextImageKHR(logicalDevice, m_swapChain, std::numeric_limits<uint64_t>::max(),
+		m_imageAvailableSemaphore, VK_NULL_HANDLE, &m_imageIndex);
+}
+void VulkanPresentation::presentImageToSwapChain(VkDevice& logicalDevice)
+{
+	VkSemaphore signalSemaphores[] = { m_renderFinishedSemaphore };
+
+	VkPresentInfoKHR presentInfo = {};
+	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+	presentInfo.waitSemaphoreCount = 1;
+	presentInfo.pWaitSemaphores = signalSemaphores;
+	presentInfo.swapchainCount = 1;
+	presentInfo.pSwapchains = &m_swapChain;
+	presentInfo.pImageIndices = &m_imageIndex;
+	presentInfo.pResults = nullptr; // Optional
+
+	VkResult result = vkQueuePresentKHR(m_vulkanDevices->getQueue(QueueFlags::Present), &presentInfo);
+
+	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) 
+	{
+		//Recreate(vkSwapChainExtent.width, vkSwapChainExtent.height);
+	}
+	else if (result != VK_SUCCESS) 
+	{
+		throw std::runtime_error("Failed to present swap chain image");
+	}
+}
 //----------
 //Getters
 //----------
-VkSwapchainKHR VulkanPresentation::GetVulkanSwapChain() const
+VkSwapchainKHR VulkanPresentation::getVulkanSwapChain() const
 {
-	return vkSwapChain;
+	return m_swapChain;
 }
-VkImage VulkanPresentation::GetVkImage(uint32_t index) const
+VkImage VulkanPresentation::getVkImage(uint32_t index) const
 {
-	return vkSwapChainImages[index];
+	return m_swapChainImages[index];
 }
-VkImageView VulkanPresentation::GetVkImageView(uint32_t index) const
+VkImageView VulkanPresentation::getVkImageView(uint32_t index) const
 {
-	return vkSwapChainImageViews[index];
+	return m_swapChainImageViews[index];
 }
-VkFormat VulkanPresentation::GetVkImageFormat() const
+VkFormat VulkanPresentation::getVkImageFormat() const
 {
-	return vkSwapChainImageFormat;
+	return m_swapChainImageFormat;
 }
-VkExtent2D VulkanPresentation::GetVkExtent() const
+VkExtent2D VulkanPresentation::getVkExtent() const
 {
-	return vkSwapChainExtent;
+	return m_swapChainExtent;
 }
-uint32_t VulkanPresentation::GetCount() const
+uint32_t VulkanPresentation::getCount() const
 {
-	return static_cast<uint32_t>(vkSwapChainImages.size());
+	return static_cast<uint32_t>(m_swapChainImages.size());
 }
-uint32_t VulkanPresentation::GetIndex() const
+uint32_t VulkanPresentation::getIndex() const
 {
-	return imageIndex;
+	return m_imageIndex;
 }
-VkSemaphore VulkanPresentation::GetImageAvailableVkSemaphore() const
+VkSemaphore VulkanPresentation::getImageAvailableVkSemaphore() const
 {
-	return imageAvailableSemaphore;
+	return m_imageAvailableSemaphore;
 }
-VkSemaphore VulkanPresentation::GetRenderFinishedVkSemaphore() const
+VkSemaphore VulkanPresentation::getRenderFinishedVkSemaphore() const
 {
-	return renderFinishedSemaphore;
+	return m_renderFinishedSemaphore;
 }

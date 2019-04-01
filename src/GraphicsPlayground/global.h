@@ -35,5 +35,5 @@ enum QueueFlagBit
 };
 
 using QueueFlagBits = std::bitset<sizeof(QueueFlags)>;
-using QueueFamilyIndices = std::array<unsigned int, sizeof(QueueFlags)>;
+using QueueFamilyIndices = std::array<uint32_t, sizeof(QueueFlags)>;
 using Queues = std::array<VkQueue, sizeof(QueueFlags)>;

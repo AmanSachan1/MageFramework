@@ -6,6 +6,8 @@
 
 class VulkanDevices
 {
+	friend class VulkanPresentation;
+
 public:
 	VulkanDevices() = delete;
 	VulkanDevices(VulkanInstance* _instance, std::vector<const char*> deviceExtensions, 
@@ -18,12 +20,12 @@ public:
 	bool isPhysicalDeviceSuitable(VkPhysicalDevice device, std::vector<const char*> deviceExtensions,
 								QueueFlagBits requiredQueues, VkSurfaceKHR vkSurface = VK_NULL_HANDLE);
 
-	VulkanInstance* GetInstance();
-	VkDevice GetLogicalDevice();
-	VkPhysicalDevice GetPhysicalDevice();
-	VkQueue GetQueue(QueueFlags flag);
-	unsigned int GetQueueIndex(QueueFlags flag);
-	QueueFamilyIndices GetQueueFamilyIndices();
+	VulkanInstance* getInstance();
+	VkDevice getLogicalDevice();
+	VkPhysicalDevice getPhysicalDevice();
+	VkQueue getQueue(QueueFlags flag);
+	unsigned int getQueueIndex(QueueFlags flag);
+	QueueFamilyIndices getQueueFamilyIndices();
 
 	//Public member variables
 	VkSurfaceCapabilitiesKHR surfaceCapabilities;
@@ -32,16 +34,16 @@ public:
 	VkPhysicalDeviceMemoryProperties deviceMemoryProperties;
 
 private:
-	VulkanInstance* vulkanInstance;
+	VulkanInstance* m_vulkanInstance;
 
 	// The physical device is the GPU and the logical device interfaces with the physical device.
 	// Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Presentation
-	VkDevice logicalDevice; 
-	VkPhysicalDevice physicalDevice;
+	VkDevice m_logicalDevice;
+	VkPhysicalDevice m_physicalDevice;
 	
 	// Queues are required to submit commands
-	Queues queues;
+	Queues m_queues;
 
-	QueueFamilyIndices queueFamilyIndices;
-	std::vector<const char*> deviceExtensions;
+	QueueFamilyIndices m_queueFamilyIndices;
+	std::vector<const char*> m_deviceExtensions;
 };

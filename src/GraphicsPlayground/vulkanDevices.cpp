@@ -2,7 +2,7 @@
 
 VulkanDevices::VulkanDevices(VulkanInstance* _instance, std::vector<const char*> deviceExtensions,
 	QueueFlagBits& requiredQueues, VkSurfaceKHR& vkSurface)
-	: vulkanInstance(_instance)
+	: m_vulkanInstance(_instance)
 {
 	// Setup Physical Devices --> Find a GPU that supports Vusurfacelkan
 	pickPhysicalDevice(deviceExtensions, requiredQueues, vkSurface);
@@ -12,7 +12,7 @@ VulkanDevices::VulkanDevices(VulkanInstance* _instance, std::vector<const char*>
 
 VulkanDevices::~VulkanDevices()
 {
-	vkDestroyDevice(logicalDevice, nullptr);
+	vkDestroyDevice(m_logicalDevice, nullptr);
 }
 
 void VulkanDevices::createLogicalDevice(QueueFlagBits requiredQueues)
@@ -23,8 +23,8 @@ void VulkanDevices::createLogicalDevice(QueueFlagBits requiredQueues)
 	{
 		if (requiredQueues[i])
 		{
-			queueSupport &= (queueFamilyIndices[i] >= 0);
-			uniqueQueueFamilies.insert(queueFamilyIndices[i]);
+			queueSupport &= (m_queueFamilyIndices[i] >= 0);
+			uniqueQueueFamilies.insert(m_queueFamilyIndices[i]);
 		}
 	}
 
@@ -39,7 +39,7 @@ void VulkanDevices::createLogicalDevice(QueueFlagBits requiredQueues)
 
 	for (int queueFamily : uniqueQueueFamilies)
 	{
-		VkDeviceQueueCreateInfo deviceQueueCreateInfo = VulkanInitializers::deviceQueueCreateInfo( 
+		VkDeviceQueueCreateInfo deviceQueueCreateInfo = VulkanDevicesUtil::deviceQueueCreateInfo(
 			VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO, queueFamily, 1, &queuePriority);
 
 		deviceQueueCreateInfos.push_back(deviceQueueCreateInfo);
@@ -53,32 +53,32 @@ void VulkanDevices::createLogicalDevice(QueueFlagBits requiredQueues)
 	VkDeviceCreateInfo logicalDeviceCreateInfo;
 	if (ENABLE_VALIDATION)
 	{
-		logicalDeviceCreateInfo = VulkanInitializers::logicalDeviceCreateInfo(
+		logicalDeviceCreateInfo = VulkanDevicesUtil::logicalDeviceCreateInfo(
 			VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO, 
 			static_cast<uint32_t>(deviceQueueCreateInfos.size()),
 			deviceQueueCreateInfos.data(), 
 			&deviceFeatures,
-			static_cast<uint32_t>(deviceExtensions.size()), deviceExtensions.data(),
+			static_cast<uint32_t>(m_deviceExtensions.size()), m_deviceExtensions.data(),
 			static_cast<uint32_t>(validationLayers.size()), validationLayers.data());
 	}
 	else
 	{
-		logicalDeviceCreateInfo = VulkanInitializers::logicalDeviceCreateInfo(
+		logicalDeviceCreateInfo = VulkanDevicesUtil::logicalDeviceCreateInfo(
 			VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO, 
 			static_cast<uint32_t>(deviceQueueCreateInfos.size()),
 			deviceQueueCreateInfos.data(), 
 			&deviceFeatures,
-			static_cast<uint32_t>(deviceExtensions.size()), deviceExtensions.data(),
+			static_cast<uint32_t>(m_deviceExtensions.size()), m_deviceExtensions.data(),
 			0, nullptr);
 	}
-	VulkanInitializers::createLogicalDevice( physicalDevice, logicalDevice, logicalDeviceCreateInfo);
+	VulkanDevicesUtil::createLogicalDevice(m_physicalDevice, m_logicalDevice, logicalDeviceCreateInfo);
 
 	//Get required queues
 	for (unsigned int i = 0; i < requiredQueues.size(); ++i)
 	{
 		if (requiredQueues[i])
 		{
-			vkGetDeviceQueue(logicalDevice, queueFamilyIndices[i], 0, &queues[i]);
+			vkGetDeviceQueue(m_logicalDevice, m_queueFamilyIndices[i], 0, &m_queues[i]);
 		}
 	}
 }
@@ -86,7 +86,7 @@ void VulkanDevices::createLogicalDevice(QueueFlagBits requiredQueues)
 void VulkanDevices::pickPhysicalDevice(std::vector<const char*> deviceExtensions, QueueFlagBits& requiredQueues, VkSurfaceKHR& surface)
 {
 	uint32_t physicalDeviceCount = 0;
-	vkEnumeratePhysicalDevices(vulkanInstance->GetVkInstance(), &physicalDeviceCount, nullptr);
+	vkEnumeratePhysicalDevices(m_vulkanInstance->getVkInstance(), &physicalDeviceCount, nullptr);
 
 	if (physicalDeviceCount == 0)
 	{
@@ -95,26 +95,26 @@ void VulkanDevices::pickPhysicalDevice(std::vector<const char*> deviceExtensions
 
 	// Iterate through all physical devices,i.e. gpu's that were found
 	std::vector<VkPhysicalDevice> physicalDevices(physicalDeviceCount);
-	vkEnumeratePhysicalDevices(vulkanInstance->GetVkInstance(), &physicalDeviceCount, physicalDevices.data());
+	vkEnumeratePhysicalDevices(m_vulkanInstance->getVkInstance(), &physicalDeviceCount, physicalDevices.data());
 
-	physicalDevice = VK_NULL_HANDLE;
+	m_physicalDevice = VK_NULL_HANDLE;
 	for (const auto& device : physicalDevices)
 	{
 		if (isPhysicalDeviceSuitable(device, deviceExtensions, requiredQueues, surface))
 		{
-			physicalDevice = device;
+			m_physicalDevice = device;
 			break;
 		}
 	}
 
-	this->deviceExtensions = deviceExtensions;
+	this->m_deviceExtensions = deviceExtensions;
 
-	if (physicalDevice == VK_NULL_HANDLE)
+	if (m_physicalDevice == VK_NULL_HANDLE)
 	{
 		throw std::runtime_error("failed to find a suitable GPU!");
 	}
 
-	vkGetPhysicalDeviceMemoryProperties(physicalDevice, &deviceMemoryProperties);
+	vkGetPhysicalDeviceMemoryProperties(m_physicalDevice, &deviceMemoryProperties);
 }
 
 // --------
@@ -136,12 +136,12 @@ bool VulkanDevices::isPhysicalDeviceSuitable(VkPhysicalDevice pDevice, std::vect
 										deviceFeatures.tessellationShader);
 	
 	bool queueSupport = true;
-	queueFamilyIndices = DeviceUtils::checkDeviceQueueSupport(pDevice, requiredQueues, vkSurface);
+	m_queueFamilyIndices = DeviceUtils::checkDeviceQueueSupport(pDevice, requiredQueues, vkSurface);
 	for (unsigned int i = 0; i < requiredQueues.size(); i++)
 	{
 		if (requiredQueues[i])
 		{
-			queueSupport &= (queueFamilyIndices[i] >= 0);
+			queueSupport &= (m_queueFamilyIndices[i] >= 0);
 		}
 	}
 
@@ -188,32 +188,27 @@ bool VulkanDevices::isPhysicalDeviceSuitable(VkPhysicalDevice pDevice, std::vect
 // Getters
 // --------
 
-VulkanInstance* VulkanDevices::GetInstance()
+VulkanInstance* VulkanDevices::getInstance()
 {
-	return vulkanInstance;
+	return m_vulkanInstance;
 }
-
-VkDevice VulkanDevices::GetLogicalDevice()
+VkDevice VulkanDevices::getLogicalDevice()
 {
-	return logicalDevice;
+	return m_logicalDevice;
 }
-
-VkPhysicalDevice VulkanDevices::GetPhysicalDevice()
+VkPhysicalDevice VulkanDevices::getPhysicalDevice()
 {
-	return physicalDevice;
+	return m_physicalDevice;
 }
-
-VkQueue VulkanDevices::GetQueue(QueueFlags flag)
+VkQueue VulkanDevices::getQueue(QueueFlags flag)
 {
-	return queues[flag];
+	return m_queues[flag];
 }
-
-unsigned int VulkanDevices::GetQueueIndex(QueueFlags flag)
+unsigned int VulkanDevices::getQueueIndex(QueueFlags flag)
 {
-	return queueFamilyIndices[flag];
+	return m_queueFamilyIndices[flag];
 }
-
-QueueFamilyIndices VulkanDevices::GetQueueFamilyIndices()
+QueueFamilyIndices VulkanDevices::getQueueFamilyIndices()
 {
-	return queueFamilyIndices;
+	return m_queueFamilyIndices;
 }

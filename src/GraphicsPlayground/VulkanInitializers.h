@@ -1,61 +1,18 @@
 #pragma once
-#include <global.h>
+#include <vector>
+#include <vulkan/vulkan.h>
 
 namespace VulkanInitializers
 {
-	//--------------------------------------------------------
-	//				Logical Device Creation
-	//--------------------------------------------------------
-
-	inline VkDeviceQueueCreateInfo deviceQueueCreateInfo(VkStructureType sType, uint32_t queueFamilyIndex, uint32_t queueCount, float* pQueuePriorities)
-	{
-		VkDeviceQueueCreateInfo deviceQueueCreateInfo{};
-		deviceQueueCreateInfo.sType = sType;
-		deviceQueueCreateInfo.queueFamilyIndex = queueFamilyIndex;
-		deviceQueueCreateInfo.queueCount = queueCount;
-		deviceQueueCreateInfo.pQueuePriorities = pQueuePriorities;
-
-		return deviceQueueCreateInfo;
-	}
-
-	inline VkDeviceCreateInfo logicalDeviceCreateInfo(VkStructureType sType, uint32_t queueCreateInfoCount,
-		VkDeviceQueueCreateInfo* queueCreateInfos, VkPhysicalDeviceFeatures* deviceFeatures,
-		uint32_t deviceExtensionCount, const char** deviceExtensionNames,
-		uint32_t validationLayerCount, const char* const* validationLayerNames)
-	{
-		// --- Create logical device ---
-		VkDeviceCreateInfo logicalDeviceCreateInfo = {};
-		logicalDeviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-		logicalDeviceCreateInfo.queueCreateInfoCount = queueCreateInfoCount;
-		logicalDeviceCreateInfo.pQueueCreateInfos = queueCreateInfos;
-		logicalDeviceCreateInfo.pEnabledFeatures = deviceFeatures;
-
-		// Enable device-specific extensions and validation layers
-		logicalDeviceCreateInfo.enabledExtensionCount = deviceExtensionCount;
-		logicalDeviceCreateInfo.ppEnabledExtensionNames = deviceExtensionNames;
-		logicalDeviceCreateInfo.enabledLayerCount = validationLayerCount;
-		logicalDeviceCreateInfo.ppEnabledLayerNames = validationLayerNames;
-
-		return logicalDeviceCreateInfo;
-	}
-
-	inline void createLogicalDevice(VkPhysicalDevice &physicalDevice, VkDevice& logicalDevice, VkDeviceCreateInfo& logicalDeviceCreateInfo)
-	{
-		if (vkCreateDevice(physicalDevice, &logicalDeviceCreateInfo, nullptr, &logicalDevice) != VK_SUCCESS)
-		{
-			throw std::runtime_error("Failed to create logical device");
-		}
-	}
-
 	//--------------------------------------------------------
 	//					  Swap Chain
 	//--------------------------------------------------------
 
 	inline VkSwapchainCreateInfoKHR basicSwapChainCreateInfo(VkSurfaceKHR vkSurface,
-				uint32_t minImageCount, VkFormat imageFormat, VkColorSpaceKHR imageColorSpace,
-				VkExtent2D imageExtent,	uint32_t imageArrayLayers,VkImageUsageFlags imageUsage,
-				VkSurfaceTransformFlagBitsKHR preTransform,	VkCompositeAlphaFlagBitsKHR compositeAlpha,
-				VkPresentModeKHR presentMode, VkSwapchainKHR oldSwapchain)
+		uint32_t minImageCount, VkFormat imageFormat, VkColorSpaceKHR imageColorSpace,
+		VkExtent2D imageExtent, uint32_t imageArrayLayers, VkImageUsageFlags imageUsage,
+		VkSurfaceTransformFlagBitsKHR preTransform, VkCompositeAlphaFlagBitsKHR compositeAlpha,
+		VkPresentModeKHR presentMode, VkSwapchainKHR oldSwapchain)
 	{
 		// --- Create logical device ---
 		VkSwapchainCreateInfoKHR swapchainCreateInfo = {};
@@ -123,42 +80,10 @@ namespace VulkanInitializers
 	}
 
 	//--------------------------------------------------------
-	//			PipeLine Layouts and Pipeline Cache
-	// Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Graphics_pipeline_basics/Fixed_functions
-	//--------------------------------------------------------
-
-	inline VkPipelineLayout CreatePipelineLayout(VkDevice& logicalDevice, std::vector<VkDescriptorSetLayout> descriptorSetLayouts)
-	{
-		VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
-		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-		pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
-		pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
-		pipelineLayoutInfo.pushConstantRangeCount = 0;
-		pipelineLayoutInfo.pPushConstantRanges = 0;
-
-		VkPipelineLayout pipelineLayout;
-		if (vkCreatePipelineLayout(logicalDevice, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
-		{
-			throw std::runtime_error("Failed to create pipeline layout");
-		}
-
-		return pipelineLayout;
-	}
-
-	inline void createPipelineCache(VkDevice& logicalDevice, VkPipelineCache &pipelineCache)
-	{
-		VkPipelineCacheCreateInfo pipelineCacheCreateInfo = {};
-		pipelineCacheCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
-		if (vkCreatePipelineCache(logicalDevice, &pipelineCacheCreateInfo, nullptr, &pipelineCache) != VK_SUCCESS) {
-			throw std::runtime_error("Failed to create pipeline cache");
-		}
-	}
-
-	//--------------------------------------------------------
 	//			Descriptor Sets and Descriptor Layouts
 	// Reference: https://vulkan-tutorial.com/Uniform_buffers
 	//--------------------------------------------------------
-	
+
 	inline void CreateDescriptorPool(VkDevice& logicalDevice, uint32_t poolSizeCount, VkDescriptorPoolSize* data, VkDescriptorPool& descriptorPool)
 	{
 		VkDescriptorPoolCreateInfo descriptorPoolInfo = {};
@@ -198,28 +123,60 @@ namespace VulkanInitializers
 		vkAllocateDescriptorSets(logicalDevice, &allocInfo, &descriptorSet);
 		return descriptorSet;
 	}
+};
 
-	//--------------------------------------------------------
-	//					CommandPools
-	//--------------------------------------------------------
-	inline void CreateCommandPool(VkDevice& logicalDevice, VkCommandPool& cmdPool, uint32_t queueFamilyIndex)
+//--------------------------------------------------------
+//			Logical Device, Physical Device, Queues
+//--------------------------------------------------------
+
+namespace VulkanDevicesUtil
+{
+	inline VkDeviceQueueCreateInfo deviceQueueCreateInfo(VkStructureType sType, uint32_t queueFamilyIndex, uint32_t queueCount, float* pQueuePriorities)
 	{
-		VkCommandPoolCreateInfo cmdPoolInfo = {};
-		cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-		cmdPoolInfo.queueFamilyIndex = queueFamilyIndex;
-		cmdPoolInfo.flags = 0;
+		VkDeviceQueueCreateInfo deviceQueueCreateInfo{};
+		deviceQueueCreateInfo.sType = sType;
+		deviceQueueCreateInfo.queueFamilyIndex = queueFamilyIndex;
+		deviceQueueCreateInfo.queueCount = queueCount;
+		deviceQueueCreateInfo.pQueuePriorities = pQueuePriorities;
 
-		if (vkCreateCommandPool(logicalDevice, &cmdPoolInfo, nullptr, &cmdPool) != VK_SUCCESS) {
-			throw std::runtime_error("Failed to create command pool");
+		return deviceQueueCreateInfo;
+	}
+
+	inline VkDeviceCreateInfo logicalDeviceCreateInfo(VkStructureType sType, uint32_t queueCreateInfoCount,
+		VkDeviceQueueCreateInfo* queueCreateInfos, VkPhysicalDeviceFeatures* deviceFeatures,
+		uint32_t deviceExtensionCount, const char** deviceExtensionNames,
+		uint32_t validationLayerCount, const char* const* validationLayerNames)
+	{
+		// --- Create logical device ---
+		VkDeviceCreateInfo logicalDeviceCreateInfo = {};
+		logicalDeviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+		logicalDeviceCreateInfo.queueCreateInfoCount = queueCreateInfoCount;
+		logicalDeviceCreateInfo.pQueueCreateInfos = queueCreateInfos;
+		logicalDeviceCreateInfo.pEnabledFeatures = deviceFeatures;
+
+		// Enable device-specific extensions and validation layers
+		logicalDeviceCreateInfo.enabledExtensionCount = deviceExtensionCount;
+		logicalDeviceCreateInfo.ppEnabledExtensionNames = deviceExtensionNames;
+		logicalDeviceCreateInfo.enabledLayerCount = validationLayerCount;
+		logicalDeviceCreateInfo.ppEnabledLayerNames = validationLayerNames;
+
+		return logicalDeviceCreateInfo;
+	}
+
+	inline void createLogicalDevice(VkPhysicalDevice &physicalDevice, VkDevice& logicalDevice, VkDeviceCreateInfo& logicalDeviceCreateInfo)
+	{
+		if (vkCreateDevice(physicalDevice, &logicalDeviceCreateInfo, nullptr, &logicalDevice) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to create logical device");
 		}
 	}
-};
+}
 
 //--------------------------------------------------------
 //			Miscellaneous Vulkan Structures
 //--------------------------------------------------------
 
-namespace VulkanStructures
+namespace VulkanUtil
 {
 	inline VkViewport createViewport(float x, float y, float width, float height, float minDepth, float maxDepth)
 	{
@@ -230,7 +187,132 @@ namespace VulkanStructures
 	{
 		return { offset, extent };
 	}
+
+	inline void submitToGraphicsQueue( VkQueue graphicsQueue,
+		uint32_t waitSemaphoreCount, const VkSemaphore* pWaitSemaphores, 
+		const VkPipelineStageFlags* pWaitDstStageMask,
+		uint32_t commandBufferCount, const VkCommandBuffer* pCommandBuffers,
+		uint32_t signalSemaphoreCount, const VkSemaphore* pSignalSemaphores)
+	{
+		VkSubmitInfo submitInfo = {};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+		// These parameters specify which semaphores to wait on before execution begins and in which stage(s) of the pipeline to wait
+		// Each entry in the waitStages array corresponds to the semaphore with the same index in pWaitSemaphores
+		submitInfo.waitSemaphoreCount = waitSemaphoreCount;
+		submitInfo.pWaitSemaphores = pWaitSemaphores;
+		submitInfo.pWaitDstStageMask = pWaitDstStageMask;
+
+		submitInfo.commandBufferCount = commandBufferCount;
+		submitInfo.pCommandBuffers = pCommandBuffers;
+		submitInfo.signalSemaphoreCount = signalSemaphoreCount;
+		submitInfo.pSignalSemaphores = pSignalSemaphores;
+
+		if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) 
+		{
+			throw std::runtime_error("failed to submit graphics command buffer to graphics queue!");
+		}
+	}
 };
+
+//--------------------------------------------------------
+//			Command Pools and Buffers
+//--------------------------------------------------------
+
+namespace VulkanCommandUtil
+{
+	inline void beginRenderPass(VkCommandBuffer& cmdBuffer, VkRenderPass renderPass, VkFramebuffer framebuffer,	VkRect2D renderArea, const VkClearValue* clearValue, uint32_t clearValueCount)
+	{
+		VkRenderPassBeginInfo renderPassInfo = {};
+		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		renderPassInfo.renderPass = renderPass;
+		renderPassInfo.framebuffer = framebuffer;
+		// The render area defines where shader loads and stores will take place. The pixels outside this region will have undefined values. 
+		// It should match the size of the attachments for best performance.
+		renderPassInfo.renderArea = renderArea;
+		renderPassInfo.clearValueCount = clearValueCount;
+		renderPassInfo.pClearValues = clearValue;
+
+		// he final parameter of the vkCmdBeginRenderPass command controls how the drawing commands within the render pass will be provided.
+		// It can have one of two values:
+		// - VK_SUBPASS_CONTENTS_INLINE: The render pass commands will be embedded in the primary command buffer itself 
+		//								and no secondary command buffers will be executed.
+		// - VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS : The render pass commands will be executed from secondary command buffers.
+		vkCmdBeginRenderPass(cmdBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+	}
+
+	inline void beginCommandBuffer(VkCommandBuffer& cmdBuffer)
+	{
+		// Begin recording a command buffer by calling vkBeginCommandBuffer
+		
+		// The flags parameter specifies how we're going to use the command buffer. The following values are available:
+		// - VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT: The command buffer will be rerecorded right after executing it once.
+		// - VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT : This is a secondary command buffer that will be entirely within a single render pass.
+		// - VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT : The command buffer can be resubmitted while it is also already pending execution.
+
+		// We use VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT because we may already be scheduling the drawing commands for the next frame 
+		// while the last frame is not finished yet.
+		
+		// The pInheritanceInfo parameter is only relevant for secondary command buffers. 
+		// It specifies which state to inherit from the calling primary command buffers.
+		
+		// If the command buffer was already recorded once, then a call to vkBeginCommandBuffer will implicitly reset it. 
+		// It's not possible to append commands to a buffer at a later time.
+
+		VkCommandBufferBeginInfo beginInfo = {};
+		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+		beginInfo.pInheritanceInfo = nullptr; // Optional
+
+		if (vkBeginCommandBuffer(cmdBuffer, &beginInfo) != VK_SUCCESS) {
+
+			throw std::runtime_error("failed to begin recording command buffer!");
+		}
+	}
+
+	inline void endCommandBuffer(VkCommandBuffer& cmdBuffer)
+	{
+		if (vkEndCommandBuffer(cmdBuffer) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to record the compute command buffer");
+		}
+	}
+
+	inline void createCommandPool(VkDevice& logicalDevice, VkCommandPool& cmdPool, uint32_t queueFamilyIndex)
+	{
+		// Command pools manage the memory that is used to store the buffers and command buffers are allocated from them.
+
+		VkCommandPoolCreateInfo cmdPoolCreateInfo = {};
+		cmdPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+		cmdPoolCreateInfo.queueFamilyIndex = queueFamilyIndex;
+		cmdPoolCreateInfo.flags = 0; // Optional
+
+		if (vkCreateCommandPool(logicalDevice, &cmdPoolCreateInfo, nullptr, &cmdPool) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to create command pool");
+		}
+	}
+
+	inline void allocateCommandBuffers(VkDevice& logicalDevice, VkCommandPool& cmdPool, std::vector<VkCommandBuffer> &cmdBuffers)
+	{
+		// Specify the command pool and number of buffers to allocate
+		
+		// The level parameter specifies if the allocated command buffers are primary or secondary command buffers.
+		// VK_COMMAND_BUFFER_LEVEL_PRIMARY: Can be submitted to a queue for execution, but cannot be called from other command buffers.
+		// VK_COMMAND_BUFFER_LEVEL_SECONDARY : Cannot be submitted directly, but can be called from primary command buffers.
+		
+		VkCommandBufferAllocateInfo allocInfo = {};
+		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		allocInfo.commandPool = cmdPool;
+		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		allocInfo.commandBufferCount = (uint32_t)cmdBuffers.size();
+
+		if (vkAllocateCommandBuffers(logicalDevice, &allocInfo, cmdBuffers.data()) != VK_SUCCESS) 
+		{
+			throw std::runtime_error("failed to allocate command buffers!");
+		}
+	}
+}
 
 //--------------------------------------------------------
 //			Render Pass Structures and Creation
@@ -264,6 +346,34 @@ namespace RenderPassUtility
 		l_subpassDescription.pPreserveAttachments = pPreserveAttachments;
 
 		return l_subpassDescription;
+	}
+	
+	inline VkSubpassDependency subpassDependency(
+		uint32_t srcSubpass, uint32_t dstSubpass,
+		VkPipelineStageFlags srcStageMask, VkAccessFlags srcAccessMask, 
+		VkPipelineStageFlags dstStageMask, VkAccessFlags dstAccessMask)
+	{
+		// Subpasses in a render pass automatically take care of image layout transitions.
+		// These transitions are controlled by subpass dependencies, which specify memory and execution dependencies between subpasses.
+		VkSubpassDependency  l_subpassDependency = {};
+
+		// Specify the indices of the dependency and the dependent subpass
+		// VK_SUBPASS_EXTERNAL refers to the implicit subpass before or after the render pass depending on whether 
+		// it is specified in srcSubpass or dstSubpass.
+		// dstSubpass must always be higher than srcSubpass to prevent cycles in the dependency graph.
+		l_subpassDependency.srcSubpass = srcSubpass;
+		l_subpassDependency.dstSubpass = dstSubpass;
+
+		// Specify the operations to wait on and the stages in which these operations occur.
+		l_subpassDependency.srcStageMask = srcStageMask;
+		l_subpassDependency.srcAccessMask = srcAccessMask;
+
+		// Specify the operations that wait for the subpass to execute
+		// These settings will prevent the transition from happening until it's actually necessary (and allowed)
+		l_subpassDependency.dstStageMask = dstStageMask;
+		l_subpassDependency.dstAccessMask = dstAccessMask;
+
+		return l_subpassDependency;
 	}
 
 	inline void createRenderPass(VkDevice& logicalDevice, VkRenderPass& renderPass,
@@ -517,6 +627,16 @@ namespace VulkanPipelineCreation
 
 		return pipelineLayout;
 	}
+	
+	inline void createPipelineCache(VkDevice& logicalDevice, VkPipelineCache &pipelineCache)
+	{
+		VkPipelineCacheCreateInfo pipelineCacheCreateInfo = {};
+		pipelineCacheCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+		if (vkCreatePipelineCache(logicalDevice, &pipelineCacheCreateInfo, nullptr, &pipelineCache) != VK_SUCCESS) 
+		{
+			throw std::runtime_error("Failed to create pipeline cache");
+		}
+	}
 
 	inline bool createGraphicsPipelines(
 		VkDevice& logicalDevice, VkPipelineCache pipelineCache, 
@@ -530,6 +650,10 @@ namespace VulkanPipelineCreation
 		return true;
 	}
 };
+
+//--------------------------------------------------------
+//			Image Stuff
+//--------------------------------------------------------
 
 namespace VulkanImageStructures
 {

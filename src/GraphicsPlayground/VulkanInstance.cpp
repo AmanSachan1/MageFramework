@@ -44,12 +44,13 @@ VulkanInstance::VulkanInstance(const char* applicationName, unsigned int additio
 		createInfo.enabledLayerCount = 0;
 	}
 
-	if (ENABLE_VALIDATION && !checkValidationLayerSupport()) {
+	if (ENABLE_VALIDATION && !checkValidationLayerSupport()) 
+	{
 		throw std::runtime_error("validation layers requested, but not available!");
 	}
 
     // Create instance
-    if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS) 
+    if (vkCreateInstance(&createInfo, nullptr, &m_instance) != VK_SUCCESS)
 	{
         throw std::runtime_error("Failed to create instance");
     }
@@ -61,15 +62,15 @@ VulkanInstance::~VulkanInstance()
 {
     if (ENABLE_VALIDATION) 
 	{
-		DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
+		destroyDebugUtilsMessengerEXT(m_instance, m_debugMessenger, nullptr);
     }
 
-    vkDestroyInstance(instance, nullptr);
+    vkDestroyInstance(m_instance, nullptr);
 }
 
-VkInstance VulkanInstance::GetVkInstance()
+VkInstance VulkanInstance::getVkInstance()
 {
-	return instance;
+	return m_instance;
 }
 
 /// Debug Functions
@@ -84,7 +85,7 @@ void VulkanInstance::initDebugReport()
 		createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
 		createInfo.pfnUserCallback = debugCallback;
 
-		if (CreateDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS) {
+		if (createDebugUtilsMessengerEXT(m_instance, &createInfo, nullptr, &m_debugMessenger) != VK_SUCCESS) {
 			throw std::runtime_error("failed to set up debug messenger!");
 		}
 	}
@@ -132,7 +133,7 @@ bool VulkanInstance::checkValidationLayerSupport()
 	return true;
 }
 
-VkResult VulkanInstance::CreateDebugUtilsMessengerEXT(VkInstance instance, 
+VkResult VulkanInstance::createDebugUtilsMessengerEXT(VkInstance instance, 
 	const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, 
 	VkDebugUtilsMessengerEXT* pDebugMessenger)
 {
@@ -147,7 +148,7 @@ VkResult VulkanInstance::CreateDebugUtilsMessengerEXT(VkInstance instance,
 	}
 }
 
-void VulkanInstance::DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, 
+void VulkanInstance::destroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, 
 	const VkAllocationCallbacks* pAllocator)
 {
 	auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");

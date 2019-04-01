@@ -25,22 +25,22 @@ public:
 		   float foV_vertical, float aspectRatio, float nearClip, float farClip);
 	~Camera();
 
-	VkBuffer GetBuffer() const;
-	void UpdateBuffer();
-	void UpdateBuffer(Camera* cam);
-	void CopyToGPUMemory();
+	VkBuffer getBuffer() const;
+	void updateBuffer();
+	void updateBuffer(Camera* cam);
+	void copyToGPUMemory();
 
-	glm::mat4 GetView() const;
-	glm::mat4 GetProj() const;
-	glm::mat4 GetViewProj() const;
-	void RecomputeAttributes();
+	glm::mat4 getView() const;
+	glm::mat4 getProj() const;
+	glm::mat4 getViewProj() const;
+	void recomputeAttributes();
 
-	void RotateAboutUp(float deg);
-	void RotateAboutRight(float deg);
+	void rotateAboutUp(float deg);
+	void rotateAboutRight(float deg);
 
-	void TranslateAlongLook(float amt);
-	void TranslateAlongRight(float amt);
-	void TranslateAlongUp(float amt);
+	void translateAlongLook(float amt);
+	void translateAlongRight(float amt);
+	void translateAlongUp(float amt);
 
 private:
 	//VulkanDevice* device; //member variable because it is needed for the destructor
@@ -51,18 +51,18 @@ private:
 
 	//void* mappedData;
 
-	glm::vec3 eyePos;
-	glm::vec3 ref;      //The point in world space towards which the camera is pointing
+	glm::vec3 m_eyePos;
+	glm::vec3 m_ref;      //The point in world space towards which the camera is pointing
+			  
+	glm::vec3 m_forward;
+	glm::vec3 m_right;
+	glm::vec3 m_up;
+	glm::vec3 m_worldUp;
 
-	glm::vec3 forward;
-	glm::vec3 right;
-	glm::vec3 up;
-	glm::vec3 worldUp;
+	int m_width, m_height;
 
-	int width, height;
-
-	float fovy;
-	float aspect;
-	float near_clip;  // Near clip plane distance
-	float far_clip;  // Far clip plane distance
+	float m_fovy;
+	float m_aspect;
+	float m_near_clip;  // Near clip plane distance
+	float m_far_clip;  // Far clip plane distance
 };

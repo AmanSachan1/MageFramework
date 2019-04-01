@@ -21,8 +21,8 @@ namespace InputUtil
 	{
 		if (width == 0 || height == 0) return;
 
-		vkDeviceWaitIdle(devices->GetLogicalDevice());
-		presentation->Recreate(width, height);
+		vkDeviceWaitIdle(devices->getLogicalDevice());
+		presentation->recreate(width, height);
 		//renderer->RecreateOnResize(width, height);
 	}
 
@@ -39,37 +39,37 @@ namespace InputUtil
 		}
 
 		if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-			camera->TranslateAlongLook(deltaForMovement);
+			camera->translateAlongLook(deltaForMovement);
 		}			
 		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-			camera->TranslateAlongLook(-deltaForMovement);
+			camera->translateAlongLook(-deltaForMovement);
 		}
 
 		if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-			camera->TranslateAlongRight(-deltaForMovement);
+			camera->translateAlongRight(-deltaForMovement);
 		}
 		if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-			camera->TranslateAlongRight(deltaForMovement);
+			camera->translateAlongRight(deltaForMovement);
 		}			
 
 		if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) {
-			camera->TranslateAlongUp(deltaForMovement);
+			camera->translateAlongUp(deltaForMovement);
 		}		
 		if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) {
-			camera->TranslateAlongUp(-deltaForMovement);
+			camera->translateAlongUp(-deltaForMovement);
 		}
 
 		if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
-			camera->RotateAboutRight(deltaForRotation);
+			camera->rotateAboutRight(deltaForRotation);
 		}
 		if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
-			camera->RotateAboutRight(-deltaForRotation);
+			camera->rotateAboutRight(-deltaForRotation);
 		}
 		if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
-			camera->RotateAboutUp(deltaForRotation);
+			camera->rotateAboutUp(deltaForRotation);
 		}
 		if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
-			camera->RotateAboutUp(-deltaForRotation);
+			camera->rotateAboutUp(-deltaForRotation);
 		}
 	}
 
@@ -96,14 +96,14 @@ namespace InputUtil
 			previousX = xPosition;
 			previousY = yPosition;
 
-			camera->RotateAboutUp(deltaX);
-			camera->RotateAboutRight(deltaY);
+			camera->rotateAboutUp(deltaX);
+			camera->rotateAboutRight(deltaY);
 		}
 	}
 
 	void scrollCallback(GLFWwindow*, double, double yoffset)
 	{
-		camera->TranslateAlongLook(static_cast<float>(yoffset) * 0.05f);
+		camera->translateAlongLook(static_cast<float>(yoffset) * 0.05f);
 	}
 }
 
@@ -161,7 +161,7 @@ void GraphicsPlaygroundApplication::initVulkan(const char* applicationName)
 	instance = new VulkanInstance(applicationName, glfwExtensionCount, glfwExtensions);
 	
 	// Create Drawing Surface, i.e. window where things are rendered to
-	if (glfwCreateWindowSurface(instance->GetVkInstance(), window, nullptr, &vkSurface) != VK_SUCCESS)
+	if (glfwCreateWindowSurface(instance->getVkInstance(), window, nullptr, &vkSurface) != VK_SUCCESS)
 	{
 		throw std::runtime_error("failed to create window surface!");
 	}
@@ -182,9 +182,7 @@ void GraphicsPlaygroundApplication::initialize()
 	camera = new Camera(glm::vec3(0.0f, 0.0f, 2.0f), glm::vec3(0.0f, 0.0f, 1.0f),
 		window_width, window_height, 45.0f, float(window_width) / float(window_height), 0.1f, 1000.0f);
 
-	VkDevice logicalDevice = devices->GetLogicalDevice();
-	VkPhysicalDevice physicalDevice = devices->GetPhysicalDevice();
-	renderer = new Renderer(logicalDevice, physicalDevice, presentation, camera, window_width, window_height);
+	renderer = new Renderer(devices, presentation, camera, window_width, window_height);
 
 	glfwSetWindowSizeCallback(window, InputUtil::resizeCallback);
 	glfwSetScrollCallback(window, InputUtil::scrollCallback);
@@ -208,11 +206,11 @@ void GraphicsPlaygroundApplication::mainLoop()
 void GraphicsPlaygroundApplication::cleanup()
 {
 	// Wait for the device to finish executing before cleanup
-	vkDeviceWaitIdle(devices->GetLogicalDevice());
+	vkDeviceWaitIdle(devices->getLogicalDevice());
 	
 	delete renderer;
 	delete presentation;
-	vkDestroySurfaceKHR(instance->GetVkInstance(), vkSurface, nullptr);
+	vkDestroySurfaceKHR(instance->getVkInstance(), vkSurface, nullptr);
 	delete devices;
 	delete instance;
 

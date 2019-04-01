@@ -10,38 +10,39 @@ public:
 	VulkanPresentation(VulkanDevices* _devices, VkSurfaceKHR& vkSurface, uint32_t  width, uint32_t height);
 	~VulkanPresentation();
 
-	void Acquire();
-	void Present();
+	void acquireNextSwapChainImage(VkDevice& logicalDevice);
+	void presentImageToSwapChain(VkDevice& logicalDevice);
 	
-	void Create(uint32_t  width, uint32_t height);
-	void Recreate(uint32_t  width, uint32_t height);
+	void create(uint32_t  width, uint32_t height);
+	void recreate(uint32_t  width, uint32_t height);
 
 	//Creates SwapChain and store a handle to the images that make up the swapchain
 	void createSwapChain(VkExtent2D extent);
 	void createImageViews();
+	void createSemaphores();
 
-	VkSwapchainKHR GetVulkanSwapChain() const;
-	VkImage GetVkImage(uint32_t index) const;
-	VkImageView GetVkImageView(uint32_t index) const;
-	VkFormat GetVkImageFormat() const;
-	VkExtent2D GetVkExtent() const;
-	uint32_t GetCount() const;
-	uint32_t GetIndex() const;
-	VkSemaphore GetImageAvailableVkSemaphore() const;
-	VkSemaphore GetRenderFinishedVkSemaphore() const;
+	VkSwapchainKHR getVulkanSwapChain() const;
+	VkImage getVkImage(uint32_t index) const;
+	VkImageView getVkImageView(uint32_t index) const;
+	VkFormat getVkImageFormat() const;
+	VkExtent2D getVkExtent() const;
+	uint32_t getCount() const;
+	uint32_t getIndex() const;
+	VkSemaphore getImageAvailableVkSemaphore() const;
+	VkSemaphore getRenderFinishedVkSemaphore() const;
 
 public:
-	VulkanDevices* vulkanDevices;
-	VkSurfaceKHR vkSurface;
+	VulkanDevices* m_vulkanDevices;
+	VkSurfaceKHR m_surface;
 
-	VkSwapchainKHR vkSwapChain;
-	std::vector<VkImage> vkSwapChainImages;
-	std::vector<VkImageView> vkSwapChainImageViews;
+	VkSwapchainKHR m_swapChain;
+	std::vector<VkImage> m_swapChainImages;
+	std::vector<VkImageView> m_swapChainImageViews;
 
-	VkFormat vkSwapChainImageFormat;
-	VkExtent2D vkSwapChainExtent;
-	uint32_t imageIndex = 0;
+	VkFormat m_swapChainImageFormat;
+	VkExtent2D m_swapChainExtent;
+	uint32_t m_imageIndex = 0;
 
-	VkSemaphore imageAvailableSemaphore;
-	VkSemaphore renderFinishedSemaphore;
+	VkSemaphore m_imageAvailableSemaphore;
+	VkSemaphore m_renderFinishedSemaphore;
 };
