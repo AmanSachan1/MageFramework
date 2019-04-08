@@ -12,18 +12,14 @@ int window_height = 720;
 int window_width = 1284;
 
 VulkanDevices* devices;
-VulkanPresentation* presentation;
+Renderer* renderer;
 Camera* camera;
 
 namespace InputUtil
 {
 	void resizeCallback(GLFWwindow* window, int width, int height)
 	{
-		if (width == 0 || height == 0) return;
-
-		vkDeviceWaitIdle(devices->getLogicalDevice());
-		presentation->recreate(width, height);
-		//renderer->RecreateOnResize(width, height);
+		renderer->setResizeFlag(true);
 	}
 
 	bool leftMouseDown = false;
@@ -115,7 +111,7 @@ public:
 private:
 	GLFWwindow* window;
 	VulkanInstance* instance;
-	Renderer* renderer;
+	VulkanPresentation* presentation;
 	VkSurfaceKHR vkSurface;
 
 	void initialize();
@@ -170,7 +166,7 @@ void GraphicsPlaygroundApplication::initVulkan(const char* applicationName)
 	QueueFlagBits desiredQueues = QueueFlagBit::GraphicsBit | QueueFlagBit::ComputeBit | QueueFlagBit::TransferBit | QueueFlagBit::PresentBit;
 	devices = new VulkanDevices(instance, { VK_KHR_SWAPCHAIN_EXTENSION_NAME }, desiredQueues, vkSurface);
 
-	presentation = new VulkanPresentation(devices, vkSurface, window_width, window_height);
+	presentation = new VulkanPresentation(devices, vkSurface, window);
 }
 
 void GraphicsPlaygroundApplication::initialize()
@@ -182,9 +178,10 @@ void GraphicsPlaygroundApplication::initialize()
 	camera = new Camera(glm::vec3(0.0f, 0.0f, 2.0f), glm::vec3(0.0f, 0.0f, 1.0f),
 		window_width, window_height, 45.0f, float(window_width) / float(window_height), 0.1f, 1000.0f);
 
-	renderer = new Renderer(devices, presentation, camera, window_width, window_height);
+	renderer = new Renderer(window, devices, presentation, camera, window_width, window_height);
 
 	glfwSetWindowSizeCallback(window, InputUtil::resizeCallback);
+	glfwSetFramebufferSizeCallback(window, InputUtil::resizeCallback);
 	glfwSetScrollCallback(window, InputUtil::scrollCallback);
 	glfwSetMouseButtonCallback(window, InputUtil::mouseDownCallback);
 	glfwSetCursorPosCallback(window, InputUtil::mouseMoveCallback);
@@ -210,8 +207,8 @@ void GraphicsPlaygroundApplication::cleanup()
 	
 	delete renderer;
 	delete presentation;
-	vkDestroySurfaceKHR(instance->getVkInstance(), vkSurface, nullptr);
 	delete devices;
+	vkDestroySurfaceKHR(instance->getVkInstance(), vkSurface, nullptr);
 	delete instance;
 
 	glfwDestroyWindow(window);

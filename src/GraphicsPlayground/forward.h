@@ -11,3 +11,10 @@ struct ModelUBO
 {
 	glm::mat4 modelMatrix;
 };
+
+struct SwapChainSupportDetails 
+{
+	VkSurfaceCapabilitiesKHR surfaceCapabilities;
+	std::vector<VkSurfaceFormatKHR> surfaceFormats;
+	std::vector<VkPresentModeKHR> presentModes;
+};

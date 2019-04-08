@@ -1,25 +1,30 @@
 #pragma once
 #include <global.h>
+#include <forward.h>
 #include <utility.h>
 #include "vulkanInstance.h"
 #include "vulkanDevices.h"
 
+const static unsigned int MAX_FRAMES_IN_FLIGHT = 2;
+
 class VulkanPresentation
 {
 public:
-	VulkanPresentation(VulkanDevices* _devices, VkSurfaceKHR& vkSurface, uint32_t  width, uint32_t height);
+	VulkanPresentation(VulkanDevices* _devices, VkSurfaceKHR& vkSurface, GLFWwindow* _window);
 	~VulkanPresentation();
 
-	void acquireNextSwapChainImage(VkDevice& logicalDevice);
-	void presentImageToSwapChain(VkDevice& logicalDevice);
+	// If it fails then the swapchain and everything associated with it should be recreated
+	bool acquireNextSwapChainImage(VkDevice& logicalDevice);
+	// If it fails then the swapchain and everything associated with it should be recreated
+	bool presentImageToSwapChain(VkDevice& logicalDevice, bool frameBufferResized);
 	
-	void create(uint32_t  width, uint32_t height);
-	void recreate(uint32_t  width, uint32_t height);
+	void create(GLFWwindow* window);
+	void cleanup();
 
 	//Creates SwapChain and store a handle to the images that make up the swapchain
-	void createSwapChain(VkExtent2D extent);
+	void createSwapChain(GLFWwindow* window);
 	void createImageViews();
-	void createSemaphores();
+	void createSyncObjects();
 
 	VkSwapchainKHR getVulkanSwapChain() const;
 	VkImage getVkImage(uint32_t index) const;
@@ -28,8 +33,12 @@ public:
 	VkExtent2D getVkExtent() const;
 	uint32_t getCount() const;
 	uint32_t getIndex() const;
+	uint32_t getFrameNumber() const;
 	VkSemaphore getImageAvailableVkSemaphore() const;
 	VkSemaphore getRenderFinishedVkSemaphore() const;
+	VkFence getInFlightFence() const;
+
+	void advanceCurrentFrameIndex();
 
 public:
 	VulkanDevices* m_vulkanDevices;
@@ -42,7 +51,9 @@ public:
 	VkFormat m_swapChainImageFormat;
 	VkExtent2D m_swapChainExtent;
 	uint32_t m_imageIndex = 0;
+	uint32_t m_currentFrameIndex = 0;
 
-	VkSemaphore m_imageAvailableSemaphore;
-	VkSemaphore m_renderFinishedSemaphore;
+	std::vector<VkSemaphore> m_imageAvailableSemaphores;
+	std::vector<VkSemaphore> m_renderFinishedSemaphores;
+	std::vector<VkFence> m_inFlightFences;
 };

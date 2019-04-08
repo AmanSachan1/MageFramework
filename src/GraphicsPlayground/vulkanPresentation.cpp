@@ -1,57 +1,61 @@
 #include "vulkanPresentation.h"
 
-VulkanPresentation::VulkanPresentation(VulkanDevices* _devices, VkSurfaceKHR& _vkSurface, uint32_t  width, uint32_t height)
+VulkanPresentation::VulkanPresentation(VulkanDevices* _devices, VkSurfaceKHR& _vkSurface, GLFWwindow* _window)
 	: m_vulkanDevices(_devices), m_surface(_vkSurface)
 {
-	create(width, height);
-	createSemaphores();
+	create(_window);
+	createSyncObjects();
 }
 
 VulkanPresentation::~VulkanPresentation()
 {
-	vkDestroySemaphore(m_vulkanDevices->getLogicalDevice(), m_imageAvailableSemaphore, nullptr);
-	vkDestroySemaphore(m_vulkanDevices->getLogicalDevice(), m_renderFinishedSemaphore, nullptr);
+	cleanup();
 
-	for (auto imageView : m_swapChainImageViews)
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) 
 	{
-		vkDestroyImageView(m_vulkanDevices->getLogicalDevice(), imageView, nullptr);
+		vkDestroySemaphore(m_vulkanDevices->getLogicalDevice(), m_renderFinishedSemaphores[i], nullptr);
+		vkDestroySemaphore(m_vulkanDevices->getLogicalDevice(), m_imageAvailableSemaphores[i], nullptr);
+		vkDestroyFence(m_vulkanDevices->getLogicalDevice(), m_inFlightFences[i], nullptr);
+	}	
+}
+
+void VulkanPresentation::create(GLFWwindow* window)
+{
+	createSwapChain(window);
+	createImageViews();
+}
+
+void VulkanPresentation::cleanup()
+{
+	for (size_t i = 0; i < m_swapChainImageViews.size(); i++)
+	{
+		vkDestroyImageView(m_vulkanDevices->getLogicalDevice(), m_swapChainImageViews[i], nullptr);
 	}
 	vkDestroySwapchainKHR(m_vulkanDevices->getLogicalDevice(), m_swapChain, nullptr);
 }
 
-void VulkanPresentation::create(uint32_t  width, uint32_t height)
+void VulkanPresentation::createSwapChain(GLFWwindow* window)
 {
-	VkExtent2D extent = { static_cast<uint32_t>(width), static_cast<uint32_t>(height) };
-	createSwapChain(extent);
-	createImageViews();
-}
+	SwapChainSupportDetails swapChainSupport = m_vulkanDevices->querySwapChainSupport();
 
-void VulkanPresentation::recreate(uint32_t  width, uint32_t height)
-{
-	vkDestroySwapchainKHR(m_vulkanDevices->getLogicalDevice(), m_swapChain, nullptr);
-	create(width, height);
-}
-
-void VulkanPresentation::createSwapChain(VkExtent2D extent)
-{
-	const auto& surfaceCapabilities = m_vulkanDevices->surfaceCapabilities;
-	VkSurfaceFormatKHR surfaceFormat = SwapChainUtils::chooseSwapSurfaceFormat(m_vulkanDevices->surfaceFormats);
-	VkPresentModeKHR presentMode = SwapChainUtils::chooseSwapPresentMode(m_vulkanDevices->presentModes);
+	VkSurfaceFormatKHR surfaceFormat = SwapChainUtils::chooseSwapSurfaceFormat(swapChainSupport.surfaceFormats);
+	VkPresentModeKHR presentMode = SwapChainUtils::chooseSwapPresentMode(swapChainSupport.presentModes);
+	VkExtent2D extent = SwapChainUtils::chooseSwapExtent(swapChainSupport.surfaceCapabilities, window);
 
 	// Can do multiple buffering here!
 	// minImageCount is almost definitely 1 (or it doesnt support presentation)
 	// setting imageCount to 2 makes it possible to do double buffering
-	uint32_t imageCount = surfaceCapabilities.minImageCount + 1;
+	uint32_t imageCount = swapChainSupport.surfaceCapabilities.minImageCount + 1;
 	// 0 is a special value for maxImageCount, that means that there is no maximum
-	if (surfaceCapabilities.maxImageCount > 0 && imageCount > surfaceCapabilities.maxImageCount)
+	if (swapChainSupport.surfaceCapabilities.maxImageCount > 0 && imageCount > swapChainSupport.surfaceCapabilities.maxImageCount)
 	{
-		imageCount = surfaceCapabilities.maxImageCount;
+		imageCount = swapChainSupport.surfaceCapabilities.maxImageCount;
 	}
 
 	VkSwapchainCreateInfoKHR swapChainCreateInfo = VulkanInitializers::basicSwapChainCreateInfo(
 		m_surface, imageCount, surfaceFormat.format, surfaceFormat.colorSpace,
 		extent, 1, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-		surfaceCapabilities.currentTransform,
+		swapChainSupport.surfaceCapabilities.currentTransform,
 		VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
 		presentMode,
 		VK_NULL_HANDLE);
@@ -100,7 +104,7 @@ void VulkanPresentation::createImageViews()
 	}
 }
 
-void VulkanPresentation::createSemaphores()
+void VulkanPresentation::createSyncObjects()
 {
 	// There are two ways of synchronizing swap chain events: fences and semaphores. 
 	// The difference is that the state of fences can be accessed from your program using calls like vkWaitForFences and semaphores cannot be. 
@@ -125,26 +129,54 @@ void VulkanPresentation::createSemaphores()
 
 	
 	// Create Semaphores
+	m_imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+	m_renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+	m_inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
+
 	VkSemaphoreCreateInfo semaphoreInfo = {};
 	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-	if (vkCreateSemaphore(m_vulkanDevices->getLogicalDevice(), &semaphoreInfo, nullptr, &m_imageAvailableSemaphore) != VK_SUCCESS ||
-		vkCreateSemaphore(m_vulkanDevices->getLogicalDevice(), &semaphoreInfo, nullptr, &m_renderFinishedSemaphore) != VK_SUCCESS)
+	VkFenceCreateInfo fenceInfo = {};
+	fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) 
 	{
-		throw std::runtime_error("Failed to create semaphores");
+		if (vkCreateSemaphore(m_vulkanDevices->getLogicalDevice(), &semaphoreInfo, nullptr, &m_imageAvailableSemaphores[i]) != VK_SUCCESS ||
+			vkCreateSemaphore(m_vulkanDevices->getLogicalDevice(), &semaphoreInfo, nullptr, &m_renderFinishedSemaphores[i]) != VK_SUCCESS ||
+			vkCreateFence(m_vulkanDevices->getLogicalDevice(), &fenceInfo, nullptr, &m_inFlightFences[i]) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to create synchronization objects for a frame");
+		}
 	}
 }
 
-void VulkanPresentation::acquireNextSwapChainImage(VkDevice& logicalDevice)
+bool VulkanPresentation::acquireNextSwapChainImage(VkDevice& logicalDevice)
 {
 	// It is possible to use a semaphore, fence, or both as the synchronization objects that are to be signaled 
 	// when the presentation engine is finished using the image
-	vkAcquireNextImageKHR(logicalDevice, m_swapChain, std::numeric_limits<uint64_t>::max(),
-		m_imageAvailableSemaphore, VK_NULL_HANDLE, &m_imageIndex);
+	VkResult result = vkAcquireNextImageKHR(logicalDevice, m_swapChain, std::numeric_limits<uint64_t>::max(),
+		m_imageAvailableSemaphores[m_currentFrameIndex], VK_NULL_HANDLE, &m_imageIndex);
+
+	// The vkAcquireNextImageKHR function can return the following special values to indicate that it's time to recreate the swapchain.
+	// -- VK_ERROR_OUT_OF_DATE_KHR: The swap chain has become incompatible with the surface and can no longer be used for rendering.
+	//								Usually happens after a window resize.
+	// -- VK_SUBOPTIMAL_KHR : The swap chain can still be used to successfully present to the surface, but the surface properties are
+	//						  no longer matched exactly.
+
+	if (result == VK_ERROR_OUT_OF_DATE_KHR) 
+	{
+		return false;
+	}
+	else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
+	{
+		throw std::runtime_error("failed to acquire swap chain image!");
+	}
+	return true;
 }
-void VulkanPresentation::presentImageToSwapChain(VkDevice& logicalDevice)
+bool VulkanPresentation::presentImageToSwapChain(VkDevice& logicalDevice, bool frameBufferResized)
 {
-	VkSemaphore signalSemaphores[] = { m_renderFinishedSemaphore };
+	VkSemaphore signalSemaphores[] = { m_renderFinishedSemaphores[m_currentFrameIndex] };
 
 	VkPresentInfoKHR presentInfo = {};
 	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -157,15 +189,23 @@ void VulkanPresentation::presentImageToSwapChain(VkDevice& logicalDevice)
 
 	VkResult result = vkQueuePresentKHR(m_vulkanDevices->getQueue(QueueFlags::Present), &presentInfo);
 
-	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) 
+	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || frameBufferResized)
 	{
-		//Recreate(vkSwapChainExtent.width, vkSwapChainExtent.height);
+		frameBufferResized = false;
+		return false;
 	}
 	else if (result != VK_SUCCESS) 
 	{
 		throw std::runtime_error("Failed to present swap chain image");
 	}
+	return true;
 }
+
+void VulkanPresentation::advanceCurrentFrameIndex()
+{
+	m_currentFrameIndex = (m_currentFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
+}
+
 //----------
 //Getters
 //----------
@@ -197,11 +237,19 @@ uint32_t VulkanPresentation::getIndex() const
 {
 	return m_imageIndex;
 }
+uint32_t VulkanPresentation::getFrameNumber() const
+{
+	return m_currentFrameIndex;
+}
 VkSemaphore VulkanPresentation::getImageAvailableVkSemaphore() const
 {
-	return m_imageAvailableSemaphore;
+	return m_imageAvailableSemaphores[m_currentFrameIndex];
 }
 VkSemaphore VulkanPresentation::getRenderFinishedVkSemaphore() const
 {
-	return m_renderFinishedSemaphore;
+	return m_renderFinishedSemaphores[m_currentFrameIndex];
+}
+VkFence VulkanPresentation::getInFlightFence() const
+{
+	return m_inFlightFences[m_currentFrameIndex];
 }

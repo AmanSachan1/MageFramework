@@ -192,7 +192,8 @@ namespace VulkanUtil
 		uint32_t waitSemaphoreCount, const VkSemaphore* pWaitSemaphores, 
 		const VkPipelineStageFlags* pWaitDstStageMask,
 		uint32_t commandBufferCount, const VkCommandBuffer* pCommandBuffers,
-		uint32_t signalSemaphoreCount, const VkSemaphore* pSignalSemaphores)
+		uint32_t signalSemaphoreCount, const VkSemaphore* pSignalSemaphores,
+		VkFence inFlightFence)
 	{
 		VkSubmitInfo submitInfo = {};
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -208,7 +209,7 @@ namespace VulkanUtil
 		submitInfo.signalSemaphoreCount = signalSemaphoreCount;
 		submitInfo.pSignalSemaphores = pSignalSemaphores;
 
-		if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) 
+		if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFence) != VK_SUCCESS)
 		{
 			throw std::runtime_error("failed to submit graphics command buffer to graphics queue!");
 		}

@@ -1,5 +1,6 @@
 #pragma once
 #include <global.h>
+#include <forward.h>
 #include <utility.h>
 #include "vulkanInstance.h"
 #include "vulkanInitializers.h"
@@ -19,6 +20,7 @@ public:
 
 	bool isPhysicalDeviceSuitable(VkPhysicalDevice device, std::vector<const char*> deviceExtensions,
 								QueueFlagBits requiredQueues, VkSurfaceKHR vkSurface = VK_NULL_HANDLE);
+	SwapChainSupportDetails querySwapChainSupport();
 
 	VulkanInstance* getInstance();
 	VkDevice getLogicalDevice();
@@ -35,6 +37,7 @@ public:
 
 private:
 	VulkanInstance* m_vulkanInstance;
+	VkSurfaceKHR m_surface;
 
 	// The physical device is the GPU and the logical device interfaces with the physical device.
 	// Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Presentation

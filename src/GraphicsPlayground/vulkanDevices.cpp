@@ -2,7 +2,7 @@
 
 VulkanDevices::VulkanDevices(VulkanInstance* _instance, std::vector<const char*> deviceExtensions,
 	QueueFlagBits& requiredQueues, VkSurfaceKHR& vkSurface)
-	: m_vulkanInstance(_instance)
+	: m_vulkanInstance(_instance), m_surface(vkSurface)
 {
 	// Setup Physical Devices --> Find a GPU that supports Vusurfacelkan
 	pickPhysicalDevice(deviceExtensions, requiredQueues, vkSurface);
@@ -182,6 +182,33 @@ bool VulkanDevices::isPhysicalDeviceSuitable(VkPhysicalDevice pDevice, std::vect
 	swapChainSupportAdequate = (swapChainSupportAdequate &&	(surfaceCapabilities.maxImageCount > 1));
 
 	return queueSupport & swapChainSupportAdequate  & desiredFeaturesSupported & deviceExtensionsSupported;
+}
+
+SwapChainSupportDetails VulkanDevices::querySwapChainSupport()
+{
+	SwapChainSupportDetails details;
+
+	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_physicalDevice, m_surface, &details.surfaceCapabilities);
+
+	uint32_t formatCount;
+	vkGetPhysicalDeviceSurfaceFormatsKHR(m_physicalDevice, m_surface, &formatCount, nullptr);
+
+	if (formatCount != 0)
+	{
+		details.surfaceFormats.resize(formatCount);
+		vkGetPhysicalDeviceSurfaceFormatsKHR(m_physicalDevice, m_surface, &formatCount, details.surfaceFormats.data());
+	}
+
+	uint32_t presentModeCount;
+	vkGetPhysicalDeviceSurfacePresentModesKHR(m_physicalDevice, m_surface, &presentModeCount, nullptr);
+
+	if (presentModeCount != 0)
+	{
+		details.presentModes.resize(presentModeCount);
+		vkGetPhysicalDeviceSurfacePresentModesKHR(m_physicalDevice, m_surface, &presentModeCount, details.presentModes.data());
+	}
+
+	return details;
 }
 
 // --------

@@ -1,8 +1,9 @@
 #include "Renderer.h"
 
-Renderer::Renderer(VulkanDevices* devices, VulkanPresentation* presentation, 
+Renderer::Renderer(GLFWwindow* window, VulkanDevices* devices, VulkanPresentation* presentation,
 	Camera* camera, uint32_t width, uint32_t height)
-	: m_devices(devices), m_logicalDevice(devices->getLogicalDevice()), m_physicalDevice(devices->getPhysicalDevice()),
+	: m_window(window), 
+	m_devices(devices), m_logicalDevice(devices->getLogicalDevice()), m_physicalDevice(devices->getPhysicalDevice()),
 	m_presentationObject(presentation),
 	m_camera(camera),
 	m_windowWidth(width),
@@ -12,14 +13,7 @@ Renderer::Renderer(VulkanDevices* devices, VulkanPresentation* presentation,
 }
 Renderer::~Renderer()
 {
-	vkDestroyPipelineLayout(m_logicalDevice, m_graphicsPipelineLayout, nullptr);
-
-	for (auto framebuffer : m_frameBuffers) 
-	{
-		vkDestroyFramebuffer(m_logicalDevice, framebuffer, nullptr);
-	}
-
-	vkDestroyRenderPass(m_logicalDevice, m_renderPass, nullptr);
+	cleanup();
 
 	// Command Pools
 	vkDestroyCommandPool(m_logicalDevice, m_graphicsCommandPool, nullptr);
@@ -36,8 +30,15 @@ void Renderer::initialize()
 }
 void Renderer::renderLoop()
 {
+	// Wait for the the frame to be finished before working on it
+	VkFence inFlightFence = m_presentationObject->getInFlightFence();
+
+	// The VK_TRUE we pass in vkWaitForFences indicates that we want to wait for all fences.
+	vkWaitForFences(m_logicalDevice, 1, &inFlightFence, VK_TRUE, std::numeric_limits<uint64_t>::max());
+
 	// Acquire image from swapchain
-	m_presentationObject->acquireNextSwapChainImage(m_logicalDevice);
+	bool flag_recreateSwapChain = m_presentationObject->acquireNextSwapChainImage(m_logicalDevice);
+	if (!flag_recreateSwapChain) { recreate(); };	
 
 	//-------------------------------------
 	//	Submit Commands To Graphics Queue
@@ -50,14 +51,61 @@ void Renderer::renderLoop()
 	VkSemaphore signalSemaphores[] = { m_presentationObject->getRenderFinishedVkSemaphore() };
 	VkQueue graphicsQueue = m_devices->getQueue(QueueFlags::Graphics);
 	VkCommandBuffer* graphicsCommandBuffer = &m_graphicsCommandBuffers[m_presentationObject->getIndex()];
-	VulkanUtil::submitToGraphicsQueue(graphicsQueue, 1, waitSemaphores, waitStages, 1, graphicsCommandBuffer, 1, signalSemaphores);
+
+	vkResetFences(m_logicalDevice, 1, &inFlightFence);
+	VulkanUtil::submitToGraphicsQueue(graphicsQueue, 1, waitSemaphores, waitStages, 1, graphicsCommandBuffer, 1, signalSemaphores, inFlightFence);
 
 	// Return the image to the swapchain for presentation
-	m_presentationObject->presentImageToSwapChain(m_logicalDevice);
+	flag_recreateSwapChain = m_presentationObject->presentImageToSwapChain(m_logicalDevice, m_resizeFrameBuffer);
+	if (!flag_recreateSwapChain) { recreate(); };
+
+	m_presentationObject->advanceCurrentFrameIndex();
 }
 
-void recreate(uint32_t width, uint32_t height);
-void DestroyOnWindowResize();
+void Renderer::recreate()
+{
+	m_resizeFrameBuffer = false;
+	// This while loop handles the case of minimization of the window
+	int width = 0, height = 0;
+	while (width == 0 || height == 0) 
+	{
+		glfwGetFramebufferSize(m_window, &width, &height);
+		glfwWaitEvents();
+	}
+
+	cleanup();
+
+	m_presentationObject->create(m_window);
+	createRenderPass();
+	createAllPipelines();
+	createFrameBuffers();
+
+	m_graphicsCommandBuffers.resize(m_presentationObject->getCount());
+	m_computeCommandBuffers.resize(m_presentationObject->getCount());
+	VulkanCommandUtil::allocateCommandBuffers(m_logicalDevice, m_graphicsCommandPool, m_graphicsCommandBuffers);
+	VulkanCommandUtil::allocateCommandBuffers(m_logicalDevice, m_computeCommandPool, m_computeCommandBuffers);
+	recordAllCommandBuffers();
+
+	m_resizeFrameBuffer = false;
+}
+void Renderer::cleanup()
+{
+	vkDeviceWaitIdle(m_logicalDevice);
+
+	for (size_t i = 0; i < m_frameBuffers.size(); i++)
+	{
+		vkDestroyFramebuffer(m_logicalDevice, m_frameBuffers[i], nullptr);
+	}
+
+	vkFreeCommandBuffers(m_logicalDevice, m_graphicsCommandPool, static_cast<uint32_t>(m_graphicsCommandBuffers.size()), m_graphicsCommandBuffers.data());
+	vkFreeCommandBuffers(m_logicalDevice, m_computeCommandPool, static_cast<uint32_t>(m_computeCommandBuffers.size()), m_computeCommandBuffers.data());
+	
+	vkDestroyPipeline(m_logicalDevice, m_graphicsPipeline, nullptr);
+	vkDestroyPipelineLayout(m_logicalDevice, m_graphicsPipelineLayout, nullptr);
+	vkDestroyRenderPass(m_logicalDevice, m_renderPass, nullptr);
+	
+	m_presentationObject->cleanup();
+}
 
 
 void Renderer::recordAllCommandBuffers()
