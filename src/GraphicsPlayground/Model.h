@@ -11,8 +11,8 @@ class Model
 {
 public:
 	Model() = delete;
-	Model(VulkanDevices* devices, VkCommandPool commandPool, const std::vector<Vertex> &vertices, const std::vector<uint32_t> &indices);
-	Model(VulkanDevices* devices, VkCommandPool commandPool, const std::string model_path, const std::string texture_path);
+	Model(VulkanDevices* devices, VkCommandPool& commandPool, std::vector<Vertex> &vertices, std::vector<uint32_t> &indices);
+	Model(VulkanDevices* devices, VkCommandPool& commandPool, const std::string model_path, const std::string texture_path);
 	~Model();
 
 	//Getters
@@ -25,6 +25,7 @@ public:
 	uint32_t getIndexBufferSize() const;
 
 private:
+	VulkanDevices* m_devices;
 	VkDevice m_logicalDevice;
 	VkPhysicalDevice m_physicalDevice;
 	

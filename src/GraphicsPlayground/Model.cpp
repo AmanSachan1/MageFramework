@@ -1,28 +1,22 @@
 #include "model.h"
 
-Model::Model(VulkanDevices* devices, VkCommandPool commandPool, const std::vector<Vertex> &vertices, const std::vector<uint32_t> &indices)
-	: m_logicalDevice(devices->getLogicalDevice()), m_physicalDevice(devices->getPhysicalDevice()),
+Model::Model(VulkanDevices* devices, VkCommandPool& commandPool, std::vector<Vertex> &vertices, std::vector<uint32_t> &indices)
+	: m_devices(devices), m_logicalDevice(devices->getLogicalDevice()), m_physicalDevice(devices->getPhysicalDevice()),
 	m_vertices(vertices), m_indices(indices)
 {
 	m_vertexBufferSize = vertices.size() * sizeof(vertices[0]);
 	m_indexBufferSize = indices.size() * sizeof(indices[0]);
 
-	BufferUtil::createBuffer(m_physicalDevice, m_logicalDevice, 
+	BufferUtil::createVertexBuffer(m_devices, m_physicalDevice, m_logicalDevice, commandPool, 
 		m_vertexBuffer, m_vertexBufferMemory, m_vertexBufferSize,
-		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 
-		VK_SHARING_MODE_EXCLUSIVE, 
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
-	vkMapMemory(m_logicalDevice, m_vertexBufferMemory, 0, m_vertexBufferSize, 0, &m_mappedDataVertexBuffer);
-	memcpy(m_mappedDataVertexBuffer, vertices.data(), static_cast<size_t>(m_vertexBufferSize));
+		m_mappedDataVertexBuffer, vertices.data());
 }
-Model::Model(VulkanDevices* devices, VkCommandPool commandPool, const std::string model_path, const std::string texture_path)
+Model::Model(VulkanDevices* devices, VkCommandPool& commandPool, const std::string model_path, const std::string texture_path)
 {
 
 }
 Model::~Model()
 {
-	vkUnmapMemory(m_logicalDevice, m_vertexBufferMemory);
 	vkDestroyBuffer(m_logicalDevice, m_vertexBuffer, nullptr);
 	vkFreeMemory(m_logicalDevice, m_vertexBufferMemory, nullptr);
 }

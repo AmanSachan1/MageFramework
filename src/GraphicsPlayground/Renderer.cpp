@@ -25,19 +25,20 @@ Renderer::~Renderer()
 
 void Renderer::initialize()
 {
-	const std::vector<Vertex> vertices = {
+	createCommandPoolsAndBuffers();
+	createRenderPass();
+	createAllPipelines();
+	createFrameBuffers();
+
+	std::vector<Vertex> vertices = {
 		{ { 0.0f, -0.5f, 0.0f, 1.0f },{ 1.0f, 1.0f, 1.0f, 1.0f } },
 		{ { 0.5f,  0.5f, 0.0f, 1.0f },{ 0.0f, 1.0f, 0.0f, 1.0f } },
 		{ { -0.5f,  0.5f, 0.0f, 1.0f },{ 0.0f, 0.0f, 1.0f, 1.0f } }
 	};
-	const std::vector<uint32_t> indices = { 0, 1, 2 };
+	std::vector<uint32_t> indices = { 0, 1, 2 };
 
 	m_model = new Model(m_devices, m_graphicsCommandPool, vertices, indices);
-
-	createCommandPoolsAndBuffers();
-	createRenderPass();
-	createAllPipelines();
-	createFrameBuffers();	
+	
 	recordAllCommandBuffers();
 }
 void Renderer::renderLoop()

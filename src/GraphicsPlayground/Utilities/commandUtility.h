@@ -3,6 +3,17 @@
 
 namespace VulkanCommandUtil
 {
+	inline void copyBuffer(VkDevice& logicalDevice, VkCommandBuffer& cmdBuffer, 
+		VkBuffer srcBuffer, VkBuffer dstBuffer,	VkDeviceSize srcOffset, VkDeviceSize dstOffset, VkDeviceSize size)
+	{
+		VkBufferCopy copyRegion = {};
+		copyRegion.srcOffset = srcOffset;
+		copyRegion.dstOffset = dstOffset;
+		copyRegion.size = size;
+
+		vkCmdCopyBuffer(cmdBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
+	}
+
 	inline void beginRenderPass(VkCommandBuffer& cmdBuffer, VkRenderPass renderPass, VkFramebuffer framebuffer,	VkRect2D renderArea, const VkClearValue* clearValue, uint32_t clearValueCount)
 	{
 		VkRenderPassBeginInfo renderPassInfo = {};
@@ -46,8 +57,21 @@ namespace VulkanCommandUtil
 		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
 		beginInfo.pInheritanceInfo = nullptr; // Optional
 
-		if (vkBeginCommandBuffer(cmdBuffer, &beginInfo) != VK_SUCCESS) {
+		if (vkBeginCommandBuffer(cmdBuffer, &beginInfo) != VK_SUCCESS) 
+		{
+			throw std::runtime_error("failed to begin recording command buffer!");
+		}
+	}
 
+	inline void beginCommandBufferSubmmitOnce(VkCommandBuffer& cmdBuffer)
+	{
+		VkCommandBufferBeginInfo beginInfo = {};
+		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+		beginInfo.pInheritanceInfo = nullptr; // Optional
+
+		if (vkBeginCommandBuffer(cmdBuffer, &beginInfo) != VK_SUCCESS) 
+		{
 			throw std::runtime_error("failed to begin recording command buffer!");
 		}
 	}
@@ -75,7 +99,7 @@ namespace VulkanCommandUtil
 		}
 	}
 
-	inline void allocateCommandBuffers(VkDevice& logicalDevice, VkCommandPool& cmdPool, std::vector<VkCommandBuffer> &cmdBuffers)
+	inline void allocateCommandBuffers(VkDevice& logicalDevice, VkCommandPool& cmdPool, std::vector<VkCommandBuffer>& cmdBuffers)
 	{
 		// Specify the command pool and number of buffers to allocate
 		
@@ -90,6 +114,26 @@ namespace VulkanCommandUtil
 		allocInfo.commandBufferCount = (uint32_t)cmdBuffers.size();
 
 		if (vkAllocateCommandBuffers(logicalDevice, &allocInfo, cmdBuffers.data()) != VK_SUCCESS) 
+		{
+			throw std::runtime_error("failed to allocate command buffers!");
+		}
+	}
+
+	inline void allocateCommandBuffers(VkDevice& logicalDevice, VkCommandPool& cmdPool, VkCommandBuffer& cmdBuffer)
+	{
+		// Specify the command pool and number of buffers to allocate
+
+		// The level parameter specifies if the allocated command buffers are primary or secondary command buffers.
+		// VK_COMMAND_BUFFER_LEVEL_PRIMARY: Can be submitted to a queue for execution, but cannot be called from other command buffers.
+		// VK_COMMAND_BUFFER_LEVEL_SECONDARY : Cannot be submitted directly, but can be called from primary command buffers.
+
+		VkCommandBufferAllocateInfo allocInfo = {};
+		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		allocInfo.commandPool = cmdPool;
+		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		allocInfo.commandBufferCount = 1;
+
+		if (vkAllocateCommandBuffers(logicalDevice, &allocInfo, &cmdBuffer) != VK_SUCCESS)
 		{
 			throw std::runtime_error("failed to allocate command buffers!");
 		}

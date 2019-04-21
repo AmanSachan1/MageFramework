@@ -1,5 +1,7 @@
 #pragma once
 #include <global.h>
+#include <Utilities/commandUtility.h>
+#include "vulkanDevices.h"
 
 namespace BufferUtil
 {
@@ -78,6 +80,69 @@ namespace BufferUtil
 		// Since this memory is allocated specifically for this the vertex buffer, the offset is simply 0.
 		// If the offset is non-zero, then it is required to be divisible by memRequirements.alignment.
 		vkBindBufferMemory(logicalDevice, buffer, bufferMemory, 0);
+	}
+
+	inline void copyBuffer(VulkanDevices* devices, VkDevice& logicalDevice, VkCommandPool& cmdPool, VkBuffer srcBuffer, VkBuffer dstBuffer,
+		VkDeviceSize srcOffset, VkDeviceSize dstOffset, VkDeviceSize size)
+	{
+		// Memory transfer operations are executed using command buffers, just like drawing commands.
+		// Therefore we must first allocate a temporary command buffer. 
+		// Creating a separate command pool for these kinds of short - lived buffers, could be better for performance because
+		// it may be possible to apply memory allocation optimizations. You should use the VK_COMMAND_POOL_CREATE_TRANSIENT_BIT flag 
+		// during command pool generation in that case.
+
+		VkCommandBuffer commandBuffer;
+		VulkanCommandUtil::allocateCommandBuffers(logicalDevice, cmdPool, commandBuffer);
+		VulkanCommandUtil::beginCommandBufferSubmmitOnce(commandBuffer);
+		VulkanCommandUtil::copyBuffer(logicalDevice, commandBuffer, srcBuffer, dstBuffer, srcOffset, dstOffset, size);
+		VulkanCommandUtil::endCommandBuffer(commandBuffer);
+
+		VkQueue graphicsQueue = devices->getQueue(QueueFlags::Graphics);
+		VulkanUtil::submitToGraphicsQueue(graphicsQueue, 1, commandBuffer);
+
+		vkFreeCommandBuffers(logicalDevice, cmdPool, 1, &commandBuffer);
+	}
+
+	inline void createVertexBuffer(VulkanDevices* devices, VkPhysicalDevice& pDevice, VkDevice& logicalDevice, VkCommandPool& cmdPool,
+		VkBuffer& vertexBuffer, VkDeviceMemory& vertexBufferMemory, VkDeviceSize vertexBufferSize, void* mappedData, Vertex* sourceVertexData)
+	{
+		// ----- Create Staging Buffer -----
+
+		// We use a staging buffer is an intermediate buffer used to copy the data associated with the buffer to a more optimal memory location
+		// which is usually not accessible by the CPU (which is why we need to use the intermediate staging buffer).
+		VkBuffer stagingBuffer;
+		VkDeviceMemory stagingBufferMemory;
+
+		// VK_BUFFER_USAGE_TRANSFER_SRC_BIT: Buffer can be used as source in a memory transfer operation.
+		// VK_BUFFER_USAGE_TRANSFER_DST_BIT: Buffer can be used as destination in a memory transfer operation.
+
+		createBuffer(pDevice, logicalDevice, stagingBuffer, stagingBufferMemory, vertexBufferSize,
+			VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
+			VK_SHARING_MODE_EXCLUSIVE,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+		vkMapMemory(logicalDevice, stagingBufferMemory, 0, vertexBufferSize, 0, &mappedData);
+		memcpy(mappedData, static_cast<void*>(sourceVertexData), (size_t)vertexBufferSize);
+		vkUnmapMemory(logicalDevice, stagingBufferMemory);
+
+		// The vertexBuffer is now allocated from a memory type that is device local, which generally means that we're 
+		// not able to use vkMapMemory. However, we can copy data from the stagingBuffer to the vertexBuffer. We have to 
+		// indicate that we intend to do that by specifying the transfer source flag for the stagingBuffer and 
+		// the transfer destination flag for the vertexBuffer, along with the vertex buffer usage flag.
+
+		// ----- Create Vertex Buffer -----
+
+		createBuffer(pDevice, logicalDevice, vertexBuffer, vertexBufferMemory, vertexBufferSize,
+			VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+			VK_SHARING_MODE_EXCLUSIVE,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+		// ----- Copy Staging Buffer into the Vertex Buffer -----
+		copyBuffer(devices, logicalDevice, cmdPool, stagingBuffer, vertexBuffer, 0, 0, vertexBufferSize);
+
+		// ----- Free Staging Buffer and its memory -----
+		vkDestroyBuffer(logicalDevice, stagingBuffer, nullptr);
+		vkFreeMemory(logicalDevice, stagingBufferMemory, nullptr);
 	}
 
 

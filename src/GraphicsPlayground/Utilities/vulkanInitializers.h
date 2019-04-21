@@ -167,4 +167,26 @@ namespace VulkanUtil
 			throw std::runtime_error("failed to submit graphics command buffer to graphics queue!");
 		}
 	}
+
+	inline void submitToGraphicsQueue(VkQueue graphicsQueue, uint32_t cmdBufferCount, const VkCommandBuffer& cmdBuffer)
+	{
+		VkSubmitInfo submitInfo = {};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		submitInfo.commandBufferCount = cmdBufferCount;
+		submitInfo.pCommandBuffers = &cmdBuffer;
+
+		// Unlike the draw commands, there are no events we need to wait on this time. 
+		// We just want to execute the transfer on the buffers immediately. 
+		// There are again two possible ways to wait on this transfer to complete. 
+		// We could use a fence and wait with vkWaitForFences, or simply wait for the transfer queue to become idle with vkQueueWaitIdle. 
+		// A fence would allow you to schedule multiple transfers simultaneously and wait for all of them complete, 
+		// instead of executing one at a time. That may give the driver more opportunities to optimize.
+
+		if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS)
+		{
+			throw std::runtime_error("failed to submit command buffer to graphics queue!");
+		}
+
+		vkQueueWaitIdle(graphicsQueue);
+	}
 };
