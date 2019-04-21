@@ -224,15 +224,15 @@ void Renderer::createRenderPass()
 	// The index of the color attachment in the color Attachment array is directly referenced from the fragment shader with the
 	// layout(location = 0) out vec4 outColor directive!
 	VkSubpassDescription subpass = 
-		RenderPassUtility::subpassDescription(VK_PIPELINE_BIND_POINT_GRAPHICS, 0, nullptr, 1, &colorAttachmentRef, nullptr, nullptr, 0, nullptr);
+		RenderPassUtil::subpassDescription(VK_PIPELINE_BIND_POINT_GRAPHICS, 0, nullptr, 1, &colorAttachmentRef, nullptr, nullptr, 0, nullptr);
 
 	VkSubpassDependency dependency = 
-		RenderPassUtility::subpassDependency(
+		RenderPassUtil::subpassDependency(
 			VK_SUBPASS_EXTERNAL, 0,
 			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0,
 			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
 
-	RenderPassUtility::createRenderPass(m_logicalDevice, m_renderPass, 1, &colorAttachment, 1, &subpass, 1, &dependency);
+	RenderPassUtil::createRenderPass(m_logicalDevice, m_renderPass, 1, &colorAttachment, 1, &subpass, 1, &dependency);
 }
 
 void Renderer::createAllPipelines()
@@ -249,14 +249,14 @@ void Renderer::createGraphicsPipeline(VkPipeline& graphicsPipeline, VkRenderPass
 	//--------------------------------------------------------
 	// Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Graphics_pipeline_basics/Shader_modules
 	// Create vert and frag shader modules
-	VkShaderModule vertShaderModule = ShaderUtils::createShaderModule("GraphicsPlayground/shaders/testShader.vert.spv", m_logicalDevice);
-	VkShaderModule fragShaderModule = ShaderUtils::createShaderModule("GraphicsPlayground/shaders/testShader.frag.spv", m_logicalDevice);
+	VkShaderModule vertShaderModule = ShaderUtil::createShaderModule("GraphicsPlayground/shaders/testShader.vert.spv", m_logicalDevice);
+	VkShaderModule fragShaderModule = ShaderUtil::createShaderModule("GraphicsPlayground/shaders/testShader.frag.spv", m_logicalDevice);
 
 	// Assign each shader module to the appropriate stage in the pipeline
 	VkPipelineShaderStageCreateInfo vertShaderStageInfo =
-		ShaderUtils::shaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT, vertShaderModule, "main");
+		ShaderUtil::shaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT, vertShaderModule, "main");
 	VkPipelineShaderStageCreateInfo fragShaderStageInfo =
-		ShaderUtils::shaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT, fragShaderModule, "main");
+		ShaderUtil::shaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT, fragShaderModule, "main");
 
 	//Add Shadermodules to the list of shader stages
 	VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, fragShaderStageInfo };

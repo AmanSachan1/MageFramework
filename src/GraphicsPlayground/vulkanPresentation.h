@@ -1,7 +1,7 @@
 #pragma once
 #include <global.h>
 #include <forward.h>
-#include <utility.h>
+#include <Utilities/swapChainUtility.h>
 #include "vulkanInstance.h"
 #include "vulkanDevices.h"
 

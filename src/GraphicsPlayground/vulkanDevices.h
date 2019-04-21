@@ -1,9 +1,12 @@
 #pragma once
 #include <global.h>
 #include <forward.h>
-#include <utility.h>
+
+#include <Utilities/vulkanInitializers.h>
+#include <Utilities/deviceUtility.h>
+
 #include "vulkanInstance.h"
-#include "vulkanInitializers.h"
+
 
 class VulkanDevices
 {

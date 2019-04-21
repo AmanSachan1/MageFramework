@@ -136,7 +136,7 @@ bool VulkanDevices::isPhysicalDeviceSuitable(VkPhysicalDevice pDevice, std::vect
 										deviceFeatures.tessellationShader);
 	
 	bool queueSupport = true;
-	m_queueFamilyIndices = DeviceUtils::checkDeviceQueueSupport(pDevice, requiredQueues, vkSurface);
+	m_queueFamilyIndices = VulkanDevicesUtil::checkDeviceQueueSupport(pDevice, requiredQueues, vkSurface);
 	for (unsigned int i = 0; i < requiredQueues.size(); i++)
 	{
 		if (requiredQueues[i])
@@ -171,7 +171,7 @@ bool VulkanDevices::isPhysicalDeviceSuitable(VkPhysicalDevice pDevice, std::vect
 		}
 	}
 
-	bool deviceExtensionsSupported = DeviceUtils::checkDeviceExtensionSupport(pDevice, deviceExtensions);
+	bool deviceExtensionsSupported = VulkanDevicesUtil::checkDeviceExtensionSupport(pDevice, deviceExtensions);
 
 	// Swap chain support is sufficient if:
 	//		- For the Surface we have there is:

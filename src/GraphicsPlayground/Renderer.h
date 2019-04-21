@@ -2,9 +2,14 @@
 
 #include <global.h>
 #include <forward.h>
-#include <utility.h>
 
-#include "VulkanInitializers.h"
+#include <Utilities\vulkanInitializers.h>
+#include <Utilities\pipelineUtility.h>
+#include <Utilities\commandUtility.h>
+#include <Utilities\imageUtility.h>
+#include <Utilities\shaderUtility.h>
+#include <Utilities\renderUtility.h>
+
 #include "vulkanDevices.h"
 #include "vulkanPresentation.h"
 

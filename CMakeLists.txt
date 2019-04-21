@@ -1,7 +1,7 @@
 ### ${CMAKE_SOURCE_DIR} is defined by us in the cmake-gui as "D:/Documents/Github/ShaderPlayGround"
 ### ${CMAKE_BINARY_DIR} is defined by us in the cmake-gui as "D:/Documents/Github/ShaderPlayGround/build"
 
-### This project is only being tested on WIN 32 with Visual Studio 2017
+### This project is only being tested on a x64 build with Visual Studio 2017. Uses win32.
 
 cmake_minimum_required(VERSION 3.5)
 project(GraphicsPlayground)
@@ -25,10 +25,7 @@ add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 
 include_directories(external)
 include_directories(external/glm)
-include_directories(external/GLFW)
-
-# set(GLM_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/glm)
-# set(GLFW_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/GLFW/include)
+include_directories(external/glfw-3.3.bin.WIN64/include)
 
 ##############################################
 
@@ -96,7 +93,6 @@ ENDIF(MSVC)
 IF(WIN32)
   # Nothing here (yet)
 ELSE(WIN32)
-	#link_libraries(glfw ${XCB_LIBRARIES} ${VULKAN_LIB})
 	link_libraries(${XCB_LIBRARIES} ${VULKAN_LIB})
 ENDIF(WIN32)
 
