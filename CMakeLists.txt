@@ -25,16 +25,13 @@ add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 
 include_directories(external)
 include_directories(external/glm)
-include_directories(external/glfw-3.3.bin.WIN64/include)
+include_directories(external/glfw-3.3)
 
 ##############################################
 
 ### Need Vulkan for this project
 ## Use FindVulkan module added with CMAKE 3.7
 find_package(Vulkan REQUIRED)
-
-### Will need assimp for this project later
-# find_package(ASSIMP REQUIRED)
 
 ### Find and use the appropriate threads package for this platform
 find_package(Threads REQUIRED)
@@ -98,4 +95,5 @@ ENDIF(WIN32)
 
 ##############################################
 
+add_subdirectory(external)
 add_subdirectory(src)

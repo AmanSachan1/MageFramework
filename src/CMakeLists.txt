@@ -34,7 +34,7 @@ function(buildSource SAMPLE_NAME)
 		endif(WIN32)
 	endforeach()
 
-	target_link_libraries(${SAMPLE_NAME} ${ASSIMP_LIBRARIES} Vulkan::Vulkan)
+	target_link_libraries(${SAMPLE_NAME} Vulkan::Vulkan)
 	target_include_directories( ${SAMPLE_NAME} PRIVATE
 								${CMAKE_CURRENT_SOURCE_DIR} 
 								${CMAKE_CURRENT_SOURCE_DIR}/${SAMPLE_NAME}
