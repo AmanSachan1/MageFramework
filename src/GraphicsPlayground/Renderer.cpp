@@ -25,6 +25,15 @@ Renderer::~Renderer()
 
 void Renderer::initialize()
 {
+	const std::vector<Vertex> vertices = {
+		{ { 0.0f, -0.5f, 0.0f, 1.0f },{ 1.0f, 1.0f, 1.0f, 1.0f } },
+		{ { 0.5f,  0.5f, 0.0f, 1.0f },{ 0.0f, 1.0f, 0.0f, 1.0f } },
+		{ { -0.5f,  0.5f, 0.0f, 1.0f },{ 0.0f, 0.0f, 1.0f, 1.0f } }
+	};
+	const std::vector<uint32_t> indices = { 0, 1, 2 };
+
+	m_model = new Model(m_devices, m_graphicsCommandPool, vertices, indices);
+
 	createCommandPoolsAndBuffers();
 	createRenderPass();
 	createAllPipelines();
@@ -129,15 +138,6 @@ void Renderer::recordAllCommandBuffers()
 }
 void Renderer::recordGraphicsCommandBuffer(VkCommandBuffer& graphicsCmdBuffer, VkFramebuffer& frameBuffer)
 {
-	const std::vector<Vertex> vertices = {
-		{ {  0.0f, -0.5f, 0.0f, 1.0f },{ 1.0f, 0.0f, 0.0f, 1.0f } },
-		{ {  0.5f,  0.5f, 0.0f, 1.0f },{ 0.0f, 1.0f, 0.0f, 1.0f } },
-		{ { -0.5f,  0.5f, 0.0f, 1.0f },{ 0.0f, 0.0f, 1.0f, 1.0f } }
-	};
-	const std::vector<unsigned int> indices = { 0, 1, 2, 2, 3, 0 };
-
-	m_model = new Model(m_devices, m_graphicsCommandPool, vertices, indices);
-
 	const VkClearValue clearColor = { 0.0f, 0.0f, 0.0f, 1.0f };
 	const VkRect2D renderArea = VulkanUtil::createRectangle({ 0,0 }, m_presentationObject->getVkExtent());
 	VulkanCommandUtil::beginRenderPass(graphicsCmdBuffer, m_renderPass, frameBuffer, renderArea, &clearColor, 1);

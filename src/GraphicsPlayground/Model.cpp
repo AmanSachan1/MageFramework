@@ -32,7 +32,7 @@ const std::vector<Vertex>& Model::getVertices() const
 {
 	return m_vertices;
 }
-VkBuffer& Model::getVertexBuffer()
+VkBuffer Model::getVertexBuffer()
 {
 	return m_vertexBuffer;
 }
@@ -45,7 +45,7 @@ const std::vector<uint32_t>& Model::getIndices() const
 {
 	return m_indices;
 }
-VkBuffer& Model::getIndexBuffer()
+VkBuffer Model::getIndexBuffer()
 {
 	return m_indexBuffer;
 }

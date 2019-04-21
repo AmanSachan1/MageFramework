@@ -17,11 +17,11 @@ public:
 
 	//Getters
 	const std::vector<Vertex>& getVertices() const;
-	VkBuffer& getVertexBuffer();
+	VkBuffer getVertexBuffer();
 	uint32_t getVertexBufferSize() const;
 
 	const std::vector<uint32_t>& getIndices() const;
-	VkBuffer& getIndexBuffer();
+	VkBuffer getIndexBuffer();
 	uint32_t getIndexBufferSize() const;
 
 private:
