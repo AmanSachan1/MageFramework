@@ -15,6 +15,9 @@ Renderer::~Renderer()
 {
 	cleanup();
 
+	// Models
+	delete m_model;
+
 	// Command Pools
 	vkDestroyCommandPool(m_logicalDevice, m_graphicsCommandPool, nullptr);
 	vkDestroyCommandPool(m_logicalDevice, m_computeCommandPool, nullptr);
@@ -126,17 +129,30 @@ void Renderer::recordAllCommandBuffers()
 }
 void Renderer::recordGraphicsCommandBuffer(VkCommandBuffer& graphicsCmdBuffer, VkFramebuffer& frameBuffer)
 {
+	const std::vector<Vertex> vertices = {
+		{ {  0.0f, -0.5f, 0.0f, 1.0f },{ 1.0f, 0.0f, 0.0f, 1.0f } },
+		{ {  0.5f,  0.5f, 0.0f, 1.0f },{ 0.0f, 1.0f, 0.0f, 1.0f } },
+		{ { -0.5f,  0.5f, 0.0f, 1.0f },{ 0.0f, 0.0f, 1.0f, 1.0f } }
+	};
+	const std::vector<unsigned int> indices = { 0, 1, 2, 2, 3, 0 };
+
+	m_model = new Model(m_devices, m_graphicsCommandPool, vertices, indices);
+
 	const VkClearValue clearColor = { 0.0f, 0.0f, 0.0f, 1.0f };
 	const VkRect2D renderArea = VulkanUtil::createRectangle({ 0,0 }, m_presentationObject->getVkExtent());
 	VulkanCommandUtil::beginRenderPass(graphicsCmdBuffer, m_renderPass, frameBuffer, renderArea, &clearColor, 1);
 	vkCmdBindPipeline(graphicsCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
+
+	VkBuffer vertexBuffers[] = { m_model->getVertexBuffer() };
+	VkDeviceSize offsets[] = { 0 };
+	vkCmdBindVertexBuffers(graphicsCmdBuffer, 0, 1, vertexBuffers, offsets);
 
 	// Draw Command Params, aside from the command buffer:
 	// vertexCount   : Even though we don't have a vertex buffer, we technically still have 3 vertices to draw.
 	// instanceCount : Used for instanced rendering, use 1 if you're not doing that.
 	// firstVertex   : Used as an offset into the vertex buffer, defines the lowest value of gl_VertexIndex.
 	// firstInstance : Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
-	vkCmdDraw(graphicsCmdBuffer, 3, 1, 0, 0);
+	vkCmdDraw(graphicsCmdBuffer, m_model->getVertexBufferSize(), 1, 0, 0);
 
 	vkCmdEndRenderPass(graphicsCmdBuffer);
 }
@@ -275,12 +291,12 @@ void Renderer::createGraphicsPipeline(VkPipeline& graphicsPipeline, VkRenderPass
 
 	// Input attribute bindings describe shader attribute locations and memory layouts
 	std::array<VkVertexInputAttributeDescription, 2> vertexInputAttributes;
-	vertexInputAttributes[0] = VulkanPipelineStructures::vertexInputAttributeDesc(0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, position));
-	vertexInputAttributes[1] = VulkanPipelineStructures::vertexInputAttributeDesc(1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, color));
+	vertexInputAttributes[0] = VulkanPipelineStructures::vertexInputAttributeDesc(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex, position));
+	vertexInputAttributes[1] = VulkanPipelineStructures::vertexInputAttributeDesc(1, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex, color));
 
 	// -------- Vertex input --------
 	VkPipelineVertexInputStateCreateInfo vertexInput =
-		VulkanPipelineStructures::vertexInputInfo(1, &vertexInputBinding, 2, vertexInputAttributes.data());
+		VulkanPipelineStructures::vertexInputInfo(1, &vertexInputBinding, vertexInputAttributes.size(), vertexInputAttributes.data());
 
 	// -------- Input assembly --------
 	// The VkPipelineInputAssemblyStateCreateInfo struct describes two things: what kind of geometry will be drawn 

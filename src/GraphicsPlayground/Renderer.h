@@ -62,6 +62,8 @@ private:
 	bool m_resizeFrameBuffer = false;
 	Camera* m_camera;
 
+	Model* m_model;
+
 	std::vector<VkFramebuffer> m_frameBuffers;
 	VkRenderPass m_renderPass;
 

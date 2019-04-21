@@ -25,7 +25,7 @@ add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 
 include_directories(external)
 include_directories(external/glm)
-include_directories(external/glfw-3.3)
+include_directories(external/glfw)
 
 ##############################################
 

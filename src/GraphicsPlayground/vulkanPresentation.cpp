@@ -9,7 +9,7 @@ VulkanPresentation::VulkanPresentation(VulkanDevices* _devices, VkSurfaceKHR& _v
 
 VulkanPresentation::~VulkanPresentation()
 {
-	cleanup();
+	// VulkanPresentation::cleanup() called in Renderer::cleanup();;
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) 
 	{

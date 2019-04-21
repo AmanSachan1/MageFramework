@@ -107,7 +107,7 @@ namespace VulkanDevicesUtil
 		return deviceQueueCreateInfo;
 	}
 
-	inline VkDeviceCreateInfo logicalDeviceCreateInfo(VkStructureType sType, uint32_t queueCreateInfoCount,
+	inline VkDeviceCreateInfo logicalDeviceCreateInfo(uint32_t queueCreateInfoCount,
 		VkDeviceQueueCreateInfo* queueCreateInfos, VkPhysicalDeviceFeatures* deviceFeatures,
 		uint32_t deviceExtensionCount, const char** deviceExtensionNames,
 		uint32_t validationLayerCount, const char* const* validationLayerNames)

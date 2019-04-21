@@ -1,73 +1,42 @@
 #pragma once
-/*
-#define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/glm.hpp>
-#include "VulkanDevice.h"
-#include "Vertex.h"
-#include "BufferUtils.h"
-#include "Image.h"
-#include "ImageLoadingUtility.h"
-#include <unordered_map>
 
-struct ModelBufferObject {
-	glm::mat4 modelMatrix;
-};
+#include <unordered_map>
+#include <global.h>
+#include <Utilities/bufferUtility.h>
+#include <Utilities/imageUtility.h>
+
+#include "vulkanDevices.h"
 
 class Model
 {
 public:
-	Model() = delete;	// https://stackoverflow.com/questions/5513881/meaning-of-delete-after-function-declaration
-	Model(VulkanDevice* device, VkCommandPool commandPool,
-		const std::vector<Vertex> &vertices, const std::vector<uint32_t> &indices);
-	Model(VulkanDevice* device, VkCommandPool commandPool,
-		const std::string model_path, const std::string texture_path);
+	Model() = delete;
+	Model(VulkanDevices* devices, VkCommandPool commandPool, const std::vector<Vertex> &vertices, const std::vector<uint32_t> &indices);
+	Model(VulkanDevices* devices, VkCommandPool commandPool, const std::string model_path, const std::string texture_path);
 	~Model();
 
-	void SetTexture(VulkanDevice* device, VkCommandPool commandPool, const std::string texture_path);
-	void LoadModel(const std::string model_path);
-
+	//Getters
 	const std::vector<Vertex>& getVertices() const;
-	const std::vector<uint32_t>& getIndices() const;
-
+	VkBuffer& getVertexBuffer();
 	uint32_t getVertexBufferSize() const;
+
+	const std::vector<uint32_t>& getIndices() const;
+	VkBuffer& getIndexBuffer();
 	uint32_t getIndexBufferSize() const;
 
-	VkBuffer getVertexBuffer() const;
-	VkBuffer getIndexBuffer() const;
-
-	const ModelBufferObject& getModelBufferObject() const;
-
-	glm::mat4 Model::GetModelMatrix() const;
-	VkBuffer GetModelBuffer() const;
-	void SetModelBuffer(glm::mat4 &model);
-
-	VkImage GetTexture() const;
-	VkDeviceMemory GetTextureMemory() const;
-	VkImageView GetTextureView() const;
-	VkSampler GetTextureSampler() const;
-
 private:
-	VulkanDevice* device; //member variable because it is needed for the destructor
+	VkDevice m_logicalDevice;
+	VkPhysicalDevice m_physicalDevice;
+	
+	std::vector<Vertex> m_vertices;
+	VkBuffer m_vertexBuffer;
+	VkDeviceMemory m_vertexBufferMemory;
+	VkDeviceSize m_vertexBufferSize;
+	void* m_mappedDataVertexBuffer;
 
-	std::vector<Vertex> vertices;
-	VkBuffer vertexBuffer;
-	VkDeviceMemory vertexBufferMemory;
-
-	std::vector<uint32_t> indices;
-	VkBuffer indexBuffer;
-	VkDeviceMemory indexBufferMemory;
-
-	VkBuffer modelBuffer;
-	VkDeviceMemory modelBufferMemory;
-	ModelBufferObject modelBufferObject;
-
-	VkImage texture = VK_NULL_HANDLE;
-	VkDeviceMemory textureMemory = VK_NULL_HANDLE;
-	VkImageView textureView = VK_NULL_HANDLE;
-	VkSampler textureSampler = VK_NULL_HANDLE;
-
-	void* mappedData;
+	std::vector<uint32_t> m_indices;
+	VkBuffer m_indexBuffer;
+	VkDeviceMemory m_indexBufferMemory;
+	VkDeviceSize m_indexBufferSize;
+	void* m_mappedDataIndexBuffer;
 };
-*/

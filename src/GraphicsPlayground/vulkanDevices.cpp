@@ -54,7 +54,6 @@ void VulkanDevices::createLogicalDevice(QueueFlagBits requiredQueues)
 	if (ENABLE_VALIDATION)
 	{
 		logicalDeviceCreateInfo = VulkanDevicesUtil::logicalDeviceCreateInfo(
-			VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO, 
 			static_cast<uint32_t>(deviceQueueCreateInfos.size()),
 			deviceQueueCreateInfos.data(), 
 			&deviceFeatures,
@@ -64,7 +63,6 @@ void VulkanDevices::createLogicalDevice(QueueFlagBits requiredQueues)
 	else
 	{
 		logicalDeviceCreateInfo = VulkanDevicesUtil::logicalDeviceCreateInfo(
-			VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO, 
 			static_cast<uint32_t>(deviceQueueCreateInfos.size()),
 			deviceQueueCreateInfos.data(), 
 			&deviceFeatures,
