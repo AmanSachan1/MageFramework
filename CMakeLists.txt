@@ -102,5 +102,4 @@ ENDIF(WIN32)
 
 ##############################################
 
-add_subdirectory(external)
 add_subdirectory(src)
