@@ -42,6 +42,9 @@ public:
 	void createFrameBuffers();
 	void createRenderPass();
 
+	// Descriptors
+	void createDescriptorSetLayout();
+
 	// Pipelines
 	void createAllPipelines();
 	void createGraphicsPipeline(VkPipeline& graphicsPipeline, VkRenderPass& renderPass, unsigned int subpass);
@@ -66,6 +69,10 @@ private:
 
 	std::vector<VkFramebuffer> m_frameBuffers;
 	VkRenderPass m_renderPass;
+
+	// Descriptor Set Layouts
+	VkDescriptorSetLayout m_DSL_modelUBO;
+	VkDescriptorSetLayout m_DSL_cameraUBO;
 
 	// Pipeline Setup
 	VkPipelineLayout m_graphicsPipelineLayout;

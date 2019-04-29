@@ -145,5 +145,53 @@ namespace BufferUtil
 		vkFreeMemory(logicalDevice, stagingBufferMemory, nullptr);
 	}
 
+	inline void createIndexBuffer(VulkanDevices* devices, VkPhysicalDevice& pDevice, VkDevice& logicalDevice, VkCommandPool& cmdPool,
+		VkBuffer& indexBuffer, VkDeviceMemory& indexBufferMemory, VkDeviceSize indexBufferSize, void* mappedData, uint32_t* sourceIndexData)
+	{
+		// Very similar to createVertexBuffer Function above
+		// ----- Create Staging Buffer -----
+		VkBuffer stagingBuffer;
+		VkDeviceMemory stagingBufferMemory;
 
+		createBuffer(pDevice, logicalDevice, stagingBuffer, stagingBufferMemory, indexBufferSize,
+			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+			VK_SHARING_MODE_EXCLUSIVE,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+		vkMapMemory(logicalDevice, stagingBufferMemory, 0, indexBufferSize, 0, &mappedData);
+		memcpy(mappedData, static_cast<void*>(sourceIndexData), (size_t)indexBufferSize);
+		vkUnmapMemory(logicalDevice, stagingBufferMemory);
+
+		// ----- Create Index Buffer -----
+
+		createBuffer(pDevice, logicalDevice, indexBuffer, indexBufferMemory, indexBufferSize,
+			VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+			VK_SHARING_MODE_EXCLUSIVE,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+		// ----- Copy Staging Buffer into the Index Buffer -----
+		copyBuffer(devices, logicalDevice, cmdPool, stagingBuffer, indexBuffer, 0, 0, indexBufferSize);
+
+		// ----- Free Staging Buffer and its memory -----
+		vkDestroyBuffer(logicalDevice, stagingBuffer, nullptr);
+		vkFreeMemory(logicalDevice, stagingBufferMemory, nullptr);
+	}
+
+	inline void createUniformBuffers(VulkanDevices* devices, VkPhysicalDevice& pDevice, VkDevice& logicalDevice, unsigned int numSwapChainImages,
+		std::vector<VkBuffer>& uniformBuffers, std::vector<VkDeviceMemory>& uniformBufferMemories, VkDeviceSize uniformBufferSize)
+	{
+		// Because this buffer can change every frame, the overhead of creating and pushing data to a staging buffer outweigh the performance gain 
+		// obtained by moving things to more optimal memory
+		// Multiple uniform buffers are created because multiple frames can be in flight at once.
+
+		// ----- Create Uniform Buffers -----
+
+		for (unsigned int i = 0; i < numSwapChainImages; i++)
+		{
+			createBuffer(pDevice, logicalDevice, uniformBuffers[i], uniformBufferMemories[i], uniformBufferSize,
+				VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+				VK_SHARING_MODE_EXCLUSIVE,
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+		}
+	}
 }

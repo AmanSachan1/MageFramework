@@ -18,6 +18,10 @@ Renderer::~Renderer()
 	// Models
 	delete m_model;
 
+	// Descriptors
+	vkDestroyDescriptorSetLayout(m_logicalDevice, m_DSL_modelUBO, nullptr);
+	vkDestroyDescriptorSetLayout(m_logicalDevice, m_DSL_cameraUBO, nullptr);
+
 	// Command Pools
 	vkDestroyCommandPool(m_logicalDevice, m_graphicsCommandPool, nullptr);
 	vkDestroyCommandPool(m_logicalDevice, m_computeCommandPool, nullptr);
@@ -27,17 +31,19 @@ void Renderer::initialize()
 {
 	createCommandPoolsAndBuffers();
 	createRenderPass();
+	createDescriptorSetLayout();
 	createAllPipelines();
 	createFrameBuffers();
 
 	std::vector<Vertex> vertices = {
-		{ { 0.0f, -0.5f, 0.0f, 1.0f },{ 1.0f, 1.0f, 1.0f, 1.0f } },
-		{ { 0.5f,  0.5f, 0.0f, 1.0f },{ 0.0f, 1.0f, 0.0f, 1.0f } },
-		{ { -0.5f,  0.5f, 0.0f, 1.0f },{ 0.0f, 0.0f, 1.0f, 1.0f } }
+		{ { -0.5f, -0.5f, 0.0f, 1.0f },{ 1.0f, 0.0f, 1.0f, 1.0f } },
+		{ {  0.5f, -0.5f, 0.0f, 1.0f },{ 0.0f, 1.0f, 0.0f, 1.0f } },
+		{ {  0.5f,  0.5f, 0.0f, 1.0f },{ 0.0f, 0.0f, 1.0f, 1.0f } },
+		{ { -0.5f,  0.5f, 0.0f, 1.0f },{ 1.0f, 1.0f, 1.0f, 1.0f } }
 	};
-	std::vector<uint32_t> indices = { 0, 1, 2 };
+	std::vector<uint32_t> indices = { 0, 1, 2, 2, 3, 0 };
 
-	m_model = new Model(m_devices, m_graphicsCommandPool, vertices, indices);
+	m_model = new Model(m_devices, m_graphicsCommandPool, m_presentationObject->getCount(), vertices, indices);
 	
 	recordAllCommandBuffers();
 }
@@ -52,6 +58,9 @@ void Renderer::renderLoop()
 	// Acquire image from swapchain
 	bool flag_recreateSwapChain = m_presentationObject->acquireNextSwapChainImage(m_logicalDevice);
 	if (!flag_recreateSwapChain) { recreate(); };	
+
+	m_camera->updateUniformBuffer(m_presentationObject->getIndex());
+	m_model->updateUniformBuffer(m_presentationObject->getIndex());
 
 	//-------------------------------------
 	//	Submit Commands To Graphics Queue
@@ -145,15 +154,18 @@ void Renderer::recordGraphicsCommandBuffer(VkCommandBuffer& graphicsCmdBuffer, V
 	vkCmdBindPipeline(graphicsCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
 
 	VkBuffer vertexBuffers[] = { m_model->getVertexBuffer() };
+	VkBuffer indexBuffer = m_model->getIndexBuffer();
 	VkDeviceSize offsets[] = { 0 };
 	vkCmdBindVertexBuffers(graphicsCmdBuffer, 0, 1, vertexBuffers, offsets);
+	vkCmdBindIndexBuffer(graphicsCmdBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
 	// Draw Command Params, aside from the command buffer:
-	// vertexCount   : Even though we don't have a vertex buffer, we technically still have 3 vertices to draw.
-	// instanceCount : Used for instanced rendering, use 1 if you're not doing that.
-	// firstVertex   : Used as an offset into the vertex buffer, defines the lowest value of gl_VertexIndex.
+	// indexCount    : Number of indices
+	// instanceCount : Number of instances
+	// firstIndex    : Offset into the indexBuffer. Since it is a standalone buffer for us this is zero.
+	// VertexOffset  : Used to specify an offset to add to the indices of the index buffer
 	// firstInstance : Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
-	vkCmdDraw(graphicsCmdBuffer, m_model->getVertexBufferSize(), 1, 0, 0);
+	vkCmdDrawIndexed(graphicsCmdBuffer, m_model->getNumIndices(), 1, 0, 0, 0);
 
 	vkCmdEndRenderPass(graphicsCmdBuffer);
 }
@@ -192,7 +204,7 @@ void Renderer::createFrameBuffers()
 
 	m_frameBuffers.resize(m_presentationObject->getCount());
 
-	for (size_t i = 0; i < m_presentationObject->getCount(); i++)
+	for (uint32_t i = 0; i < m_presentationObject->getCount(); i++)
 	{
 		VkImageView attachments[] = { m_presentationObject->getVkImageView(i) };
 
@@ -252,9 +264,24 @@ void Renderer::createRenderPass()
 	RenderPassUtil::createRenderPass(m_logicalDevice, m_renderPass, 1, &colorAttachment, 1, &subpass, 1, &dependency);
 }
 
+void Renderer::createDescriptorSetLayout()
+{
+	// Descriptor set layouts are specified in the pipeline layout object., i.e. during pipeline creation to tell Vulkan 
+	// which descriptors the shaders will be using.
+	// Create the array of VkDescriptorSetLayoutBinding's 
+
+	VkDescriptorSetLayoutBinding DSLBinding_cameraUBO =
+		DescriptorUtil::CreateDescriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr);
+	VkDescriptorSetLayoutBinding DSLBinding_modelUBO =
+		DescriptorUtil::CreateDescriptorSetLayoutBinding(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr);
+
+	DescriptorUtil::CreateDescriptorSetLayout(m_logicalDevice, m_DSL_modelUBO, 1, &DSLBinding_modelUBO);
+	DescriptorUtil::CreateDescriptorSetLayout(m_logicalDevice, m_DSL_cameraUBO, 1, &DSLBinding_cameraUBO);
+}
+
 void Renderer::createAllPipelines()
 {
-	std::vector<VkDescriptorSetLayout> descriptorSetLayouts = {};
+	std::vector<VkDescriptorSetLayout> descriptorSetLayouts = { m_DSL_modelUBO, m_DSL_cameraUBO };
 
 	m_graphicsPipelineLayout = VulkanPipelineCreation::createPipelineLayout(m_logicalDevice, descriptorSetLayouts, 0, nullptr);
 	createGraphicsPipeline(m_graphicsPipeline, m_renderPass, 0);
@@ -297,7 +324,10 @@ void Renderer::createGraphicsPipeline(VkPipeline& graphicsPipeline, VkRenderPass
 
 	// -------- Vertex input --------
 	VkPipelineVertexInputStateCreateInfo vertexInput =
-		VulkanPipelineStructures::vertexInputInfo(1, &vertexInputBinding, vertexInputAttributes.size(), vertexInputAttributes.data());
+		VulkanPipelineStructures::vertexInputInfo(static_cast<uint32_t>(1),
+												&vertexInputBinding, 
+												static_cast<uint32_t>(vertexInputAttributes.size()),
+												vertexInputAttributes.data());
 
 	// -------- Input assembly --------
 	// The VkPipelineInputAssemblyStateCreateInfo struct describes two things: what kind of geometry will be drawn 

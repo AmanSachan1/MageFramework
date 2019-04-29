@@ -4,8 +4,8 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/glm.hpp>
 
-//#include "VulkanDevice.h"
-//#include "BufferUtils.h"
+#include "VulkanDevices.h"
+#include <Utilities/bufferUtility.h>
 
 #define PI 3.14159
 
@@ -21,14 +21,15 @@ class Camera
 {
 public:
 	Camera() = delete;	// https://stackoverflow.com/questions/5513881/meaning-of-delete-after-function-declaration
-	Camera(glm::vec3 eyePos, glm::vec3 ref, int width, int height,
-		   float foV_vertical, float aspectRatio, float nearClip, float farClip);
+	Camera(VulkanDevices* devices, unsigned int numSwapChainImages,
+		glm::vec3 eyePos, glm::vec3 lookAtPoint, int width, int height,
+		float foV_vertical, float aspectRatio, float nearClip, float farClip);
 	~Camera();
 
-	VkBuffer getBuffer() const;
-	void updateBuffer();
-	void updateBuffer(Camera* cam);
-	void copyToGPUMemory();
+	VkBuffer getUniformBuffer(unsigned int bufferIndex) const;
+	void updateUniformBuffer(unsigned int bufferIndex);
+	void updateUniformBuffer(Camera* cam, unsigned int dstCamBufferIndex, unsigned int srcCamBufferIndex);
+	void copyToGPUMemory(unsigned int bufferIndex);
 
 	glm::mat4 getView() const;
 	glm::mat4 getProj() const;
@@ -43,13 +44,16 @@ public:
 	void translateAlongUp(float amt);
 
 private:
-	//VulkanDevice* device; //member variable because it is needed for the destructor
+	VulkanDevices* m_devices; //member variable because it is needed for the destructor
+	VkDevice m_logicalDevice;
+	VkPhysicalDevice m_physicalDevice;
+	unsigned int m_numSwapChainImages;
 
-	//CameraUBO cameraUBO;
-	//VkBuffer buffer;
-	//VkDeviceMemory bufferMemory;
-
-	//void* mappedData;
+	std::vector<CameraUBO> m_cameraUBOs;
+	std::vector<VkBuffer> m_uniformBuffers;
+	std::vector<VkDeviceMemory> m_uniformBufferMemories;
+	VkDeviceSize m_uniformBufferSize;
+	std::vector<void*> m_mappedDataUniformBuffers;
 
 	glm::vec3 m_eyePos;
 	glm::vec3 m_ref;      //The point in world space towards which the camera is pointing

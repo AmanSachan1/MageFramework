@@ -79,3 +79,39 @@ namespace RenderPassUtil
 		}
 	}
 };
+
+namespace DescriptorUtil
+{
+	inline VkDescriptorSetLayoutBinding CreateDescriptorSetLayoutBinding(uint32_t binding,	
+									VkDescriptorType descriptorType, uint32_t descriptorCount,
+									VkShaderStageFlags stageFlags, const VkSampler* pImmutableSampler)
+	{
+		VkDescriptorSetLayoutBinding l_UBOLayoutBinding = {};
+		// Binding --> used in shader
+		// Descriptor Type --> type of descriptor
+		// Descriptor Count --> Shader variable can represent an array of UBO's, descriptorCount specifies number of values in the array
+		// Stage Flags --> which shader you're referencing this descriptor from 
+		// pImmutableSamplers --> for image sampling related descriptors
+		l_UBOLayoutBinding.binding = binding;
+		l_UBOLayoutBinding.descriptorType = descriptorType;
+		l_UBOLayoutBinding.descriptorCount = descriptorCount;
+		l_UBOLayoutBinding.stageFlags = stageFlags;
+		l_UBOLayoutBinding.pImmutableSamplers = pImmutableSampler;
+
+		return l_UBOLayoutBinding;
+	}
+
+	inline void CreateDescriptorSetLayout(VkDevice& logicalDevice, VkDescriptorSetLayout& descriptorSetLayout, 
+		uint32_t bindingCount, VkDescriptorSetLayoutBinding* data)
+	{
+		VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
+		descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		descriptorSetLayoutCreateInfo.pNext = nullptr;
+		descriptorSetLayoutCreateInfo.bindingCount = bindingCount;
+		descriptorSetLayoutCreateInfo.pBindings = data;
+
+		if (vkCreateDescriptorSetLayout(logicalDevice, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create descriptor set layout!");
+		}
+	}
+}

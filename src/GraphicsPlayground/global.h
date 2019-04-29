@@ -8,6 +8,8 @@
 #include <set>
 #include <bitset>
 
+#include <chrono>
+
 #include <vulkan/vulkan.h>
 
 #define GLFW_INCLUDE_VULKAN
@@ -37,3 +39,11 @@ enum QueueFlagBit
 using QueueFlagBits = std::bitset<sizeof(QueueFlags)>;
 using QueueFamilyIndices = std::array<uint32_t, sizeof(QueueFlags)>;
 using Queues = std::array<VkQueue, sizeof(QueueFlags)>;
+
+// Timer
+static std::chrono::time_point<std::chrono::steady_clock> startTime;
+inline void initTimer()
+{
+	std::cout << "Starting Timer \n";
+	startTime = std::chrono::high_resolution_clock::now();
+}

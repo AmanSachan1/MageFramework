@@ -12,6 +12,7 @@ int window_height = 720;
 int window_width = 1284;
 
 VulkanDevices* devices;
+VulkanPresentation* presentation;
 Renderer* renderer;
 Camera* camera;
 
@@ -67,6 +68,9 @@ namespace InputUtil
 		if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
 			camera->rotateAboutUp(-deltaForRotation);
 		}
+
+		camera->updateUniformBuffer(presentation->getIndex());
+		camera->copyToGPUMemory(presentation->getIndex());
 	}
 
 	void mouseDownCallback(GLFWwindow* window, int button, int action, int mods)
@@ -111,7 +115,6 @@ public:
 private:
 	GLFWwindow* window;
 	VulkanInstance* instance;
-	VulkanPresentation* presentation;
 	VkSurfaceKHR vkSurface;
 
 	void initialize();
@@ -174,12 +177,13 @@ void GraphicsPlaygroundApplication::initialize()
 	static constexpr char* applicationName = "Shader Playground";
 	initWindow(window_width, window_height, applicationName);
 	initVulkan(applicationName);
+	initTimer();
 
-	camera = new Camera(glm::vec3(0.0f, 0.0f, 2.0f), glm::vec3(0.0f, 0.0f, 1.0f),
+	camera = new Camera(devices, presentation->getCount(), glm::vec3(0.0f, 0.0f, 2.0f), glm::vec3(0.0f, 0.0f, 1.0f),
 		window_width, window_height, 45.0f, float(window_width) / float(window_height), 0.1f, 1000.0f);
 
 	renderer = new Renderer(window, devices, presentation, camera, window_width, window_height);
-
+	
 	glfwSetWindowSizeCallback(window, InputUtil::resizeCallback);
 	glfwSetFramebufferSizeCallback(window, InputUtil::resizeCallback);
 	glfwSetScrollCallback(window, InputUtil::scrollCallback);
@@ -205,6 +209,7 @@ void GraphicsPlaygroundApplication::cleanup()
 	// Wait for the device to finish executing before cleanup
 	vkDeviceWaitIdle(devices->getLogicalDevice());
 	
+	delete camera;
 	delete renderer;
 	delete presentation;
 	delete devices;
