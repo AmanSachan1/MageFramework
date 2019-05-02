@@ -27,6 +27,7 @@ public:
 	~Camera();
 
 	VkBuffer getUniformBuffer(unsigned int bufferIndex) const;
+	uint32_t getUniformBufferSize() const;
 	void updateUniformBuffer(unsigned int bufferIndex);
 	void updateUniformBuffer(Camera* cam, unsigned int dstCamBufferIndex, unsigned int srcCamBufferIndex);
 	void copyToGPUMemory(unsigned int bufferIndex);

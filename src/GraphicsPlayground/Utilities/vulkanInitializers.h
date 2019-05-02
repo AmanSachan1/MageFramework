@@ -78,38 +78,6 @@ namespace VulkanInitializers
 			throw std::runtime_error("Failed to create image views!");
 		}
 	}
-
-	//--------------------------------------------------------
-	//			Descriptor Sets and Descriptor Layouts
-	// Reference: https://vulkan-tutorial.com/Uniform_buffers
-	//--------------------------------------------------------
-
-	inline void CreateDescriptorPool(VkDevice& logicalDevice, uint32_t poolSizeCount, VkDescriptorPoolSize* data, VkDescriptorPool& descriptorPool)
-	{
-		VkDescriptorPoolCreateInfo descriptorPoolInfo = {};
-		descriptorPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-		descriptorPoolInfo.pNext = nullptr;
-		descriptorPoolInfo.poolSizeCount = poolSizeCount;
-		descriptorPoolInfo.pPoolSizes = data;
-		descriptorPoolInfo.maxSets = poolSizeCount;
-
-		if (vkCreateDescriptorPool(logicalDevice, &descriptorPoolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
-			throw std::runtime_error("Failed to create descriptor pool");
-		}
-	}
-
-	inline VkDescriptorSet CreateDescriptorSet(VkDevice& logicalDevice, VkDescriptorPool descriptorPool, VkDescriptorSetLayout descriptorSetLayout)
-	{
-		VkDescriptorSetAllocateInfo allocInfo = {};
-		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-		allocInfo.descriptorPool = descriptorPool;
-		allocInfo.descriptorSetCount = 1;
-		allocInfo.pSetLayouts = &descriptorSetLayout;
-
-		VkDescriptorSet descriptorSet;
-		vkAllocateDescriptorSets(logicalDevice, &allocInfo, &descriptorSet);
-		return descriptorSet;
-	}
 };
 
 //--------------------------------------------------------

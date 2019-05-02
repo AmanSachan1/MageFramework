@@ -80,11 +80,16 @@ namespace RenderPassUtil
 	}
 };
 
+//--------------------------------------------------------
+//			Descriptor Sets and Descriptor Layouts
+// Reference: https://vulkan-tutorial.com/Uniform_buffers
+//--------------------------------------------------------
+
 namespace DescriptorUtil
 {
-	inline VkDescriptorSetLayoutBinding CreateDescriptorSetLayoutBinding(uint32_t binding,	
-									VkDescriptorType descriptorType, uint32_t descriptorCount,
-									VkShaderStageFlags stageFlags, const VkSampler* pImmutableSampler)
+	inline VkDescriptorSetLayoutBinding createDescriptorSetLayoutBinding(uint32_t binding,
+		VkDescriptorType descriptorType, uint32_t descriptorCount,
+		VkShaderStageFlags stageFlags, const VkSampler* pImmutableSampler)
 	{
 		VkDescriptorSetLayoutBinding l_UBOLayoutBinding = {};
 		// Binding --> used in shader
@@ -101,7 +106,7 @@ namespace DescriptorUtil
 		return l_UBOLayoutBinding;
 	}
 
-	inline void CreateDescriptorSetLayout(VkDevice& logicalDevice, VkDescriptorSetLayout& descriptorSetLayout, 
+	inline void createDescriptorSetLayout(VkDevice& logicalDevice, VkDescriptorSetLayout& descriptorSetLayout,
 		uint32_t bindingCount, VkDescriptorSetLayoutBinding* data)
 	{
 		VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
@@ -110,8 +115,75 @@ namespace DescriptorUtil
 		descriptorSetLayoutCreateInfo.bindingCount = bindingCount;
 		descriptorSetLayoutCreateInfo.pBindings = data;
 
-		if (vkCreateDescriptorSetLayout(logicalDevice, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
+		if (vkCreateDescriptorSetLayout(logicalDevice, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) 
+		{
 			throw std::runtime_error("failed to create descriptor set layout!");
 		}
+	}
+
+	inline VkDescriptorPoolSize descriptorPoolSize(VkDescriptorType type, uint32_t descriptorCount)
+	{
+		VkDescriptorPoolSize  l_poolSize = {};
+		l_poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		l_poolSize.descriptorCount = descriptorCount;
+
+		return l_poolSize;
+	}
+
+	inline void createDescriptorPool(VkDevice& logicalDevice, uint32_t poolSizeCount, VkDescriptorPoolSize* data, VkDescriptorPool& descriptorPool)
+	{
+		VkDescriptorPoolCreateInfo descriptorPoolInfo = {};
+		descriptorPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		descriptorPoolInfo.pNext = nullptr;
+		descriptorPoolInfo.flags = 0; // Change if you're going to modify the descriptor set after its creation
+		descriptorPoolInfo.poolSizeCount = poolSizeCount;
+		descriptorPoolInfo.pPoolSizes = data;
+		descriptorPoolInfo.maxSets = poolSizeCount; // max number of descriptor sets allowed
+
+		if (vkCreateDescriptorPool(logicalDevice, &descriptorPoolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
+			throw std::runtime_error("Failed to create descriptor pool");
+		}
+	}
+
+	inline void createDescriptorSets(VkDevice& logicalDevice, VkDescriptorPool descriptorPool, uint32_t descriptorSetCount,
+		VkDescriptorSetLayout* descriptorSetLayouts, VkDescriptorSet* descriptorSetData)
+	{
+		VkDescriptorSetAllocateInfo allocInfo = {};
+		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		allocInfo.descriptorPool = descriptorPool;
+		allocInfo.descriptorSetCount = descriptorSetCount;
+		allocInfo.pSetLayouts = descriptorSetLayouts;
+
+		if (vkAllocateDescriptorSets(logicalDevice, &allocInfo, descriptorSetData) != VK_SUCCESS) 
+		{
+			throw std::runtime_error("failed to allocate descriptor sets!");
+		}
+	}
+
+	inline VkDescriptorBufferInfo createDescriptorBufferInfo(VkBuffer buffer, VkDeviceSize offset, VkDeviceSize range)
+	{
+		VkDescriptorBufferInfo l_descriptorBufferInfo = {};
+		l_descriptorBufferInfo.buffer = buffer;
+		l_descriptorBufferInfo.offset = offset;
+		l_descriptorBufferInfo.range = range;
+		return l_descriptorBufferInfo;
+	}
+
+	inline VkWriteDescriptorSet writeDescriptorSet( 
+		VkDescriptorSet dstSet,	uint32_t dstBinding, uint32_t descriptorCount, VkDescriptorType descriptorType,
+		const VkDescriptorBufferInfo* pBufferInfo, const VkDescriptorImageInfo* pImageInfo = nullptr,
+		uint32_t dstArrayElement = 0, const VkBufferView* pTexelBufferView = nullptr)
+	{
+		VkWriteDescriptorSet l_descriptorWrite = {};
+		l_descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		l_descriptorWrite.dstSet = dstSet;
+		l_descriptorWrite.dstBinding = dstBinding;
+		l_descriptorWrite.dstArrayElement = dstArrayElement;
+		l_descriptorWrite.descriptorCount = descriptorCount;
+		l_descriptorWrite.descriptorType = descriptorType;
+		l_descriptorWrite.pImageInfo = pImageInfo;
+		l_descriptorWrite.pBufferInfo = pBufferInfo;
+		l_descriptorWrite.pTexelBufferView = pTexelBufferView;
+		return l_descriptorWrite;
 	}
 }

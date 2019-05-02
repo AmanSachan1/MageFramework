@@ -32,6 +32,9 @@ public:
 	VkBuffer getIndexBuffer();
 	uint32_t getIndexBufferSize() const;
 
+	VkBuffer getUniformBuffer(unsigned int bufferIndex);
+	uint32_t getUniformBufferSize() const;
+
 private:
 	VulkanDevices* m_devices;
 	VkDevice m_logicalDevice;

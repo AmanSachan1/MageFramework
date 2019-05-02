@@ -90,3 +90,11 @@ uint32_t Model::getIndexBufferSize() const
 {
 	return static_cast<uint32_t>(m_indexBufferSize);
 }
+VkBuffer Model::getUniformBuffer(unsigned int bufferIndex)
+{
+	return m_uniformBuffers[bufferIndex];
+}
+uint32_t Model::getUniformBufferSize() const
+{
+	return static_cast<uint32_t>(m_uniformBufferSize);
+}

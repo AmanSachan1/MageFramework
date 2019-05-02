@@ -18,10 +18,6 @@ Renderer::~Renderer()
 	// Models
 	delete m_model;
 
-	// Descriptors
-	vkDestroyDescriptorSetLayout(m_logicalDevice, m_DSL_modelUBO, nullptr);
-	vkDestroyDescriptorSetLayout(m_logicalDevice, m_DSL_cameraUBO, nullptr);
-
 	// Command Pools
 	vkDestroyCommandPool(m_logicalDevice, m_graphicsCommandPool, nullptr);
 	vkDestroyCommandPool(m_logicalDevice, m_computeCommandPool, nullptr);
@@ -31,9 +27,6 @@ void Renderer::initialize()
 {
 	createCommandPoolsAndBuffers();
 	createRenderPass();
-	createDescriptorSetLayout();
-	createAllPipelines();
-	createFrameBuffers();
 
 	std::vector<Vertex> vertices = {
 		{ { -0.5f, -0.5f, 0.0f, 1.0f },{ 1.0f, 0.0f, 1.0f, 1.0f } },
@@ -45,6 +38,9 @@ void Renderer::initialize()
 
 	m_model = new Model(m_devices, m_graphicsCommandPool, m_presentationObject->getCount(), vertices, indices);
 	
+	setupDescriptorSets();
+	createAllPipelines();
+	createFrameBuffers();
 	recordAllCommandBuffers();
 }
 void Renderer::renderLoop()
@@ -99,6 +95,7 @@ void Renderer::recreate()
 
 	m_presentationObject->create(m_window);
 	createRenderPass();
+	setupDescriptorSets();
 	createAllPipelines();
 	createFrameBuffers();
 
@@ -127,6 +124,12 @@ void Renderer::cleanup()
 	vkDestroyRenderPass(m_logicalDevice, m_renderPass, nullptr);
 	
 	m_presentationObject->cleanup();
+
+	// Descriptors
+	//Descriptor sets are automatically deallocated when the descriptor pool is destroyed
+	vkDestroyDescriptorSetLayout(m_logicalDevice, m_DSL_graphics, nullptr);
+
+	vkDestroyDescriptorPool(m_logicalDevice, descriptorPool, nullptr);
 }
 
 
@@ -135,18 +138,18 @@ void Renderer::recordAllCommandBuffers()
 	for (unsigned int i = 0; i < m_graphicsCommandBuffers.size(); ++i)
 	{
 		VulkanCommandUtil::beginCommandBuffer(m_graphicsCommandBuffers[i]);
-		recordGraphicsCommandBuffer(m_graphicsCommandBuffers[i], m_frameBuffers[i]);
+		recordGraphicsCommandBuffer(m_graphicsCommandBuffers[i], m_frameBuffers[i], i);
 		VulkanCommandUtil::endCommandBuffer(m_graphicsCommandBuffers[i]);
 	}
 
 	for (unsigned int i = 0; i < m_computeCommandBuffers.size(); ++i)
 	{
 		VulkanCommandUtil::beginCommandBuffer(m_computeCommandBuffers[i]);
-		recordComputeCommandBuffer(m_computeCommandBuffers[i]);
+		recordComputeCommandBuffer(m_computeCommandBuffers[i], i);
 		VulkanCommandUtil::endCommandBuffer(m_computeCommandBuffers[i]);
 	}
 }
-void Renderer::recordGraphicsCommandBuffer(VkCommandBuffer& graphicsCmdBuffer, VkFramebuffer& frameBuffer)
+void Renderer::recordGraphicsCommandBuffer(VkCommandBuffer& graphicsCmdBuffer, VkFramebuffer& frameBuffer, unsigned int frameIndex)
 {
 	const VkClearValue clearColor = { 0.0f, 0.0f, 0.0f, 1.0f };
 	const VkRect2D renderArea = VulkanUtil::createRectangle({ 0,0 }, m_presentationObject->getVkExtent());
@@ -159,6 +162,8 @@ void Renderer::recordGraphicsCommandBuffer(VkCommandBuffer& graphicsCmdBuffer, V
 	vkCmdBindVertexBuffers(graphicsCmdBuffer, 0, 1, vertexBuffers, offsets);
 	vkCmdBindIndexBuffer(graphicsCmdBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
+	vkCmdBindDescriptorSets(graphicsCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipelineLayout, 0, 1, &m_DS_graphics[frameIndex], 0, nullptr);
+
 	// Draw Command Params, aside from the command buffer:
 	// indexCount    : Number of indices
 	// instanceCount : Number of instances
@@ -169,7 +174,7 @@ void Renderer::recordGraphicsCommandBuffer(VkCommandBuffer& graphicsCmdBuffer, V
 
 	vkCmdEndRenderPass(graphicsCmdBuffer);
 }
-void Renderer::recordComputeCommandBuffer(VkCommandBuffer& ComputeCmdBuffer)
+void Renderer::recordComputeCommandBuffer(VkCommandBuffer& ComputeCmdBuffer, unsigned int frameIndex)
 {
 
 }
@@ -264,24 +269,62 @@ void Renderer::createRenderPass()
 	RenderPassUtil::createRenderPass(m_logicalDevice, m_renderPass, 1, &colorAttachment, 1, &subpass, 1, &dependency);
 }
 
-void Renderer::createDescriptorSetLayout()
+
+void Renderer::setupDescriptorSets()
 {
-	// Descriptor set layouts are specified in the pipeline layout object., i.e. during pipeline creation to tell Vulkan 
-	// which descriptors the shaders will be using.
-	// Create the array of VkDescriptorSetLayoutBinding's 
+	unsigned int numSwapChainImages = m_presentationObject->getCount();
+	// --- Create Descriptor Pool ---
+	{
+		const unsigned int totalCount = 2 * numSwapChainImages;
+		const unsigned int countUB = 2 * numSwapChainImages;
+		std::vector<VkDescriptorPoolSize> poolSizes_uniformBuffers(countUB, DescriptorUtil::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1));
+		std::vector<VkDescriptorPoolSize> poolSizes;
+		poolSizes.reserve(totalCount);
 
-	VkDescriptorSetLayoutBinding DSLBinding_cameraUBO =
-		DescriptorUtil::CreateDescriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr);
-	VkDescriptorSetLayoutBinding DSLBinding_modelUBO =
-		DescriptorUtil::CreateDescriptorSetLayoutBinding(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr);
+		poolSizes.insert(poolSizes.end(), poolSizes_uniformBuffers.begin(), poolSizes_uniformBuffers.end());
+		DescriptorUtil::createDescriptorPool(m_logicalDevice, totalCount, poolSizes.data(), descriptorPool);
+	}
 
-	DescriptorUtil::CreateDescriptorSetLayout(m_logicalDevice, m_DSL_modelUBO, 1, &DSLBinding_modelUBO);
-	DescriptorUtil::CreateDescriptorSetLayout(m_logicalDevice, m_DSL_cameraUBO, 1, &DSLBinding_cameraUBO);
+	// --- Create Descriptor Set Layouts ---
+	{
+		// Descriptor set layouts are specified in the pipeline layout object., i.e. during pipeline creation to tell Vulkan 
+		// which descriptors the shaders will be using.
+		// The numbers are bindingCount, binding, and descriptorCount respectively
+		VkDescriptorSetLayoutBinding modelLayoutBinding  = { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_ALL, nullptr };
+		VkDescriptorSetLayoutBinding cameraLayoutBinding = { 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_ALL, nullptr };
+		std::array<VkDescriptorSetLayoutBinding, 2> graphicsBindings = { modelLayoutBinding, cameraLayoutBinding };
+
+		DescriptorUtil::createDescriptorSetLayout(m_logicalDevice, m_DSL_graphics, static_cast<uint32_t>(graphicsBindings.size()), graphicsBindings.data());
+	}
+
+	// --- Create Descriptor Sets ---
+	{
+		m_DS_graphics.resize(numSwapChainImages);
+		std::vector<VkDescriptorSetLayout> DSLs_graphics(numSwapChainImages, m_DSL_graphics);
+		
+		for (unsigned int i = 0; i < numSwapChainImages; i++)
+		{
+			DescriptorUtil::createDescriptorSets(m_logicalDevice, descriptorPool, 1, &DSLs_graphics[i], &m_DS_graphics[i]);
+
+			std::array<VkWriteDescriptorSet, 2> writeGraphicsSetInfo = {};
+			VkDescriptorBufferInfo modelBufferSetInfo, cameraBufferSetInfo;
+
+			// Model
+			modelBufferSetInfo = DescriptorUtil::createDescriptorBufferInfo(m_model->getUniformBuffer(i), 0, m_model->getUniformBufferSize());
+			cameraBufferSetInfo = DescriptorUtil::createDescriptorBufferInfo(m_camera->getUniformBuffer(i), 0, m_camera->getUniformBufferSize());
+
+			writeGraphicsSetInfo[0] = DescriptorUtil::writeDescriptorSet(m_DS_graphics[i], 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &modelBufferSetInfo);
+			writeGraphicsSetInfo[1] = DescriptorUtil::writeDescriptorSet(m_DS_graphics[i], 1, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &cameraBufferSetInfo);
+			
+			vkUpdateDescriptorSets(m_logicalDevice, static_cast<uint32_t>(writeGraphicsSetInfo.size()), writeGraphicsSetInfo.data(), 0, nullptr);
+		}
+	}
 }
+
 
 void Renderer::createAllPipelines()
 {
-	std::vector<VkDescriptorSetLayout> descriptorSetLayouts = { m_DSL_modelUBO, m_DSL_cameraUBO };
+	std::vector<VkDescriptorSetLayout> descriptorSetLayouts = { m_DSL_graphics };
 
 	m_graphicsPipelineLayout = VulkanPipelineCreation::createPipelineLayout(m_logicalDevice, descriptorSetLayouts, 0, nullptr);
 	createGraphicsPipeline(m_graphicsPipeline, m_renderPass, 0);
@@ -369,7 +412,7 @@ void Renderer::createGraphicsPipeline(VkPipeline& graphicsPipeline, VkRenderPass
 	// them based on a fragment's slope. This is sometimes used for shadow mapping.
 	VkPipelineRasterizationStateCreateInfo rasterizer =
 		VulkanPipelineStructures::rasterizerCreationInfo(VK_FALSE, VK_FALSE, VK_POLYGON_MODE_FILL, 1.0f,
-			VK_CULL_MODE_BACK_BIT, VK_FRONT_FACE_CLOCKWISE, VK_FALSE, 0.0f, 0.0f, 0.0f);
+			VK_CULL_MODE_BACK_BIT, VK_FRONT_FACE_COUNTER_CLOCKWISE, VK_FALSE, 0.0f, 0.0f, 0.0f);
 
 	// -------- Multisampling --------
 	// (turned off here)

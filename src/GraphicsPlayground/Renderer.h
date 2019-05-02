@@ -34,8 +34,8 @@ public:
 	
 	// Commands
 	void recordAllCommandBuffers();
-	void recordGraphicsCommandBuffer(VkCommandBuffer& graphicsCmdBuffer, VkFramebuffer& frameBuffer);
-	void recordComputeCommandBuffer(VkCommandBuffer& ComputeCmdBuffer);
+	void recordGraphicsCommandBuffer(VkCommandBuffer& graphicsCmdBuffer, VkFramebuffer& frameBuffer, unsigned int frameIndex);
+	void recordComputeCommandBuffer(VkCommandBuffer& ComputeCmdBuffer, unsigned int frameIndex);
 	void createCommandPoolsAndBuffers();
 	
 	// Rendering Setup
@@ -43,7 +43,7 @@ public:
 	void createRenderPass();
 
 	// Descriptors
-	void createDescriptorSetLayout();
+	void setupDescriptorSets();
 
 	// Pipelines
 	void createAllPipelines();
@@ -70,10 +70,6 @@ private:
 	std::vector<VkFramebuffer> m_frameBuffers;
 	VkRenderPass m_renderPass;
 
-	// Descriptor Set Layouts
-	VkDescriptorSetLayout m_DSL_modelUBO;
-	VkDescriptorSetLayout m_DSL_cameraUBO;
-
 	// Pipeline Setup
 	VkPipelineLayout m_graphicsPipelineLayout;
 	VkPipeline m_graphicsPipeline;
@@ -85,4 +81,10 @@ private:
 	// Memory Pools
 	VkCommandPool m_graphicsCommandPool;
 	VkCommandPool m_computeCommandPool;
+
+	// Descriptor Pools, sets, and layouts
+	VkDescriptorPool descriptorPool;
+
+	VkDescriptorSetLayout m_DSL_graphics;
+	std::vector<VkDescriptorSet> m_DS_graphics;	
 };

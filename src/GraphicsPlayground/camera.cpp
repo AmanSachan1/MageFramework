@@ -43,6 +43,10 @@ VkBuffer Camera::getUniformBuffer(unsigned int bufferIndex) const
 {
 	return m_uniformBuffers[bufferIndex];
 }
+uint32_t Camera::getUniformBufferSize() const
+{
+	return static_cast<uint32_t>(sizeof(CameraUBO));
+}
 
 void Camera::updateUniformBuffer(unsigned int bufferIndex)
 {
