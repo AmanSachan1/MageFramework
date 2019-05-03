@@ -23,11 +23,11 @@ namespace InputUtil
 		renderer->setResizeFlag(true);
 	}
 
-	bool leftMouseDown = false;
-	double previousX = 0.0f;
-	double previousY = 0.0f;
-	float deltaForRotation = 0.25f;
-	float deltaForMovement = 10.0f;
+	static bool leftMouseDown = false;
+	static double previousX = 0.0f;
+	static double previousY = 0.0f;
+	static float deltaForRotation = 0.25f;
+	static float deltaForMovement = 0.0001f;
 
 	void keyboardInputs(GLFWwindow* window)
 	{
@@ -101,9 +101,17 @@ namespace InputUtil
 		}
 	}
 
-	void scrollCallback(GLFWwindow*, double, double yoffset)
+	void scrollCallback(GLFWwindow* window, double xoffset, double yoffset)
 	{
-		camera->translateAlongLook(static_cast<float>(yoffset) * 0.05f);
+		if ((glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) || 
+			(glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS))
+		{
+			deltaForMovement += yoffset * 0.001f;
+		}
+		else
+		{
+			camera->translateAlongLook(static_cast<float>(yoffset) * 0.05f);
+		}		
 	}
 }
 
@@ -186,6 +194,7 @@ void GraphicsPlaygroundApplication::initialize()
 	
 	glfwSetWindowSizeCallback(window, InputUtil::resizeCallback);
 	glfwSetFramebufferSizeCallback(window, InputUtil::resizeCallback);
+
 	glfwSetScrollCallback(window, InputUtil::scrollCallback);
 	glfwSetMouseButtonCallback(window, InputUtil::mouseDownCallback);
 	glfwSetCursorPosCallback(window, InputUtil::mouseMoveCallback);

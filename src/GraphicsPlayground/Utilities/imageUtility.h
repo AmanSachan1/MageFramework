@@ -1,6 +1,9 @@
 #pragma once
 #include <global.h>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+
 namespace VulkanImageStructures
 {
 	inline VkAttachmentDescription attachmentDescription(
@@ -36,3 +39,7 @@ namespace VulkanImageStructures
 		return l_attachmentRef;
 	}
 };
+
+namespace ImageUtil
+{
+}
