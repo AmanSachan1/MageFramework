@@ -15,23 +15,23 @@ class Model
 {
 public:
 	Model() = delete;
-	Model(VulkanDevices* devices, VkCommandPool& commandPool, unsigned int numSwapChainImages, std::vector<Vertex> &vertices, std::vector<uint32_t> &indices);
-	Model(VulkanDevices* devices, VkCommandPool& commandPool, unsigned int numSwapChainImages, const std::string model_path, const std::string texture_path);
+	Model(VulkanDevices* devices, VkQueue& graphicsQueue, VkCommandPool& commandPool, unsigned int numSwapChainImages, std::vector<Vertex> &vertices, std::vector<uint32_t> &indices);
+	Model(VulkanDevices* devices, VkQueue& graphicsQueue, VkCommandPool& commandPool, unsigned int numSwapChainImages, const std::string model_path, const std::string texture_path);
 	~Model();
 
 	void updateUniformBuffer(uint32_t currentImageIndex);
 
 	//Getters
 	const std::vector<Vertex>& getVertices() const;
-	VkBuffer getVertexBuffer();
+	VkBuffer& getVertexBuffer();
 	uint32_t getVertexBufferSize() const;
 
 	const std::vector<uint32_t>& getIndices() const;
 	const uint32_t Model::getNumIndices() const;
-	VkBuffer getIndexBuffer();
+	VkBuffer& getIndexBuffer();
 	uint32_t getIndexBufferSize() const;
 
-	VkBuffer getUniformBuffer(unsigned int bufferIndex);
+	VkBuffer& getUniformBuffer(unsigned int bufferIndex);
 	uint32_t getUniformBufferSize() const;
 
 private:

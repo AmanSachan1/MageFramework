@@ -17,6 +17,7 @@ Renderer::~Renderer()
 
 	// Models
 	delete m_model;
+	delete m_texture;
 
 	// Command Pools
 	vkDestroyCommandPool(m_logicalDevice, m_graphicsCommandPool, nullptr);
@@ -25,19 +26,22 @@ Renderer::~Renderer()
 
 void Renderer::initialize()
 {
+	m_graphicsQueue = m_devices->getQueue(QueueFlags::Graphics);
 	createCommandPoolsAndBuffers();
 	createRenderPass();
 
 	std::vector<Vertex> vertices = {
-		{ { -0.5f, -0.5f, 0.0f, 1.0f },{ 1.0f, 0.0f, 1.0f, 1.0f } },
-		{ {  0.5f, -0.5f, 0.0f, 1.0f },{ 0.0f, 1.0f, 0.0f, 1.0f } },
-		{ {  0.5f,  0.5f, 0.0f, 1.0f },{ 0.0f, 0.0f, 1.0f, 1.0f } },
-		{ { -0.5f,  0.5f, 0.0f, 1.0f },{ 1.0f, 1.0f, 1.0f, 1.0f } }
+		{ { -0.5f, -0.5f, 0.0f, 1.0f },{ 1.0f, 0.0f, 1.0f, 1.0f },{ 1.0f, 0.0f } },
+		{ {  0.5f, -0.5f, 0.0f, 1.0f },{ 0.0f, 1.0f, 0.0f, 1.0f },{ 0.0f, 0.0f } },
+		{ {  0.5f,  0.5f, 0.0f, 1.0f },{ 0.0f, 0.0f, 1.0f, 1.0f },{ 0.0f, 1.0f } },
+		{ { -0.5f,  0.5f, 0.0f, 1.0f },{ 1.0f, 1.0f, 1.0f, 1.0f },{ 1.0f, 1.0f } }
 	};
 	std::vector<uint32_t> indices = { 0, 1, 2, 2, 3, 0 };
 
-	m_model = new Model(m_devices, m_graphicsCommandPool, m_presentationObject->getCount(), vertices, indices);
-	
+	m_model = new Model(m_devices, m_graphicsQueue, m_graphicsCommandPool, m_presentationObject->getCount(), vertices, indices);
+	m_texture = new Texture(m_devices, m_graphicsQueue, m_graphicsCommandPool, VK_FORMAT_R8G8B8A8_UNORM);
+	m_texture->create2DTexture("statue.jpg");
+
 	setupDescriptorSets();
 	createAllPipelines();
 	createFrameBuffers();
@@ -66,12 +70,11 @@ void Renderer::renderLoop()
 	// that writes to the color attachment. That means that theoretically the implementation can already start executing our vertex 
 	// shader and such while the image is not available yet.
 	VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-	VkSemaphore signalSemaphores[] = { m_presentationObject->getRenderFinishedVkSemaphore() };
-	VkQueue graphicsQueue = m_devices->getQueue(QueueFlags::Graphics);
+	VkSemaphore signalSemaphores[] = { m_presentationObject->getRenderFinishedVkSemaphore() };	
 	VkCommandBuffer* graphicsCommandBuffer = &m_graphicsCommandBuffers[m_presentationObject->getIndex()];
 
 	vkResetFences(m_logicalDevice, 1, &inFlightFence);
-	VulkanCommandUtil::submitToQueueSynced(graphicsQueue, 1, graphicsCommandBuffer, 1, waitSemaphores, waitStages, 1, signalSemaphores, inFlightFence);
+	VulkanCommandUtil::submitToQueueSynced(m_graphicsQueue, 1, graphicsCommandBuffer, 1, waitSemaphores, waitStages, 1, signalSemaphores, inFlightFence);
 
 	// Return the image to the swapchain for presentation
 	flag_recreateSwapChain = m_presentationObject->presentImageToSwapChain(m_logicalDevice, m_resizeFrameBuffer);
@@ -273,16 +276,19 @@ void Renderer::createRenderPass()
 void Renderer::setupDescriptorSets()
 {
 	unsigned int numSwapChainImages = m_presentationObject->getCount();
+	
 	// --- Create Descriptor Pool ---
 	{
-		const unsigned int totalCount = 2 * numSwapChainImages;
-		const unsigned int countUB = 2 * numSwapChainImages;
-		std::vector<VkDescriptorPoolSize> poolSizes_uniformBuffers(countUB, DescriptorUtil::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1));
-		std::vector<VkDescriptorPoolSize> poolSizes;
-		poolSizes.reserve(totalCount);
+		std::array<VkDescriptorPoolSize, 3> poolSizes = {};
+		poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		poolSizes[0].descriptorCount = static_cast<uint32_t>(numSwapChainImages);
+		poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		poolSizes[1].descriptorCount = static_cast<uint32_t>(numSwapChainImages);
+		poolSizes[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		poolSizes[2].descriptorCount = static_cast<uint32_t>(numSwapChainImages);
+		uint32_t poolSizeCount = static_cast<uint32_t>(poolSizes.size());
 
-		poolSizes.insert(poolSizes.end(), poolSizes_uniformBuffers.begin(), poolSizes_uniformBuffers.end());
-		DescriptorUtil::createDescriptorPool(m_logicalDevice, totalCount, poolSizes.data(), descriptorPool);
+		DescriptorUtil::createDescriptorPool(m_logicalDevice, poolSizeCount, poolSizes.data(), descriptorPool);
 	}
 
 	// --- Create Descriptor Set Layouts ---
@@ -290,9 +296,10 @@ void Renderer::setupDescriptorSets()
 		// Descriptor set layouts are specified in the pipeline layout object., i.e. during pipeline creation to tell Vulkan 
 		// which descriptors the shaders will be using.
 		// The numbers are bindingCount, binding, and descriptorCount respectively
-		VkDescriptorSetLayoutBinding modelLayoutBinding  = { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_ALL, nullptr };
-		VkDescriptorSetLayoutBinding cameraLayoutBinding = { 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_ALL, nullptr };
-		std::array<VkDescriptorSetLayoutBinding, 2> graphicsBindings = { modelLayoutBinding, cameraLayoutBinding };
+		VkDescriptorSetLayoutBinding modelLayoutBinding   = { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_ALL, nullptr };
+		VkDescriptorSetLayoutBinding cameraLayoutBinding  = { 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_ALL, nullptr };
+		VkDescriptorSetLayoutBinding samplerLayoutBinding = { 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
+		std::array<VkDescriptorSetLayoutBinding, 3> graphicsBindings = { modelLayoutBinding, cameraLayoutBinding, samplerLayoutBinding };
 
 		DescriptorUtil::createDescriptorSetLayout(m_logicalDevice, m_DSL_graphics, static_cast<uint32_t>(graphicsBindings.size()), graphicsBindings.data());
 	}
@@ -306,16 +313,19 @@ void Renderer::setupDescriptorSets()
 		{
 			DescriptorUtil::createDescriptorSets(m_logicalDevice, descriptorPool, 1, &DSLs_graphics[i], &m_DS_graphics[i]);
 
-			std::array<VkWriteDescriptorSet, 2> writeGraphicsSetInfo = {};
+			std::array<VkWriteDescriptorSet, 3> writeGraphicsSetInfo = {};
 			VkDescriptorBufferInfo modelBufferSetInfo, cameraBufferSetInfo;
+			VkDescriptorImageInfo samplerImageSetInfo;
 
 			// Model
 			modelBufferSetInfo = DescriptorUtil::createDescriptorBufferInfo(m_model->getUniformBuffer(i), 0, m_model->getUniformBufferSize());
 			cameraBufferSetInfo = DescriptorUtil::createDescriptorBufferInfo(m_camera->getUniformBuffer(i), 0, m_camera->getUniformBufferSize());
+			samplerImageSetInfo = DescriptorUtil::createDescriptorImageInfo(m_texture->getSampler(), m_texture->getImageView(), m_texture->getImageLayout());
 
 			writeGraphicsSetInfo[0] = DescriptorUtil::writeDescriptorSet(m_DS_graphics[i], 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &modelBufferSetInfo);
 			writeGraphicsSetInfo[1] = DescriptorUtil::writeDescriptorSet(m_DS_graphics[i], 1, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &cameraBufferSetInfo);
-			
+			writeGraphicsSetInfo[2] = DescriptorUtil::writeDescriptorSet(m_DS_graphics[i], 2, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &samplerImageSetInfo);
+
 			vkUpdateDescriptorSets(m_logicalDevice, static_cast<uint32_t>(writeGraphicsSetInfo.size()), writeGraphicsSetInfo.data(), 0, nullptr);
 		}
 	}
@@ -361,9 +371,7 @@ void Renderer::createGraphicsPipeline(VkPipeline& graphicsPipeline, VkRenderPass
 	VkVertexInputBindingDescription vertexInputBinding = VulkanPipelineStructures::vertexInputBindingDesc(0, sizeof(Vertex));
 
 	// Input attribute bindings describe shader attribute locations and memory layouts
-	std::array<VkVertexInputAttributeDescription, 2> vertexInputAttributes;
-	vertexInputAttributes[0] = VulkanPipelineStructures::vertexInputAttributeDesc(0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex, position));
-	vertexInputAttributes[1] = VulkanPipelineStructures::vertexInputAttributeDesc(1, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex, color));
+	std::array<VkVertexInputAttributeDescription, 3> vertexInputAttributes = Vertex::getAttributeDescriptions();
 
 	// -------- Vertex input --------
 	VkPipelineVertexInputStateCreateInfo vertexInput =

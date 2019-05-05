@@ -50,7 +50,6 @@ void VulkanDevices::createLogicalDevice(QueueFlagBits requiredQueues)
 	deviceFeatures.samplerAnisotropy = VK_TRUE;
 
 	// Actually create logical device
-	VkDeviceCreateInfo logicalDeviceCreateInfo;
 	if (ENABLE_VALIDATION)
 	{
 		VulkanDevicesUtil::createLogicalDevice(m_physicalDevice, m_logicalDevice, &deviceFeatures,

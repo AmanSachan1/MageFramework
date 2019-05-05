@@ -82,8 +82,8 @@ namespace BufferUtil
 		vkBindBufferMemory(logicalDevice, buffer, bufferMemory, 0);
 	}
 
-	inline void copyBuffer(VulkanDevices* devices, VkDevice& logicalDevice, VkCommandPool& cmdPool, VkBuffer srcBuffer, VkBuffer dstBuffer,
-		VkDeviceSize srcOffset, VkDeviceSize dstOffset, VkDeviceSize size)
+	inline void copyBuffer(VulkanDevices* devices, VkDevice& logicalDevice, VkQueue& queue, VkCommandPool& cmdPool, 
+		VkBuffer srcBuffer, VkBuffer dstBuffer,	VkDeviceSize srcOffset, VkDeviceSize dstOffset, VkDeviceSize size)
 	{
 		// Memory transfer operations are executed using command buffers, just like drawing commands.
 		// Therefore we must first allocate a temporary command buffer. 
@@ -92,11 +92,9 @@ namespace BufferUtil
 		// during command pool generation in that case.
 
 		VkCommandBuffer commandBuffer;
-		VkQueue graphicsQueue = devices->getQueue(QueueFlags::Graphics);
-
 		VulkanCommandUtil::beginSingleTimeCommand(logicalDevice, cmdPool, commandBuffer);
 		VulkanCommandUtil::copyCommandBuffer(logicalDevice, commandBuffer, srcBuffer, dstBuffer, srcOffset, dstOffset, size);
-		VulkanCommandUtil::endAndSubmitSingleTimeCommand(logicalDevice, graphicsQueue, cmdPool, commandBuffer);
+		VulkanCommandUtil::endAndSubmitSingleTimeCommand(logicalDevice, queue, cmdPool, commandBuffer);
 	}
 
 	inline void createStagingBuffer(VkPhysicalDevice& pDevice, VkDevice& logicalDevice, const void* src,
@@ -113,7 +111,7 @@ namespace BufferUtil
 		vkUnmapMemory(logicalDevice, stagingBufferMemory);
 	}
 
-	inline void createVertexBuffer(VulkanDevices* devices, VkPhysicalDevice& pDevice, VkDevice& logicalDevice, VkCommandPool& cmdPool,
+	inline void createVertexBuffer(VulkanDevices* devices, VkPhysicalDevice& pDevice, VkDevice& logicalDevice, VkQueue& graphicsQueue, VkCommandPool& cmdPool,
 		VkBuffer& vertexBuffer, VkDeviceMemory& vertexBufferMemory, VkDeviceSize vertexBufferSize, void* mappedData, Vertex* sourceVertexData)
 	{
 		// ----- Create Staging Buffer -----
@@ -148,14 +146,14 @@ namespace BufferUtil
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 		// ----- Copy Staging Buffer into the Vertex Buffer -----
-		copyBuffer(devices, logicalDevice, cmdPool, stagingBuffer, vertexBuffer, 0, 0, vertexBufferSize);
+		copyBuffer(devices, logicalDevice, graphicsQueue, cmdPool, stagingBuffer, vertexBuffer, 0, 0, vertexBufferSize);
 
 		// ----- Free Staging Buffer and its memory -----
 		vkDestroyBuffer(logicalDevice, stagingBuffer, nullptr);
 		vkFreeMemory(logicalDevice, stagingBufferMemory, nullptr);
 	}
 
-	inline void createIndexBuffer(VulkanDevices* devices, VkPhysicalDevice& pDevice, VkDevice& logicalDevice, VkCommandPool& cmdPool,
+	inline void createIndexBuffer(VulkanDevices* devices, VkPhysicalDevice& pDevice, VkDevice& logicalDevice, VkQueue& graphicsQueue, VkCommandPool& cmdPool,
 		VkBuffer& indexBuffer, VkDeviceMemory& indexBufferMemory, VkDeviceSize indexBufferSize, void* mappedData, uint32_t* sourceIndexData)
 	{
 		// Very similar to createVertexBuffer Function above
@@ -180,7 +178,7 @@ namespace BufferUtil
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 		// ----- Copy Staging Buffer into the Index Buffer -----
-		copyBuffer(devices, logicalDevice, cmdPool, stagingBuffer, indexBuffer, 0, 0, indexBufferSize);
+		copyBuffer(devices, logicalDevice, graphicsQueue, cmdPool, stagingBuffer, indexBuffer, 0, 0, indexBufferSize);
 
 		// ----- Free Staging Buffer and its memory -----
 		vkDestroyBuffer(logicalDevice, stagingBuffer, nullptr);

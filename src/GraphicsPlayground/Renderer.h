@@ -14,6 +14,7 @@
 #include "Camera.h"
 #include "Scene.h"
 #include "Model.h"
+#include "Texture.h"
 
 static constexpr unsigned int WORKGROUP_SIZE = 32;
 
@@ -56,6 +57,7 @@ private:
 	VkDevice m_logicalDevice;
 	VkPhysicalDevice m_physicalDevice;
 	VulkanPresentation* m_presentationObject;
+	VkQueue	m_graphicsQueue;
 	uint32_t m_windowWidth;
 	uint32_t m_windowHeight;
 
@@ -64,6 +66,7 @@ private:
 	Camera* m_camera;
 
 	Model* m_model;
+	Texture* m_texture;
 
 	std::vector<VkFramebuffer> m_frameBuffers;
 	VkRenderPass m_renderPass;

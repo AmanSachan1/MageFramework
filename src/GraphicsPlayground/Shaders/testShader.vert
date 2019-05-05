@@ -21,11 +21,14 @@ layout(set = 0, binding = 1) uniform CameraUBO {
 
 layout(location = 0) in vec4 inPos;
 layout(location = 1) in vec4 inColor;
+layout(location = 2) in vec2 inUV;
 
 layout(location = 0) out vec4 fragColor;
+layout(location = 1) out vec2 fragUV;
 
 void main() 
 {
     gl_Position = proj * view * modelMat * inPos;
     fragColor = inColor;
+	fragUV = inUV;
 }

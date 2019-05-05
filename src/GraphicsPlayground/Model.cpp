@@ -1,6 +1,6 @@
 #include "model.h"
 
-Model::Model(VulkanDevices* devices, VkCommandPool& commandPool, unsigned int numSwapChainImages, 
+Model::Model(VulkanDevices* devices, VkQueue& graphicsQueue, VkCommandPool& commandPool, unsigned int numSwapChainImages,
 	std::vector<Vertex> &vertices, std::vector<uint32_t> &indices)
 	: m_devices(devices), m_logicalDevice(devices->getLogicalDevice()), m_physicalDevice(devices->getPhysicalDevice()),
 	m_vertices(vertices), m_indices(indices), m_numSwapChainImages(numSwapChainImages)
@@ -14,10 +14,10 @@ Model::Model(VulkanDevices* devices, VkCommandPool& commandPool, unsigned int nu
 	m_modelUBOs.resize(m_numSwapChainImages);
 	m_mappedDataUniformBuffers.resize(m_numSwapChainImages);
 
-	BufferUtil::createVertexBuffer(m_devices, m_physicalDevice, m_logicalDevice, commandPool, 
+	BufferUtil::createVertexBuffer(m_devices, m_physicalDevice, m_logicalDevice, graphicsQueue, commandPool,
 		m_vertexBuffer, m_vertexBufferMemory, m_vertexBufferSize, m_mappedDataVertexBuffer, vertices.data());
 
-	BufferUtil::createIndexBuffer(m_devices, m_physicalDevice, m_logicalDevice, commandPool,
+	BufferUtil::createIndexBuffer(m_devices, m_physicalDevice, m_logicalDevice, graphicsQueue, commandPool,
 		m_indexBuffer, m_indexBufferMemory, m_indexBufferSize, m_mappedDataIndexBuffer, indices.data());
 
 	BufferUtil::createUniformBuffers(m_devices, m_physicalDevice, m_logicalDevice, m_numSwapChainImages,
@@ -29,7 +29,7 @@ Model::Model(VulkanDevices* devices, VkCommandPool& commandPool, unsigned int nu
 		memcpy(m_mappedDataUniformBuffers[i], &m_modelUBOs[i], (size_t)m_uniformBufferSize);
 	}
 }
-Model::Model(VulkanDevices* devices, VkCommandPool& commandPool, unsigned int numSwapChainImages, 
+Model::Model(VulkanDevices* devices, VkQueue& graphicsQueue, VkCommandPool& commandPool, unsigned int numSwapChainImages,
 	const std::string model_path, const std::string texture_path)
 {
 
@@ -65,7 +65,7 @@ const std::vector<Vertex>& Model::getVertices() const
 {
 	return m_vertices;
 }
-VkBuffer Model::getVertexBuffer()
+VkBuffer& Model::getVertexBuffer()
 {
 	return m_vertexBuffer;
 }
@@ -82,7 +82,7 @@ const uint32_t Model::getNumIndices() const
 {
 	return static_cast<uint32_t>(m_indices.size());
 }
-VkBuffer Model::getIndexBuffer()
+VkBuffer& Model::getIndexBuffer()
 {
 	return m_indexBuffer;
 }
@@ -90,7 +90,7 @@ uint32_t Model::getIndexBufferSize() const
 {
 	return static_cast<uint32_t>(m_indexBufferSize);
 }
-VkBuffer Model::getUniformBuffer(unsigned int bufferIndex)
+VkBuffer& Model::getUniformBuffer(unsigned int bufferIndex)
 {
 	return m_uniformBuffers[bufferIndex];
 }

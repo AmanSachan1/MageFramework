@@ -213,10 +213,35 @@ namespace DescriptorUtil
 		return l_descriptorBufferInfo;
 	}
 
+	inline VkDescriptorImageInfo createDescriptorImageInfo(VkSampler& sampler, VkImageView& imageView, VkImageLayout imageLayout)
+	{
+		VkDescriptorImageInfo l_descriptorImageInfo = {};
+		l_descriptorImageInfo.sampler = sampler;
+		l_descriptorImageInfo.imageView = imageView;
+		l_descriptorImageInfo.imageLayout = imageLayout;
+		return l_descriptorImageInfo;
+	}
+
 	inline VkWriteDescriptorSet writeDescriptorSet( 
 		VkDescriptorSet dstSet,	uint32_t dstBinding, uint32_t descriptorCount, VkDescriptorType descriptorType,
-		const VkDescriptorBufferInfo* pBufferInfo, const VkDescriptorImageInfo* pImageInfo = nullptr,
-		uint32_t dstArrayElement = 0, const VkBufferView* pTexelBufferView = nullptr)
+		const VkDescriptorBufferInfo* pBufferInfo, uint32_t dstArrayElement = 0)
+	{
+		VkWriteDescriptorSet l_descriptorWrite = {};
+		l_descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		l_descriptorWrite.dstSet = dstSet;
+		l_descriptorWrite.dstBinding = dstBinding;
+		l_descriptorWrite.dstArrayElement = dstArrayElement;
+		l_descriptorWrite.descriptorCount = descriptorCount;
+		l_descriptorWrite.descriptorType = descriptorType;
+		l_descriptorWrite.pImageInfo = nullptr;
+		l_descriptorWrite.pBufferInfo = pBufferInfo;
+		l_descriptorWrite.pTexelBufferView = nullptr;
+		return l_descriptorWrite;
+	}
+
+	inline VkWriteDescriptorSet writeDescriptorSet(
+		VkDescriptorSet dstSet, uint32_t dstBinding, uint32_t descriptorCount, VkDescriptorType descriptorType,
+		const VkDescriptorImageInfo* pImageInfo = nullptr, uint32_t dstArrayElement = 0)
 	{
 		VkWriteDescriptorSet l_descriptorWrite = {};
 		l_descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -226,8 +251,6 @@ namespace DescriptorUtil
 		l_descriptorWrite.descriptorCount = descriptorCount;
 		l_descriptorWrite.descriptorType = descriptorType;
 		l_descriptorWrite.pImageInfo = pImageInfo;
-		l_descriptorWrite.pBufferInfo = pBufferInfo;
-		l_descriptorWrite.pTexelBufferView = pTexelBufferView;
 		return l_descriptorWrite;
 	}
 }
