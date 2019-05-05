@@ -107,12 +107,12 @@ namespace VulkanDevicesUtil
 		return deviceQueueCreateInfo;
 	}
 
-	inline VkDeviceCreateInfo logicalDeviceCreateInfo(uint32_t queueCreateInfoCount,
-		VkDeviceQueueCreateInfo* queueCreateInfos, VkPhysicalDeviceFeatures* deviceFeatures,
+	inline void createLogicalDevice(VkPhysicalDevice &physicalDevice, VkDevice& logicalDevice, 
+		VkPhysicalDeviceFeatures* deviceFeatures,
+		uint32_t queueCreateInfoCount, VkDeviceQueueCreateInfo* queueCreateInfos,
 		uint32_t deviceExtensionCount, const char** deviceExtensionNames,
 		uint32_t validationLayerCount, const char* const* validationLayerNames)
 	{
-		// --- Create logical device ---
 		VkDeviceCreateInfo logicalDeviceCreateInfo = {};
 		logicalDeviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 		logicalDeviceCreateInfo.queueCreateInfoCount = queueCreateInfoCount;
@@ -125,11 +125,6 @@ namespace VulkanDevicesUtil
 		logicalDeviceCreateInfo.enabledLayerCount = validationLayerCount;
 		logicalDeviceCreateInfo.ppEnabledLayerNames = validationLayerNames;
 
-		return logicalDeviceCreateInfo;
-	}
-
-	inline void createLogicalDevice(VkPhysicalDevice &physicalDevice, VkDevice& logicalDevice, VkDeviceCreateInfo& logicalDeviceCreateInfo)
-	{
 		if (vkCreateDevice(physicalDevice, &logicalDeviceCreateInfo, nullptr, &logicalDevice) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to create logical device");

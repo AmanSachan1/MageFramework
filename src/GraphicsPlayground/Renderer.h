@@ -3,10 +3,8 @@
 #include <global.h>
 #include <forward.h>
 
-#include <Utilities\vulkanInitializers.h>
 #include <Utilities\pipelineUtility.h>
 #include <Utilities\commandUtility.h>
-#include <Utilities\imageUtility.h>
 #include <Utilities\shaderUtility.h>
 #include <Utilities\renderUtility.h>
 

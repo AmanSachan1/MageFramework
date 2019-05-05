@@ -53,23 +53,18 @@ void VulkanDevices::createLogicalDevice(QueueFlagBits requiredQueues)
 	VkDeviceCreateInfo logicalDeviceCreateInfo;
 	if (ENABLE_VALIDATION)
 	{
-		logicalDeviceCreateInfo = VulkanDevicesUtil::logicalDeviceCreateInfo(
-			static_cast<uint32_t>(deviceQueueCreateInfos.size()),
-			deviceQueueCreateInfos.data(), 
-			&deviceFeatures,
+		VulkanDevicesUtil::createLogicalDevice(m_physicalDevice, m_logicalDevice, &deviceFeatures,
+			static_cast<uint32_t>(deviceQueueCreateInfos.size()), deviceQueueCreateInfos.data(),
 			static_cast<uint32_t>(m_deviceExtensions.size()), m_deviceExtensions.data(),
 			static_cast<uint32_t>(validationLayers.size()), validationLayers.data());
 	}
 	else
 	{
-		logicalDeviceCreateInfo = VulkanDevicesUtil::logicalDeviceCreateInfo(
-			static_cast<uint32_t>(deviceQueueCreateInfos.size()),
-			deviceQueueCreateInfos.data(), 
-			&deviceFeatures,
+		VulkanDevicesUtil::createLogicalDevice(m_physicalDevice, m_logicalDevice, &deviceFeatures,
+			static_cast<uint32_t>(deviceQueueCreateInfos.size()), deviceQueueCreateInfos.data(),
 			static_cast<uint32_t>(m_deviceExtensions.size()), m_deviceExtensions.data(),
 			0, nullptr);
 	}
-	VulkanDevicesUtil::createLogicalDevice(m_physicalDevice, m_logicalDevice, logicalDeviceCreateInfo);
 
 	//Get required queues
 	for (unsigned int i = 0; i < requiredQueues.size(); ++i)
@@ -131,7 +126,8 @@ bool VulkanDevices::isPhysicalDeviceSuitable(VkPhysicalDevice pDevice, std::vect
 	bool desiredFeaturesSupported = (deviceProperties.deviceType 
 									 == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU &&
 										deviceFeatures.geometryShader &&
-										deviceFeatures.tessellationShader);
+										deviceFeatures.tessellationShader &&
+										deviceFeatures.samplerAnisotropy);
 	
 	bool queueSupport = true;
 	m_queueFamilyIndices = VulkanDevicesUtil::checkDeviceQueueSupport(pDevice, requiredQueues, vkSurface);
@@ -217,11 +213,11 @@ VulkanInstance* VulkanDevices::getInstance()
 {
 	return m_vulkanInstance;
 }
-VkDevice VulkanDevices::getLogicalDevice()
+const VkDevice VulkanDevices::getLogicalDevice() const
 {
 	return m_logicalDevice;
 }
-VkPhysicalDevice VulkanDevices::getPhysicalDevice()
+const VkPhysicalDevice VulkanDevices::getPhysicalDevice() const
 {
 	return m_physicalDevice;
 }

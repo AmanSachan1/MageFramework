@@ -106,7 +106,7 @@ namespace InputUtil
 		if ((glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) || 
 			(glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS))
 		{
-			deltaForMovement += yoffset * 0.001f;
+			deltaForMovement += static_cast<float>(yoffset) * 0.001f;
 		}
 		else
 		{

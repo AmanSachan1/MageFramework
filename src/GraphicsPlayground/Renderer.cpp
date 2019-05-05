@@ -71,7 +71,7 @@ void Renderer::renderLoop()
 	VkCommandBuffer* graphicsCommandBuffer = &m_graphicsCommandBuffers[m_presentationObject->getIndex()];
 
 	vkResetFences(m_logicalDevice, 1, &inFlightFence);
-	VulkanUtil::submitToGraphicsQueue(graphicsQueue, 1, waitSemaphores, waitStages, 1, graphicsCommandBuffer, 1, signalSemaphores, inFlightFence);
+	VulkanCommandUtil::submitToQueueSynced(graphicsQueue, 1, graphicsCommandBuffer, 1, waitSemaphores, waitStages, 1, signalSemaphores, inFlightFence);
 
 	// Return the image to the swapchain for presentation
 	flag_recreateSwapChain = m_presentationObject->presentImageToSwapChain(m_logicalDevice, m_resizeFrameBuffer);
@@ -152,7 +152,7 @@ void Renderer::recordAllCommandBuffers()
 void Renderer::recordGraphicsCommandBuffer(VkCommandBuffer& graphicsCmdBuffer, VkFramebuffer& frameBuffer, unsigned int frameIndex)
 {
 	const VkClearValue clearColor = { 0.0f, 0.0f, 0.0f, 1.0f };
-	const VkRect2D renderArea = VulkanUtil::createRectangle({ 0,0 }, m_presentationObject->getVkExtent());
+	const VkRect2D renderArea = Util::createRectangle({ 0,0 }, m_presentationObject->getVkExtent());
 	VulkanCommandUtil::beginRenderPass(graphicsCmdBuffer, m_renderPass, frameBuffer, renderArea, &clearColor, 1);
 	vkCmdBindPipeline(graphicsCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
 
@@ -246,14 +246,14 @@ void Renderer::createRenderPass()
 
 	VkFormat swapChainImageFormat = m_presentationObject->getVkImageFormat();
 	VkAttachmentDescription colorAttachment =
-		VulkanImageStructures::attachmentDescription(
+		AttachmentUtil::attachmentDescription(
 			swapChainImageFormat, VK_SAMPLE_COUNT_1_BIT,
 			VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, //color and depth data
 			VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, //stencil data
 			VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
 	// Our attachments array consists of a single VkAttachmentDescription, so its index is 0. 
-	VkAttachmentReference colorAttachmentRef = VulkanImageStructures::attachmentReference(0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+	VkAttachmentReference colorAttachmentRef = AttachmentUtil::attachmentReference(0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 	
 	// The index of the color attachment in the color Attachment array is directly referenced from the fragment shader with the
 	// layout(location = 0) out vec4 outColor directive!
@@ -385,7 +385,7 @@ void Renderer::createGraphicsPipeline(VkPipeline& graphicsPipeline, VkRenderPass
 
 	// -------- Viewport State ---------
 	// Viewports and Scissors (rectangles that define in which regions pixels are stored)
-	VkViewport viewport = VulkanUtil::createViewport(
+	VkViewport viewport = Util::createViewport(
 		0.0f, 0.0f,
 		static_cast<float>(m_presentationObject->getVkExtent().width),
 		static_cast<float>(m_presentationObject->getVkExtent().height),
@@ -394,7 +394,7 @@ void Renderer::createGraphicsPipeline(VkPipeline& graphicsPipeline, VkRenderPass
 	// While viewports define the transformation from the image to the framebuffer, 
 	// scissor rectangles define in which regions pixels will actually be stored.
 	// we simply want to draw to the entire framebuffer, so we'll specify a scissor rectangle that covers the framebuffer entirely
-	VkRect2D scissor = VulkanUtil::createRectangle({ 0,0 }, m_presentationObject->getVkExtent());
+	VkRect2D scissor = Util::createRectangle({ 0,0 }, m_presentationObject->getVkExtent());
 
 	// Now this viewport and scissor rectangle need to be combined into a viewport state. It is possible to use 
 	// multiple viewports and scissor rectangles. Using multiple requires enabling a GPU feature.

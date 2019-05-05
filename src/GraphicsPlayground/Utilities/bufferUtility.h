@@ -92,15 +92,25 @@ namespace BufferUtil
 		// during command pool generation in that case.
 
 		VkCommandBuffer commandBuffer;
-		VulkanCommandUtil::allocateCommandBuffers(logicalDevice, cmdPool, commandBuffer);
-		VulkanCommandUtil::beginCommandBufferSubmmitOnce(commandBuffer);
-		VulkanCommandUtil::copyBuffer(logicalDevice, commandBuffer, srcBuffer, dstBuffer, srcOffset, dstOffset, size);
-		VulkanCommandUtil::endCommandBuffer(commandBuffer);
-
 		VkQueue graphicsQueue = devices->getQueue(QueueFlags::Graphics);
-		VulkanUtil::submitToGraphicsQueue(graphicsQueue, 1, commandBuffer);
 
-		vkFreeCommandBuffers(logicalDevice, cmdPool, 1, &commandBuffer);
+		VulkanCommandUtil::beginSingleTimeCommand(logicalDevice, cmdPool, commandBuffer);
+		VulkanCommandUtil::copyCommandBuffer(logicalDevice, commandBuffer, srcBuffer, dstBuffer, srcOffset, dstOffset, size);
+		VulkanCommandUtil::endAndSubmitSingleTimeCommand(logicalDevice, graphicsQueue, cmdPool, commandBuffer);
+	}
+
+	inline void createStagingBuffer(VkPhysicalDevice& pDevice, VkDevice& logicalDevice, const void* src,
+		VkBuffer& stagingBuffer, VkDeviceMemory& stagingBufferMemory, VkDeviceSize stagingBufferSize)
+	{
+		BufferUtil::createBuffer(pDevice, logicalDevice, stagingBuffer, stagingBufferMemory, stagingBufferSize,
+			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+			VK_SHARING_MODE_EXCLUSIVE,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+		void* mappedData;
+		vkMapMemory(logicalDevice, stagingBufferMemory, 0, stagingBufferSize, 0, &mappedData);
+		memcpy(mappedData, src, static_cast<size_t>(stagingBufferSize));
+		vkUnmapMemory(logicalDevice, stagingBufferMemory);
 	}
 
 	inline void createVertexBuffer(VulkanDevices* devices, VkPhysicalDevice& pDevice, VkDevice& logicalDevice, VkCommandPool& cmdPool,

@@ -38,9 +38,9 @@ void VulkanPresentation::createSwapChain(GLFWwindow* window)
 {
 	SwapChainSupportDetails swapChainSupport = m_vulkanDevices->querySwapChainSupport();
 
-	VkSurfaceFormatKHR surfaceFormat = SwapChainUtils::chooseSwapSurfaceFormat(swapChainSupport.surfaceFormats);
-	VkPresentModeKHR presentMode = SwapChainUtils::chooseSwapPresentMode(swapChainSupport.presentModes);
-	VkExtent2D extent = SwapChainUtils::chooseSwapExtent(swapChainSupport.surfaceCapabilities, window);
+	VkSurfaceFormatKHR surfaceFormat = SwapChainUtil::chooseSwapSurfaceFormat(swapChainSupport.surfaceFormats);
+	VkPresentModeKHR presentMode = SwapChainUtil::chooseSwapPresentMode(swapChainSupport.presentModes);
+	VkExtent2D extent = SwapChainUtil::chooseSwapExtent(swapChainSupport.surfaceCapabilities, window);
 
 	// Can do multiple buffering here!
 	// minImageCount is almost definitely 1 (or it doesnt support presentation)
@@ -52,7 +52,7 @@ void VulkanPresentation::createSwapChain(GLFWwindow* window)
 		imageCount = swapChainSupport.surfaceCapabilities.maxImageCount;
 	}
 
-	VkSwapchainCreateInfoKHR swapChainCreateInfo = VulkanInitializers::basicSwapChainCreateInfo(
+	VkSwapchainCreateInfoKHR swapChainCreateInfo = SwapChainUtil::basicSwapChainCreateInfo(
 		m_surface, imageCount, surfaceFormat.format, surfaceFormat.colorSpace,
 		extent, 1, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
 		swapChainSupport.surfaceCapabilities.currentTransform,
@@ -80,7 +80,7 @@ void VulkanPresentation::createSwapChain(GLFWwindow* window)
 	// Specify whether we can clip pixels that are obscured by other windows
 	swapChainCreateInfo.clipped = VK_TRUE;
 
-	VulkanInitializers::createSwapChain(m_vulkanDevices->getLogicalDevice(), swapChainCreateInfo, m_swapChain);
+	SwapChainUtil::createSwapChain(m_vulkanDevices->getLogicalDevice(), swapChainCreateInfo, m_swapChain);
 
 	// --- Retrieve swap chain images ---
 	vkGetSwapchainImagesKHR(m_vulkanDevices->getLogicalDevice(), m_swapChain, &imageCount, nullptr);
@@ -94,13 +94,11 @@ void VulkanPresentation::createSwapChain(GLFWwindow* window)
 void VulkanPresentation::createImageViews() 
 {
 	m_swapChainImageViews.resize(m_swapChainImages.size());
+	VkDevice logicalDevice = m_vulkanDevices->getLogicalDevice();
 
 	for (int i = 0; i < m_swapChainImages.size(); i++)
 	{
-		VkImageViewCreateInfo swapChainImageViewCreateInfo =
-			VulkanInitializers::basicImageViewCreateInfo(m_swapChainImages[i], VK_IMAGE_VIEW_TYPE_2D, m_swapChainImageFormat);
-
-		VulkanInitializers::createImageView(m_vulkanDevices->getLogicalDevice(), &m_swapChainImageViews[i], &swapChainImageViewCreateInfo, nullptr);
+		ImageUtil::createImageView(logicalDevice, m_swapChainImages[i], &m_swapChainImageViews[i], VK_IMAGE_VIEW_TYPE_2D, m_swapChainImageFormat, nullptr);
 	}
 }
 

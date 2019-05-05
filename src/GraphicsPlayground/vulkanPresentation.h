@@ -2,6 +2,7 @@
 #include <global.h>
 #include <forward.h>
 #include <Utilities/swapChainUtility.h>
+#include <Utilities/imageUtility.h>
 #include "vulkanInstance.h"
 #include "vulkanDevices.h"
 

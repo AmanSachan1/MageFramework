@@ -2,7 +2,6 @@
 #include <global.h>
 #include <forward.h>
 
-#include <Utilities/vulkanInitializers.h>
 #include <Utilities/deviceUtility.h>
 
 #include "vulkanInstance.h"
@@ -26,8 +25,8 @@ public:
 	SwapChainSupportDetails querySwapChainSupport();
 
 	VulkanInstance* getInstance();
-	VkDevice getLogicalDevice();
-	VkPhysicalDevice getPhysicalDevice();
+	const VkDevice getLogicalDevice() const;
+	const VkPhysicalDevice getPhysicalDevice() const;
 	VkQueue getQueue(QueueFlags flag);
 	unsigned int getQueueIndex(QueueFlags flag);
 	QueueFamilyIndices getQueueFamilyIndices();

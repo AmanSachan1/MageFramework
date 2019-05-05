@@ -1,7 +1,7 @@
 #pragma once
 #include <global.h>
 
-namespace SwapChainUtils
+namespace SwapChainUtil
 {
 	// Specify the color channel format and color space type
 	inline VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats)
@@ -73,6 +73,45 @@ namespace SwapChainUtils
 			actualExtent.height = std::max(capabilities.minImageExtent.height, std::min(capabilities.maxImageExtent.height, actualExtent.height));
 
 			return actualExtent;
+		}
+	}
+
+	inline VkSwapchainCreateInfoKHR basicSwapChainCreateInfo(VkSurfaceKHR vkSurface,
+		uint32_t minImageCount, VkFormat imageFormat, VkColorSpaceKHR imageColorSpace,
+		VkExtent2D imageExtent, uint32_t imageArrayLayers, VkImageUsageFlags imageUsage,
+		VkSurfaceTransformFlagBitsKHR preTransform, VkCompositeAlphaFlagBitsKHR compositeAlpha,
+		VkPresentModeKHR presentMode, VkSwapchainKHR oldSwapchain)
+	{
+		// --- Create logical device ---
+		VkSwapchainCreateInfoKHR swapchainCreateInfo = {};
+		swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+		// specify the surface the swapchain will be tied to
+		swapchainCreateInfo.surface = vkSurface;
+
+		swapchainCreateInfo.minImageCount = minImageCount;
+		swapchainCreateInfo.imageFormat = imageFormat;
+		swapchainCreateInfo.imageColorSpace = imageColorSpace;
+		swapchainCreateInfo.imageExtent = imageExtent;
+		swapchainCreateInfo.imageArrayLayers = imageArrayLayers;
+		swapchainCreateInfo.imageUsage = imageUsage;
+
+		// Specify transform on images in the swap chain
+		// VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR == no transformations
+		swapchainCreateInfo.preTransform = preTransform;
+		// Specify alpha channel usage 
+		swapchainCreateInfo.compositeAlpha = compositeAlpha;
+		swapchainCreateInfo.presentMode = presentMode;
+		// Reference to old swap chain in case current one becomes invalid
+		swapchainCreateInfo.oldSwapchain = oldSwapchain;
+
+		return swapchainCreateInfo;
+	}
+
+	inline void createSwapChain(VkDevice logicalDevice, VkSwapchainCreateInfoKHR& swapchainCreateInfo, VkSwapchainKHR& vkSwapChain)
+	{
+		if (vkCreateSwapchainKHR(logicalDevice, &swapchainCreateInfo, nullptr, &vkSwapChain) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to create swap chain");
 		}
 	}
 }

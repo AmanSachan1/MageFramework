@@ -3,7 +3,6 @@
 #include <unordered_map>
 #include <global.h>
 #include <Utilities/bufferUtility.h>
-#include <Utilities/imageUtility.h>
 
 #include "vulkanDevices.h"
 
