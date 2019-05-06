@@ -55,7 +55,7 @@ void Texture::create2DTexture(std::string texturePath, VkImageTiling tiling, VkI
 	vkFreeMemory(m_logicalDevice, stagingBufferMemory, nullptr);
 
 	// Create 2D image View
-	ImageUtil::createImageView(m_logicalDevice, m_image, &m_imageView, VK_IMAGE_VIEW_TYPE_2D, m_format, nullptr);
+	ImageUtil::createImageView(m_logicalDevice, m_image, &m_imageView, VK_IMAGE_VIEW_TYPE_2D, m_format, VK_IMAGE_ASPECT_COLOR_BIT, nullptr);
 
 	// Create Texture Sampler
 	ImageUtil::createImageSampler(m_logicalDevice, m_sampler,

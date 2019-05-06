@@ -165,7 +165,8 @@ namespace VulkanCommandUtil
 		vkFreeCommandBuffers(logicalDevice, cmdPool, 1, &cmdBuffer);
 	}
 	
-	inline void beginRenderPass(VkCommandBuffer& cmdBuffer, VkRenderPass renderPass, VkFramebuffer framebuffer, VkRect2D renderArea, const VkClearValue* clearValue, uint32_t clearValueCount)
+	inline void beginRenderPass(VkCommandBuffer& cmdBuffer, VkRenderPass renderPass, VkFramebuffer framebuffer, 
+		VkRect2D renderArea, uint32_t clearValueCount, const VkClearValue* clearValue)
 	{
 		VkRenderPassBeginInfo renderPassInfo = {};
 		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;

@@ -31,18 +31,25 @@ void Renderer::initialize()
 	createRenderPass();
 
 	std::vector<Vertex> vertices = {
-		{ { -0.5f, -0.5f, 0.0f, 1.0f },{ 1.0f, 0.0f, 1.0f, 1.0f },{ 1.0f, 0.0f } },
+		{ { -0.5f, -0.5f, 0.0f, 1.0f },{ 1.0f, 0.0f, 0.0f, 1.0f },{ 1.0f, 0.0f } },
 		{ {  0.5f, -0.5f, 0.0f, 1.0f },{ 0.0f, 1.0f, 0.0f, 1.0f },{ 0.0f, 0.0f } },
 		{ {  0.5f,  0.5f, 0.0f, 1.0f },{ 0.0f, 0.0f, 1.0f, 1.0f },{ 0.0f, 1.0f } },
-		{ { -0.5f,  0.5f, 0.0f, 1.0f },{ 1.0f, 1.0f, 1.0f, 1.0f },{ 1.0f, 1.0f } }
+		{ { -0.5f,  0.5f, 0.0f, 1.0f },{ 1.0f, 1.0f, 1.0f, 1.0f },{ 1.0f, 1.0f } },
+
+		{ { -0.5f, -0.5f, -0.5f, 1.0f },{ 1.0f, 0.0f, 0.0f, 1.0f },{ 1.0f, 0.0f } },
+		{ {  0.5f, -0.5f, -0.5f, 1.0f },{ 0.0f, 1.0f, 0.0f, 1.0f },{ 0.0f, 0.0f } },
+		{ {  0.5f,  0.5f, -0.5f, 1.0f },{ 0.0f, 0.0f, 1.0f, 1.0f },{ 0.0f, 1.0f } },
+		{ { -0.5f,  0.5f, -0.5f, 1.0f },{ 1.0f, 1.0f, 1.0f, 1.0f },{ 1.0f, 1.0f } }
 	};
-	std::vector<uint32_t> indices = { 0, 1, 2, 2, 3, 0 };
+	std::vector<uint32_t> indices = { 0, 1, 2, 2, 3, 0,
+									  4, 5, 6, 6, 7, 4 };
 
 	m_model = new Model(m_devices, m_graphicsQueue, m_graphicsCommandPool, m_presentationObject->getCount(), vertices, indices);
 	m_texture = new Texture(m_devices, m_graphicsQueue, m_graphicsCommandPool, VK_FORMAT_R8G8B8A8_UNORM);
 	m_texture->create2DTexture("statue.jpg");
 
 	setupDescriptorSets();
+	createDepthResources();
 	createAllPipelines();
 	createFrameBuffers();
 	recordAllCommandBuffers();
@@ -99,6 +106,7 @@ void Renderer::recreate()
 	m_presentationObject->create(m_window);
 	createRenderPass();
 	setupDescriptorSets();
+	createDepthResources();
 	createAllPipelines();
 	createFrameBuffers();
 
@@ -113,6 +121,10 @@ void Renderer::recreate()
 void Renderer::cleanup()
 {
 	vkDeviceWaitIdle(m_logicalDevice);
+	
+	vkDestroyImage(m_logicalDevice, m_depthImage, nullptr);
+	vkFreeMemory(m_logicalDevice, m_depthImageMemory, nullptr);
+	vkDestroyImageView(m_logicalDevice, m_depthImageView, nullptr);
 
 	for (size_t i = 0; i < m_frameBuffers.size(); i++)
 	{
@@ -135,7 +147,6 @@ void Renderer::cleanup()
 	vkDestroyDescriptorPool(m_logicalDevice, descriptorPool, nullptr);
 }
 
-
 void Renderer::recordAllCommandBuffers()
 {
 	for (unsigned int i = 0; i < m_graphicsCommandBuffers.size(); ++i)
@@ -154,9 +165,13 @@ void Renderer::recordAllCommandBuffers()
 }
 void Renderer::recordGraphicsCommandBuffer(VkCommandBuffer& graphicsCmdBuffer, VkFramebuffer& frameBuffer, unsigned int frameIndex)
 {
-	const VkClearValue clearColor = { 0.0f, 0.0f, 0.0f, 1.0f };
+	std::array<VkClearValue, 2> clearValues = {};
+	clearValues[0].color = { 0.0f, 0.0f, 0.0f, 1.0f };
+	clearValues[1].depthStencil = { 1.0f, 0 };
+
 	const VkRect2D renderArea = Util::createRectangle({ 0,0 }, m_presentationObject->getVkExtent());
-	VulkanCommandUtil::beginRenderPass(graphicsCmdBuffer, m_renderPass, frameBuffer, renderArea, &clearColor, 1);
+	VulkanCommandUtil::beginRenderPass(graphicsCmdBuffer, m_renderPass, frameBuffer, 
+		renderArea, static_cast<uint32_t>(clearValues.size()), clearValues.data());
 	vkCmdBindPipeline(graphicsCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
 
 	VkBuffer vertexBuffers[] = { m_model->getVertexBuffer() };
@@ -214,13 +229,13 @@ void Renderer::createFrameBuffers()
 
 	for (uint32_t i = 0; i < m_presentationObject->getCount(); i++)
 	{
-		VkImageView attachments[] = { m_presentationObject->getVkImageView(i) };
+		std::array<VkImageView, 2> attachments[] = { m_presentationObject->getVkImageView(i), m_depthImageView };
 
 		VkFramebufferCreateInfo framebufferInfo = {};
 		framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 		framebufferInfo.renderPass = m_renderPass;
-		framebufferInfo.attachmentCount = 1;
-		framebufferInfo.pAttachments = attachments;
+		framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments->size());
+		framebufferInfo.pAttachments = attachments->data();
 		framebufferInfo.width = m_presentationObject->getVkExtent().width;
 		framebufferInfo.height = m_presentationObject->getVkExtent().height;
 		framebufferInfo.layers = 1;
@@ -231,7 +246,6 @@ void Renderer::createFrameBuffers()
 		}
 	}
 }
-
 void Renderer::createRenderPass()
 {
 	// https://vulkan-tutorial.com/Drawing_a_triangle/Graphics_pipeline_basics/Render_passes
@@ -247,31 +261,46 @@ void Renderer::createRenderPass()
 	// rendering operations into one render pass, then Vulkan is able to reorder the operations and 
 	// conserve memory bandwidth for possibly better performance. 
 
-	VkFormat swapChainImageFormat = m_presentationObject->getVkImageFormat();
-	VkAttachmentDescription colorAttachment =
-		AttachmentUtil::attachmentDescription(
-			swapChainImageFormat, VK_SAMPLE_COUNT_1_BIT,
-			VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, //color and depth data
-			VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, //stencil data
-			VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+	VkAttachmentReference colorAttachmentRef, depthAttachmentRef;
+	VkAttachmentDescription colorAttachment, depthAttachment;
+	{
+		VkFormat swapChainImageFormat = m_presentationObject->getVkImageFormat();
+		VkFormat depthFormat = FormatUtil::findDepthFormat(m_physicalDevice);
 
-	// Our attachments array consists of a single VkAttachmentDescription, so its index is 0. 
-	VkAttachmentReference colorAttachmentRef = AttachmentUtil::attachmentReference(0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-	
+		colorAttachment = RenderPassUtil::attachmentDescription(swapChainImageFormat, VK_SAMPLE_COUNT_1_BIT,
+				VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, //color data
+				VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, //stencil data
+				VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+
+		depthAttachment = RenderPassUtil::attachmentDescription(depthFormat, VK_SAMPLE_COUNT_1_BIT,
+				VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_DONT_CARE, //depth data
+				VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, //stencil data
+				VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+
+		// Our attachments array consists of a single VkAttachmentDescription, so its index is 0. 
+		colorAttachmentRef = RenderPassUtil::attachmentReference(0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+		depthAttachmentRef = RenderPassUtil::attachmentReference(1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+	}
+	std::array<VkAttachmentDescription, 2> attachments = { colorAttachment, depthAttachment };
+
 	// The index of the color attachment in the color Attachment array is directly referenced from the fragment shader with the
 	// layout(location = 0) out vec4 outColor directive!
 	VkSubpassDescription subpass = 
-		RenderPassUtil::subpassDescription(VK_PIPELINE_BIND_POINT_GRAPHICS, 0, nullptr, 1, &colorAttachmentRef, nullptr, nullptr, 0, nullptr);
+		RenderPassUtil::subpassDescription(VK_PIPELINE_BIND_POINT_GRAPHICS, 0, nullptr, 
+			1, &colorAttachmentRef, 
+			nullptr, 
+			&depthAttachmentRef, 
+			0, nullptr);
 
 	VkSubpassDependency dependency = 
-		RenderPassUtil::subpassDependency(
-			VK_SUBPASS_EXTERNAL, 0,
+		RenderPassUtil::subpassDependency(VK_SUBPASS_EXTERNAL, 0,
 			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0,
 			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
-
-	RenderPassUtil::createRenderPass(m_logicalDevice, m_renderPass, 1, &colorAttachment, 1, &subpass, 1, &dependency);
+	
+	RenderPassUtil::createRenderPass(m_logicalDevice, m_renderPass, 
+		static_cast<uint32_t>(attachments.size()), attachments.data(), 
+		1, &subpass, 1, &dependency);
 }
-
 
 void Renderer::setupDescriptorSets()
 {
@@ -331,6 +360,26 @@ void Renderer::setupDescriptorSets()
 	}
 }
 
+void Renderer::createDepthResources()
+{
+	VkExtent2D extent = m_presentationObject->getVkExtent();
+	uint32_t width	= extent.width;
+	uint32_t height	= extent.height;
+	VkFormat depthFormat = FormatUtil::findDepthFormat(m_physicalDevice);
+
+	ImageUtil::createImage(m_logicalDevice, m_physicalDevice, m_depthImage, m_depthImageMemory,
+		VK_IMAGE_TYPE_2D, depthFormat, width, height, 1,
+		VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+		VK_SAMPLE_COUNT_1_BIT,
+		VK_IMAGE_TILING_OPTIMAL,
+		1, 1, VK_IMAGE_LAYOUT_UNDEFINED, VK_SHARING_MODE_EXCLUSIVE);
+
+	ImageUtil::createImageView(m_logicalDevice, m_depthImage, &m_depthImageView, 
+		VK_IMAGE_VIEW_TYPE_2D, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, nullptr);
+
+	ImageUtil::transitionImageLayout(m_logicalDevice, m_graphicsQueue, m_graphicsCommandPool,
+		m_depthImage, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+}
 
 void Renderer::createAllPipelines()
 {
@@ -429,7 +478,7 @@ void Renderer::createGraphicsPipeline(VkPipeline& graphicsPipeline, VkRenderPass
 
 	// -------- Depth and Stencil Testing --------
 	VkPipelineDepthStencilStateCreateInfo depthAndStencil =
-		VulkanPipelineStructures::depthStencilStateCreationInfo(VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS, VK_FALSE, VK_FALSE, {}, {}, 0.0f, 1.0f);
+		VulkanPipelineStructures::depthStencilStateCreationInfo(VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS, VK_FALSE, 0.0f, 1.0f, VK_FALSE, {}, {});
 
 	// -------- Color Blending ---------
 	VkPipelineColorBlendAttachmentState colorBlendAttachment =

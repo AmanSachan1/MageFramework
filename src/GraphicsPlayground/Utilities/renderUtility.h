@@ -1,18 +1,6 @@
 #pragma once
 #include <global.h>
-
-namespace Util
-{
-	inline VkViewport createViewport(float x, float y, float width, float height, float minDepth, float maxDepth)
-	{
-		return { x, y, width, height, minDepth, maxDepth };
-	}
-
-	inline VkRect2D createRectangle(VkOffset2D offset, VkExtent2D extent)
-	{
-		return { offset, extent };
-	}
-};
+#include <Utilities/imageUtility.h>
 
 namespace RenderPassUtil
 {
@@ -91,10 +79,7 @@ namespace RenderPassUtil
 			throw std::runtime_error("failed to create render pass!");
 		}
 	}
-};
 
-namespace AttachmentUtil
-{
 	inline VkAttachmentDescription attachmentDescription(
 		VkFormat format, VkSampleCountFlagBits samples,
 		VkAttachmentLoadOp loadOp, VkAttachmentStoreOp storeOp,

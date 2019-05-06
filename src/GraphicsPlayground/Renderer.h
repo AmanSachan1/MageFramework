@@ -7,6 +7,7 @@
 #include <Utilities\commandUtility.h>
 #include <Utilities\shaderUtility.h>
 #include <Utilities\renderUtility.h>
+#include <Utilities\generalUtility.h>
 
 #include "vulkanDevices.h"
 #include "vulkanPresentation.h"
@@ -40,6 +41,7 @@ public:
 	// Rendering Setup
 	void createFrameBuffers();
 	void createRenderPass();
+	void createDepthResources();
 
 	// Descriptors
 	void setupDescriptorSets();
@@ -70,6 +72,9 @@ private:
 
 	std::vector<VkFramebuffer> m_frameBuffers;
 	VkRenderPass m_renderPass;
+	VkImage m_depthImage;
+	VkDeviceMemory m_depthImageMemory;
+	VkImageView m_depthImageView;
 
 	// Pipeline Setup
 	VkPipelineLayout m_graphicsPipelineLayout;

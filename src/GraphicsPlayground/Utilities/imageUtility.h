@@ -1,6 +1,7 @@
 #pragma once
 #include <global.h>
 #include <Utilities/bufferUtility.h>
+#include <Utilities/generalUtility.h>
 #include <Utilities/commandUtility.h>
 
 namespace ImageUtil
@@ -82,7 +83,7 @@ namespace ImageUtil
 	}
 
 	inline void createImageView(VkDevice& logicalDevice, VkImage& image, VkImageView* imageView,
-		VkImageViewType viewType, VkFormat format, const VkAllocationCallbacks* pAllocator)
+		VkImageViewType viewType, VkFormat format, VkImageAspectFlags aspectMask, const VkAllocationCallbacks* pAllocator)
 	{
 		VkImageViewCreateInfo l_createInfo = {};
 		l_createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -95,10 +96,10 @@ namespace ImageUtil
 		l_createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
 		l_createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
 		l_createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-
+		
 		//No Mipmapping and no multiple targets
-		l_createInfo.subresourceRange = createImageSubResourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1);
-
+		l_createInfo.subresourceRange = createImageSubResourceRange(aspectMask, 0, 1, 0, 1);
+		
 		if (vkCreateImageView(logicalDevice, &l_createInfo, pAllocator, imageView) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to create image views!");
@@ -208,32 +209,51 @@ namespace ImageUtil
 		// Set VkAccessMasks and VkPipelineStageFlags based on the layouts used in the transition
 		VkAccessFlags srcAccessMask, dstAccessMask;
 		VkPipelineStageFlags srcStageMask, dstStageMask;
-		if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+		VkImageAspectFlags aspectMask;
+
+		if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED)
 		{
 			srcAccessMask = 0;
-			dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-
 			srcStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-			dstStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
+
+			if (newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+			{
+				dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+				dstStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
+				aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			}
+			else if (newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+			{
+				dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+				dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+
+				aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+				if (FormatUtil::hasStencilComponent(format))
+				{
+					aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+				}
+			}
 		}
-		else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+		else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && 
+				 newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
 		{
 			srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 			dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
 			srcStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
 			dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+
+			aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		}
 		else
 		{
 			throw std::invalid_argument("unsupported layout transition!");
 		}
-
-		VkImageSubresourceRange imageSubresourceRange = createImageSubResourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1);
+		
+		VkImageSubresourceRange imageSubresourceRange = createImageSubResourceRange(aspectMask, 0, 1, 0, 1);
 		VkImageMemoryBarrier imageBarrier = createImageMemoryBarrier(image, oldLayout, newLayout, srcAccessMask, dstAccessMask, imageSubresourceRange);
-
 		VulkanCommandUtil::pipelineBarrier(cmdBuffer, srcStageMask, dstStageMask, 0, 0, nullptr, 0, nullptr, 1, &imageBarrier);
-
+		
 		VulkanCommandUtil::endAndSubmitSingleTimeCommand(logicalDevice, queue, cmdPool, cmdBuffer);
 	}
 

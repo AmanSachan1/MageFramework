@@ -98,7 +98,8 @@ void VulkanPresentation::createImageViews()
 
 	for (int i = 0; i < m_swapChainImages.size(); i++)
 	{
-		ImageUtil::createImageView(logicalDevice, m_swapChainImages[i], &m_swapChainImageViews[i], VK_IMAGE_VIEW_TYPE_2D, m_swapChainImageFormat, nullptr);
+		ImageUtil::createImageView(logicalDevice, m_swapChainImages[i], &m_swapChainImageViews[i], 
+			VK_IMAGE_VIEW_TYPE_2D, m_swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, nullptr);
 	}
 }
 

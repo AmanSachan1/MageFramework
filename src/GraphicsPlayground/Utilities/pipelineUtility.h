@@ -100,8 +100,9 @@ namespace VulkanPipelineStructures
 	}
 
 	inline VkPipelineDepthStencilStateCreateInfo depthStencilStateCreationInfo(
-		VkBool32 depthTestEnable, VkBool32 depthWriteEnable, VkCompareOp depthCompareOp, VkBool32 depthBoundsTestEnable,
-		VkBool32 stencilTestEnable, VkStencilOpState front, VkStencilOpState back, float minDepthBounds, float maxDepthBounds)
+		VkBool32 depthTestEnable, VkBool32 depthWriteEnable, VkCompareOp depthCompareOp, 
+		VkBool32 depthBoundsTestEnable,	float minDepthBounds, float maxDepthBounds,
+		VkBool32 stencilTestEnable, VkStencilOpState front, VkStencilOpState back)
 	{
 		VkPipelineDepthStencilStateCreateInfo l_depthStencilStateCreationInfo{};
 
@@ -109,12 +110,15 @@ namespace VulkanPipelineStructures
 		l_depthStencilStateCreationInfo.depthTestEnable = depthTestEnable;
 		l_depthStencilStateCreationInfo.depthWriteEnable = depthWriteEnable;
 		l_depthStencilStateCreationInfo.depthCompareOp = depthCompareOp;
+
 		l_depthStencilStateCreationInfo.depthBoundsTestEnable = depthBoundsTestEnable;
+		l_depthStencilStateCreationInfo.minDepthBounds = minDepthBounds;
+		l_depthStencilStateCreationInfo.maxDepthBounds = maxDepthBounds;
+		
 		l_depthStencilStateCreationInfo.stencilTestEnable = stencilTestEnable;
 		l_depthStencilStateCreationInfo.front = front;
 		l_depthStencilStateCreationInfo.back = back;
-		l_depthStencilStateCreationInfo.minDepthBounds = minDepthBounds;
-		l_depthStencilStateCreationInfo.maxDepthBounds = maxDepthBounds;
+
 		return l_depthStencilStateCreationInfo;
 	}
 
