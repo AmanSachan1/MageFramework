@@ -1,6 +1,6 @@
 #include "Renderer.h"
 
-Renderer::Renderer(GLFWwindow* window, VulkanDevices* devices, VulkanPresentation* presentation,
+Renderer::Renderer(GLFWwindow* window, RendererOptions rendererOptions, VulkanDevices* devices, VulkanPresentation* presentation,
 	Camera* camera, uint32_t width, uint32_t height)
 	: m_window(window), 
 	m_devices(devices), m_logicalDevice(devices->getLogicalDevice()), m_physicalDevice(devices->getPhysicalDevice()),
@@ -17,7 +17,6 @@ Renderer::~Renderer()
 
 	// Models
 	delete m_model;
-	delete m_texture;
 
 	// Command Pools
 	vkDestroyCommandPool(m_logicalDevice, m_graphicsCommandPool, nullptr);
@@ -30,25 +29,11 @@ void Renderer::initialize()
 	createCommandPoolsAndBuffers();
 	createRenderPass();
 
-	std::vector<Vertex> vertices = {
-		{ { -0.5f, -0.5f, 0.0f, 1.0f },{ 1.0f, 0.0f, 0.0f, 1.0f },{ 1.0f, 0.0f } },
-		{ {  0.5f, -0.5f, 0.0f, 1.0f },{ 0.0f, 1.0f, 0.0f, 1.0f },{ 0.0f, 0.0f } },
-		{ {  0.5f,  0.5f, 0.0f, 1.0f },{ 0.0f, 0.0f, 1.0f, 1.0f },{ 0.0f, 1.0f } },
-		{ { -0.5f,  0.5f, 0.0f, 1.0f },{ 1.0f, 1.0f, 1.0f, 1.0f },{ 1.0f, 1.0f } },
-
-		{ { -0.5f, -0.5f, -0.5f, 1.0f },{ 1.0f, 0.0f, 0.0f, 1.0f },{ 1.0f, 0.0f } },
-		{ {  0.5f, -0.5f, -0.5f, 1.0f },{ 0.0f, 1.0f, 0.0f, 1.0f },{ 0.0f, 0.0f } },
-		{ {  0.5f,  0.5f, -0.5f, 1.0f },{ 0.0f, 0.0f, 1.0f, 1.0f },{ 0.0f, 1.0f } },
-		{ { -0.5f,  0.5f, -0.5f, 1.0f },{ 1.0f, 1.0f, 1.0f, 1.0f },{ 1.0f, 1.0f } }
-	};
-	std::vector<uint32_t> indices = { 0, 1, 2, 2, 3, 0,
-									  4, 5, 6, 6, 7, 4 };
-
-	m_model = new Model(m_devices, m_graphicsQueue, m_graphicsCommandPool, m_presentationObject->getCount(), vertices, indices);
-	m_texture = new Texture(m_devices, m_graphicsQueue, m_graphicsCommandPool, VK_FORMAT_R8G8B8A8_UNORM);
-	m_texture->create2DTexture("statue.jpg");
+	m_model = new Model(m_devices, m_graphicsQueue, m_graphicsCommandPool, m_presentationObject->getCount(), "chalet.obj", "chalet.jpg", true, false);
+	// m_model = new Model(m_devices, m_graphicsQueue, m_graphicsCommandPool, m_presentationObject->getCount(), "teapot.obj", "statue.jpg", false, true);
 
 	setupDescriptorSets();
+	setupMSAA();
 	createDepthResources();
 	createAllPipelines();
 	createFrameBuffers();
@@ -106,7 +91,10 @@ void Renderer::recreate()
 	m_presentationObject->create(m_window);
 	createRenderPass();
 	setupDescriptorSets();
+
+	setupMSAA();
 	createDepthResources();
+	
 	createAllPipelines();
 	createFrameBuffers();
 
@@ -125,6 +113,10 @@ void Renderer::cleanup()
 	vkDestroyImage(m_logicalDevice, m_depthImage, nullptr);
 	vkFreeMemory(m_logicalDevice, m_depthImageMemory, nullptr);
 	vkDestroyImageView(m_logicalDevice, m_depthImageView, nullptr);
+
+	vkDestroyImage(m_logicalDevice, m_MSAAcolorImage, nullptr);
+	vkFreeMemory(m_logicalDevice, m_MSAAcolorImageMemory, nullptr);
+	vkDestroyImageView(m_logicalDevice, m_MSAAcolorImageView, nullptr);
 
 	for (size_t i = 0; i < m_frameBuffers.size(); i++)
 	{
@@ -170,8 +162,7 @@ void Renderer::recordGraphicsCommandBuffer(VkCommandBuffer& graphicsCmdBuffer, V
 	clearValues[1].depthStencil = { 1.0f, 0 };
 
 	const VkRect2D renderArea = Util::createRectangle({ 0,0 }, m_presentationObject->getVkExtent());
-	VulkanCommandUtil::beginRenderPass(graphicsCmdBuffer, m_renderPass, frameBuffer, 
-		renderArea, static_cast<uint32_t>(clearValues.size()), clearValues.data());
+	VulkanCommandUtil::beginRenderPass(graphicsCmdBuffer, m_renderPass, frameBuffer, renderArea, static_cast<uint32_t>(clearValues.size()), clearValues.data());
 	vkCmdBindPipeline(graphicsCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
 
 	VkBuffer vertexBuffers[] = { m_model->getVertexBuffer() };
@@ -229,7 +220,7 @@ void Renderer::createFrameBuffers()
 
 	for (uint32_t i = 0; i < m_presentationObject->getCount(); i++)
 	{
-		std::array<VkImageView, 2> attachments[] = { m_presentationObject->getVkImageView(i), m_depthImageView };
+		std::array<VkImageView, 3> attachments[] = { m_MSAAcolorImageView, m_depthImageView, m_presentationObject->getVkImageView(i)  };
 
 		VkFramebufferCreateInfo framebufferInfo = {};
 		framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -261,35 +252,44 @@ void Renderer::createRenderPass()
 	// rendering operations into one render pass, then Vulkan is able to reorder the operations and 
 	// conserve memory bandwidth for possibly better performance. 
 
-	VkAttachmentReference colorAttachmentRef, depthAttachmentRef;
-	VkAttachmentDescription colorAttachment, depthAttachment;
+	VkAttachmentReference colorAttachmentRef, depthAttachmentRef, colorAttachmentResolveRef;
+	VkAttachmentDescription colorAttachment, depthAttachment, colorAttachmentResolve;
 	{
-		VkFormat swapChainImageFormat = m_presentationObject->getVkImageFormat();
+		VkFormat swapChainImageFormat = m_presentationObject->getSwapChainImageFormat();
 		VkFormat depthFormat = FormatUtil::findDepthFormat(m_physicalDevice);
 
-		colorAttachment = RenderPassUtil::attachmentDescription(swapChainImageFormat, VK_SAMPLE_COUNT_1_BIT,
+		// FinalLayout for the color attachment is VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL because
+		// multisampled images cannot be presented directly. We first need to resolve them to a regular image. 
+		// This requirement does not apply to the depth buffer, since it won't be presented at any point.
+		colorAttachment = RenderPassUtil::attachmentDescription(swapChainImageFormat, m_devices->getNumMSAASamples(),
 				VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, //color data
 				VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, //stencil data
-				VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+				VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
-		depthAttachment = RenderPassUtil::attachmentDescription(depthFormat, VK_SAMPLE_COUNT_1_BIT,
+		depthAttachment = RenderPassUtil::attachmentDescription(depthFormat, m_devices->getNumMSAASamples(),
 				VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_DONT_CARE, //depth data
 				VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE, //stencil data
 				VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 
+		colorAttachmentResolve = RenderPassUtil::attachmentDescription(swapChainImageFormat, VK_SAMPLE_COUNT_1_BIT,
+			VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_STORE, //color data
+			VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_STORE, //stencil data
+			VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+
 		// Our attachments array consists of a single VkAttachmentDescription, so its index is 0. 
 		colorAttachmentRef = RenderPassUtil::attachmentReference(0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 		depthAttachmentRef = RenderPassUtil::attachmentReference(1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+		colorAttachmentResolveRef = RenderPassUtil::attachmentReference(2, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 	}
-	std::array<VkAttachmentDescription, 2> attachments = { colorAttachment, depthAttachment };
+	std::array<VkAttachmentDescription, 3> attachments = { colorAttachment, depthAttachment, colorAttachmentResolve };
 
 	// The index of the color attachment in the color Attachment array is directly referenced from the fragment shader with the
 	// layout(location = 0) out vec4 outColor directive!
 	VkSubpassDescription subpass = 
 		RenderPassUtil::subpassDescription(VK_PIPELINE_BIND_POINT_GRAPHICS, 0, nullptr, 
 			1, &colorAttachmentRef, 
-			nullptr, 
-			&depthAttachmentRef, 
+			&colorAttachmentResolveRef,
+			&depthAttachmentRef,
 			0, nullptr);
 
 	VkSubpassDependency dependency = 
@@ -347,9 +347,10 @@ void Renderer::setupDescriptorSets()
 			VkDescriptorImageInfo samplerImageSetInfo;
 
 			// Model
+			Texture* texture = m_model->getTexture();
 			modelBufferSetInfo = DescriptorUtil::createDescriptorBufferInfo(m_model->getUniformBuffer(i), 0, m_model->getUniformBufferSize());
 			cameraBufferSetInfo = DescriptorUtil::createDescriptorBufferInfo(m_camera->getUniformBuffer(i), 0, m_camera->getUniformBufferSize());
-			samplerImageSetInfo = DescriptorUtil::createDescriptorImageInfo(m_texture->getSampler(), m_texture->getImageView(), m_texture->getImageLayout());
+			samplerImageSetInfo = DescriptorUtil::createDescriptorImageInfo(texture->getSampler(), texture->getImageView(), texture->getImageLayout());
 
 			writeGraphicsSetInfo[0] = DescriptorUtil::writeDescriptorSet(m_DS_graphics[i], 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &modelBufferSetInfo);
 			writeGraphicsSetInfo[1] = DescriptorUtil::writeDescriptorSet(m_DS_graphics[i], 1, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &cameraBufferSetInfo);
@@ -370,15 +371,43 @@ void Renderer::createDepthResources()
 	ImageUtil::createImage(m_logicalDevice, m_physicalDevice, m_depthImage, m_depthImageMemory,
 		VK_IMAGE_TYPE_2D, depthFormat, width, height, 1,
 		VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-		VK_SAMPLE_COUNT_1_BIT,
+		m_devices->getNumMSAASamples(),
 		VK_IMAGE_TILING_OPTIMAL,
 		1, 1, VK_IMAGE_LAYOUT_UNDEFINED, VK_SHARING_MODE_EXCLUSIVE);
 
 	ImageUtil::createImageView(m_logicalDevice, m_depthImage, &m_depthImageView, 
-		VK_IMAGE_VIEW_TYPE_2D, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, nullptr);
+		VK_IMAGE_VIEW_TYPE_2D, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1, nullptr);
 
 	ImageUtil::transitionImageLayout(m_logicalDevice, m_graphicsQueue, m_graphicsCommandPool,
-		m_depthImage, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+		m_depthImage, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 1);
+}
+
+void Renderer::setupMSAA()
+{
+	// MSAA does not solving potential problems caused by shader aliasing, 
+	// i.e. MSAA only smoothens out the edges of geometry but not the interior filling. 
+	// This may lead to a situation when you get a smooth polygon rendered on screen but the applied texture will still look aliased 
+	// if it contains high contrasting colors.
+
+	// Create a multisampled color buffer
+	// Images with more than one sample per pixel can only have one mip level -- enforced by the Vulkan specification 
+	VkExtent2D extent = m_presentationObject->getVkExtent();
+	uint32_t width = extent.width;
+	uint32_t height = extent.height;
+	VkFormat colorFormat = m_presentationObject->getSwapChainImageFormat();
+
+	ImageUtil::createImage(m_logicalDevice, m_physicalDevice, m_MSAAcolorImage, m_MSAAcolorImageMemory,
+		VK_IMAGE_TYPE_2D, colorFormat, width, height, 1,
+		VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+		m_devices->getNumMSAASamples(),
+		VK_IMAGE_TILING_OPTIMAL,
+		1, 1, VK_IMAGE_LAYOUT_UNDEFINED, VK_SHARING_MODE_EXCLUSIVE);
+
+	ImageUtil::createImageView(m_logicalDevice, m_MSAAcolorImage, &m_MSAAcolorImageView,
+		VK_IMAGE_VIEW_TYPE_2D, colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1, nullptr);
+
+	ImageUtil::transitionImageLayout(m_logicalDevice, m_graphicsQueue, m_graphicsCommandPool,
+		m_MSAAcolorImage, colorFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 1);
 }
 
 void Renderer::createAllPipelines()
@@ -420,7 +449,7 @@ void Renderer::createGraphicsPipeline(VkPipeline& graphicsPipeline, VkRenderPass
 	VkVertexInputBindingDescription vertexInputBinding = VulkanPipelineStructures::vertexInputBindingDesc(0, sizeof(Vertex));
 
 	// Input attribute bindings describe shader attribute locations and memory layouts
-	std::array<VkVertexInputAttributeDescription, 3> vertexInputAttributes = Vertex::getAttributeDescriptions();
+	std::array<VkVertexInputAttributeDescription, 4> vertexInputAttributes = Vertex::getAttributeDescriptions();
 
 	// -------- Vertex input --------
 	VkPipelineVertexInputStateCreateInfo vertexInput =
@@ -474,7 +503,7 @@ void Renderer::createGraphicsPipeline(VkPipeline& graphicsPipeline, VkRenderPass
 	// -------- Multisampling --------
 	// (turned off here)
 	VkPipelineMultisampleStateCreateInfo multisampling =
-		VulkanPipelineStructures::multiSampleStateCreationInfo(VK_SAMPLE_COUNT_1_BIT, VK_FALSE, 1.0f, nullptr, VK_FALSE, VK_FALSE);
+		VulkanPipelineStructures::multiSampleStateCreationInfo(m_devices->getNumMSAASamples(), VK_TRUE, 1.0f, nullptr, VK_FALSE, VK_FALSE);
 
 	// -------- Depth and Stencil Testing --------
 	VkPipelineDepthStencilStateCreateInfo depthAndStencil =

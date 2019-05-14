@@ -19,16 +19,19 @@ layout(set = 0, binding = 1) uniform CameraUBO {
 	vec2 tanFovBy2;
 };
 
-layout(location = 0) in vec4 inPos;
-layout(location = 1) in vec4 inColor;
+layout(location = 0) in vec3 inPos;
+layout(location = 1) in vec3 inNor;
 layout(location = 2) in vec2 inUV;
+layout(location = 3) in vec4 inColor;
 
-layout(location = 0) out vec4 fragColor;
-layout(location = 1) out vec2 fragUV;
+layout(location = 0) out vec4 f_color;
+layout(location = 1) out vec2 f_uv;
+layout(location = 2) out vec3 f_nor;
 
 void main() 
 {
-    gl_Position = proj * view * modelMat * inPos;
-    fragColor = inColor;
-	fragUV = inUV;
+    gl_Position = proj * view * modelMat * vec4(inPos, 1.0);
+	f_uv = inUV;
+	f_nor = inNor;
+	f_color = inColor;
 }

@@ -47,7 +47,10 @@ void VulkanDevices::createLogicalDevice(QueueFlagBits requiredQueues)
 
 	// Specify the set of device features used
 	VkPhysicalDeviceFeatures deviceFeatures = {};
+	// enable anisotropic filtering -- HIGH Performance Cost
 	deviceFeatures.samplerAnisotropy = VK_TRUE;
+	// enable sample shading feature for the device - HIGH Performance Cost
+	deviceFeatures.sampleRateShading = VK_TRUE;
 
 	// Actually create logical device
 	if (ENABLE_VALIDATION)
@@ -95,6 +98,7 @@ void VulkanDevices::pickPhysicalDevice(std::vector<const char*> deviceExtensions
 		if (isPhysicalDeviceSuitable(device, deviceExtensions, requiredQueues, surface))
 		{
 			m_physicalDevice = device;
+			m_msaaSamples = VulkanDevicesUtil::getMaxUsableSampleCount(m_physicalDevice);
 			break;
 		}
 	}
@@ -231,4 +235,8 @@ unsigned int VulkanDevices::getQueueIndex(QueueFlags flag)
 QueueFamilyIndices VulkanDevices::getQueueFamilyIndices()
 {
 	return m_queueFamilyIndices;
+}
+VkSampleCountFlagBits VulkanDevices::getNumMSAASamples()
+{
+	return m_msaaSamples;
 }

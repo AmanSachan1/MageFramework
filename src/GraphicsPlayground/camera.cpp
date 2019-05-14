@@ -1,10 +1,9 @@
 #include "camera.h"
 
-Camera::Camera(VulkanDevices* devices, unsigned int numSwapChainImages,
-	glm::vec3 eyePos, glm::vec3 lookAtPoint, int width, int height,
-	float foV_vertical, float aspectRatio, float nearClip, float farClip)
+Camera::Camera(VulkanDevices* devices, glm::vec3 eyePos, glm::vec3 lookAtPoint, int width, int height,
+	float foV_vertical, float aspectRatio, float nearClip, float farClip, int numSwapChainImages, CameraMode mode)
 	: m_devices(devices), m_logicalDevice(devices->getLogicalDevice()), m_physicalDevice(devices->getPhysicalDevice()), 
-	m_numSwapChainImages(numSwapChainImages), 
+	m_numSwapChainImages(numSwapChainImages), m_mode(mode),
 	m_eyePos(eyePos), m_ref(lookAtPoint), m_width(width), m_height(height),
 	m_fovy(foV_vertical), m_aspect(aspectRatio), m_near_clip(nearClip), m_far_clip(farClip)
 {
@@ -20,7 +19,7 @@ Camera::Camera(VulkanDevices* devices, unsigned int numSwapChainImages,
 	BufferUtil::createUniformBuffers(m_devices, m_physicalDevice, m_logicalDevice, m_numSwapChainImages,
 		m_uniformBuffers, m_uniformBufferMemories, m_uniformBufferSize);
 
-	for (unsigned int i = 0; i < numSwapChainImages; i++)
+	for (int i = 0; i < numSwapChainImages; i++)
 	{
 		updateUniformBuffer(i);
 		vkMapMemory(m_logicalDevice, m_uniformBufferMemories[i], 0, m_uniformBufferSize, 0, &m_mappedDataUniformBuffers[i]);
@@ -72,9 +71,14 @@ void Camera::copyToGPUMemory(unsigned int bufferIndex)
 	memcpy(m_mappedDataUniformBuffers[bufferIndex], &m_cameraUBOs[bufferIndex], sizeof(CameraUBO));
 }
 
+void Camera::switchCameraMode()
+{
+	if (m_mode == CameraMode::FLY) { m_mode = CameraMode::ORBIT; }
+	else if (m_mode == CameraMode::ORBIT) {	m_mode = CameraMode::FLY; }
+}
+
 glm::mat4 Camera::getViewProj() const
 {
-	//static casts
 	return glm::perspective(glm::radians(m_fovy), m_width / (float)m_height, m_near_clip, m_far_clip) * glm::lookAt(m_eyePos, m_ref, m_up);
 }
 glm::mat4 Camera::getView() const
@@ -100,18 +104,40 @@ void Camera::rotateAboutUp(float deg)
 {
 	deg = glm::radians(deg);
 	glm::mat4 rotation = glm::rotate(glm::mat4(1.0f), deg, m_up);
-	m_ref = m_ref - m_eyePos;
-	m_ref = glm::vec3(rotation * glm::vec4(m_ref, 1));
-	m_ref = m_ref + m_eyePos;
+
+	if (m_mode == CameraMode::FLY)
+	{
+		m_ref = m_ref - m_eyePos;
+		m_ref = glm::vec3(rotation * glm::vec4(m_ref, 1));
+		m_ref = m_ref + m_eyePos;
+	}
+	else if (m_mode == CameraMode::ORBIT)
+	{
+		glm::mat4 translation(1.0f);
+		glm::mat4 m = glm::translate(translation, m_ref) * rotation * glm::translate(translation, -m_ref);
+		m_eyePos = glm::vec3(m * glm::vec4(m_eyePos, 1));
+	}
+
 	recomputeAttributes();
 }
 void Camera::rotateAboutRight(float deg)
 {
 	deg = glm::radians(deg);
 	glm::mat4 rotation = glm::rotate(glm::mat4(1.0f), deg, m_right);
-	m_ref = m_ref - m_eyePos;
-	m_ref = glm::vec3(rotation * glm::vec4(m_ref, 1));
-	m_ref = m_ref + m_eyePos;
+
+	if (m_mode == CameraMode::FLY)
+	{
+		m_ref = m_ref - m_eyePos;
+		m_ref = glm::vec3(rotation * glm::vec4(m_ref, 1));
+		m_ref = m_ref + m_eyePos;
+	}
+	else if (m_mode == CameraMode::ORBIT)
+	{
+		glm::mat4 translation(1.0f);
+		glm::mat4 m = glm::translate(translation, m_ref) * rotation * glm::translate(translation, -m_ref);
+		m_eyePos = glm::vec3(m * glm::vec4(m_eyePos, 1));
+	}
+
 	recomputeAttributes();
 }
 
@@ -119,20 +145,50 @@ void Camera::translateAlongLook(float amt)
 {
 	glm::vec3 translation = m_forward * amt;
 	m_eyePos += translation;
-	m_ref += translation;
+
+	if (m_mode == CameraMode::FLY)
+	{
+		m_ref += translation;
+	}
+	else if ((m_mode == CameraMode::ORBIT) &&
+			 (glm::dot(m_ref - m_eyePos, m_forward) < 0.0f))
+	{
+		m_eyePos -= translation;
+	}
+
 	recomputeAttributes();
 }
 void Camera::translateAlongRight(float amt)
 {
 	glm::vec3 translation = m_right * amt;
 	m_eyePos += translation;
-	m_ref += translation;
+
+	if (m_mode == CameraMode::FLY)
+	{
+		m_ref += translation;
+	}
+	else if ((m_mode == CameraMode::ORBIT) &&
+		(glm::dot(m_ref - m_eyePos, m_forward) < 0.0f))
+	{
+		m_eyePos -= translation;
+	}
+
 	recomputeAttributes();
 }
 void Camera::translateAlongUp(float amt)
 {
 	glm::vec3 translation = m_up * amt;
 	m_eyePos += translation;
-	m_ref += translation;
+	
+	if (m_mode == CameraMode::FLY)
+	{
+		m_ref += translation;
+	}
+	else if ((m_mode == CameraMode::ORBIT) &&
+		(glm::dot(m_ref - m_eyePos, m_forward) < 0.0f))
+	{
+		m_eyePos -= translation;
+	}
+
 	recomputeAttributes();
 }

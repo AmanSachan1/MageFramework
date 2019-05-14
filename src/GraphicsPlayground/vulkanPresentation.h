@@ -30,7 +30,7 @@ public:
 	VkSwapchainKHR getVulkanSwapChain() const;
 	VkImage getVkImage(uint32_t index) const;
 	VkImageView getVkImageView(uint32_t index) const;
-	VkFormat getVkImageFormat() const;
+	VkFormat getSwapChainImageFormat() const;
 	VkExtent2D getVkExtent() const;
 	uint32_t getCount() const;
 	uint32_t getIndex() const;

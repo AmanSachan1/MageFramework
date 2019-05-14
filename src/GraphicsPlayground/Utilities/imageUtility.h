@@ -83,7 +83,7 @@ namespace ImageUtil
 	}
 
 	inline void createImageView(VkDevice& logicalDevice, VkImage& image, VkImageView* imageView,
-		VkImageViewType viewType, VkFormat format, VkImageAspectFlags aspectMask, const VkAllocationCallbacks* pAllocator)
+		VkImageViewType viewType, VkFormat format, VkImageAspectFlags aspectMask, uint32_t mipLevels, const VkAllocationCallbacks* pAllocator)
 	{
 		VkImageViewCreateInfo l_createInfo = {};
 		l_createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -98,7 +98,7 @@ namespace ImageUtil
 		l_createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
 		
 		//No Mipmapping and no multiple targets
-		l_createInfo.subresourceRange = createImageSubResourceRange(aspectMask, 0, 1, 0, 1);
+		l_createInfo.subresourceRange = createImageSubResourceRange(aspectMask, 0, mipLevels, 0, 1);
 		
 		if (vkCreateImageView(logicalDevice, &l_createInfo, pAllocator, imageView) != VK_SUCCESS)
 		{
@@ -201,7 +201,7 @@ namespace ImageUtil
 	}
 
 	inline void transitionImageLayout(VkDevice& logicalDevice, VkQueue& queue, VkCommandPool& cmdPool, 
-		VkImage& image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout)
+		VkImage& image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels)
 	{
 		VkCommandBuffer cmdBuffer;
 		VulkanCommandUtil::beginSingleTimeCommand(logicalDevice, cmdPool, cmdBuffer);
@@ -209,7 +209,7 @@ namespace ImageUtil
 		// Set VkAccessMasks and VkPipelineStageFlags based on the layouts used in the transition
 		VkAccessFlags srcAccessMask, dstAccessMask;
 		VkPipelineStageFlags srcStageMask, dstStageMask;
-		VkImageAspectFlags aspectMask;
+		VkImageAspectFlags aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;;
 
 		if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED)
 		{
@@ -220,7 +220,6 @@ namespace ImageUtil
 			{
 				dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 				dstStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
-				aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 			}
 			else if (newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
 			{
@@ -233,6 +232,11 @@ namespace ImageUtil
 					aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
 				}
 			}
+			else if (newLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
+			{
+				dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+				dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+			}
 		}
 		else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && 
 				 newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
@@ -242,15 +246,13 @@ namespace ImageUtil
 
 			srcStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
 			dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-
-			aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		}
 		else
 		{
 			throw std::invalid_argument("unsupported layout transition!");
 		}
 		
-		VkImageSubresourceRange imageSubresourceRange = createImageSubResourceRange(aspectMask, 0, 1, 0, 1);
+		VkImageSubresourceRange imageSubresourceRange = createImageSubResourceRange(aspectMask, 0, mipLevels, 0, 1);
 		VkImageMemoryBarrier imageBarrier = createImageMemoryBarrier(image, oldLayout, newLayout, srcAccessMask, dstAccessMask, imageSubresourceRange);
 		VulkanCommandUtil::pipelineBarrier(cmdBuffer, srcStageMask, dstStageMask, 0, 0, nullptr, 0, nullptr, 1, &imageBarrier);
 		
@@ -286,6 +288,141 @@ namespace ImageUtil
 
 		// The fourth parameter indicates which layout the image is currently using
 		vkCmdCopyBufferToImage(	cmdBuffer, buffer, image, dstImageLayout, 1, &region );
+
+		VulkanCommandUtil::endAndSubmitSingleTimeCommand(logicalDevice, queue, cmdPool, cmdBuffer);
+	}
+
+	inline VkImageBlit imageBlit(int32_t mipWidth, int32_t mipHeight, int32_t mipDepth,	uint32_t srcMipLevel, uint32_t dstMipLevel)
+	{
+		// specify the regions that will be used in the blit operation.
+		VkImageBlit l_blit = {};
+
+		// srcOffsets array determine the 3D region that data will be blitted from		
+		l_blit.srcOffsets[0] = { 0, 0, 0 };
+		l_blit.srcOffsets[1] = { mipWidth, mipHeight, mipDepth };
+		
+		l_blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		l_blit.srcSubresource.mipLevel = srcMipLevel; //i-1
+		l_blit.srcSubresource.baseArrayLayer = 0;
+		l_blit.srcSubresource.layerCount = 1;
+
+		// dstOffsets determines the region that data will be blitted to
+		// dimensions of the dstOffsets[1] are divided by two since each mip level is half the size of the previous level.
+		l_blit.dstOffsets[0] = { 0, 0, 0 };
+		l_blit.dstOffsets[1] = { mipWidth  > 1 ? mipWidth  / 2 : 1, 
+								 mipHeight > 1 ? mipHeight / 2 : 1,
+								 mipDepth  > 1 ? mipDepth  / 2 : 1 };
+
+		l_blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		l_blit.dstSubresource.mipLevel = dstMipLevel; //i
+		l_blit.dstSubresource.baseArrayLayer = 0;
+		l_blit.dstSubresource.layerCount = 1;
+
+		return l_blit;
+	}
+
+	inline void generateMipMaps(VkDevice& logicalDevice, VkPhysicalDevice& pDevice, VkQueue& queue, VkCommandPool& cmdPool,
+		VkImage& image, VkFormat imgFormat, int32_t imgWidth, int32_t imgHeight, int32_t imgDepth, uint32_t mipLevels)
+	{
+		// Our texture image has multiple mip levels, but the staging buffer can only be used to fill mip level 0. 
+		// The other levels are still undefined. To fill these levels we need to generate the data from the single level that we have.
+		
+		// Use the vkCmdBlitImage command. This command performs copying, scaling, and filtering operations.
+		// We will call this multiple times to blit data to each level of our texture image.
+
+		// VkCmdBlit is considered a transfer operation, use the texture image as both the source and destination of a transfer.
+		// This is why VK_IMAGE_USAGE_TRANSFER_SRC_BIT is a part of the texture's default usage flags
+
+		// For optimal performance, the source image should be in VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL 
+		// and the destination image should be in VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL. 
+		// Vulkan allows us to transition each mip level of an image independently. 
+		// Each blit will only deal with two mip levels at a time, 
+		// so we can transition each level into the optimal layout between blits commands.
+
+		// vkCmdBlitImage is not guaranteed to be supported on all platforms
+		// It requires the texture image format we use to support linear filtering, 
+
+		// Check if image format supports linear blitting
+		VkFormatProperties formatProperties;
+		vkGetPhysicalDeviceFormatProperties(pDevice, imgFormat, &formatProperties);
+
+		// We create texture images with the optimal tiling format, so we need to check optimalTilingFeatures
+		if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)) 
+		{
+			throw std::runtime_error("texture image format does not support linear blitting!");
+		}
+
+		VkCommandBuffer cmdBuffer;
+		VulkanCommandUtil::beginSingleTimeCommand(logicalDevice, cmdPool, cmdBuffer);
+
+		VkAccessFlags srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		VkAccessFlags dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+		VkImageLayout oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		VkImageLayout newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+		VkImageSubresourceRange imageSubresourceRange = createImageSubResourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1);
+		VkImageMemoryBarrier imageBarrier = createImageMemoryBarrier(image, oldLayout, newLayout, srcAccessMask, dstAccessMask, imageSubresourceRange);
+
+		int32_t mipWidth = imgWidth;
+		int32_t mipHeight = imgHeight;
+		int32_t mipDepth = imgDepth;
+
+		// Reuse VkImageMemoryBarrier
+		// imageSubresourceRange.miplevel, oldLayout, newLayout, srcAccessMask, and dstAccessMask will be changed for each transition.
+		for (uint32_t i = 1; i < mipLevels; i++) 
+		{
+			// The source mip level was just transitioned to VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL 
+			// and the destination level is still in VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+			imageBarrier.subresourceRange.baseMipLevel = i - 1;
+			imageBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+			imageBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+			imageBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+			imageBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+
+			VulkanCommandUtil::pipelineBarrier(cmdBuffer, 
+				VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 
+				0, nullptr, 
+				0, nullptr, 
+				1, &imageBarrier);
+
+			VkImageBlit imgBlit = imageBlit( mipWidth,  mipHeight, mipDepth, i-1, i);
+
+			VulkanCommandUtil::blitImage(cmdBuffer,
+				image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+				image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 
+				imgBlit, VK_FILTER_LINEAR);
+			 
+			// Use the barrier to transition mip level i - 1 to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL.
+			// This transition waits on the current blit command to finish
+			imageBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+			imageBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			imageBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+			imageBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+			VulkanCommandUtil::pipelineBarrier(cmdBuffer,
+				VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0,
+				0, nullptr,
+				0, nullptr,
+				1, &imageBarrier);
+
+			// For next mipLevel
+			if (mipWidth > 1) { mipWidth /= 2; }
+			if (mipHeight > 1) { mipHeight /= 2; }
+			if (mipDepth > 1) { mipDepth /= 2; }
+		}
+
+		// This barrier transitions the last mip level from VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL. 
+		// This wasn't handled by the loop, since the last mip level is never blitted from.
+		imageBarrier.subresourceRange.baseMipLevel = mipLevels - 1;
+		imageBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		imageBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		imageBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		imageBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+		VulkanCommandUtil::pipelineBarrier(cmdBuffer,
+			VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0,
+			0, nullptr,
+			0, nullptr,
+			1, &imageBarrier);
 
 		VulkanCommandUtil::endAndSubmitSingleTimeCommand(logicalDevice, queue, cmdPool, cmdBuffer);
 	}

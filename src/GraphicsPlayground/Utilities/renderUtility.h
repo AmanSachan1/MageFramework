@@ -2,6 +2,14 @@
 #include <global.h>
 #include <Utilities/imageUtility.h>
 
+namespace RenderUtil
+{
+	inline void MSAA()
+	{
+
+	}
+}
+
 namespace RenderPassUtil
 {
 	inline VkSubpassDescription subpassDescription(

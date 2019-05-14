@@ -11,8 +11,8 @@ public:
 	Texture(VulkanDevices* devices, VkQueue& queue, VkCommandPool& cmdPool, VkFormat format);
 	~Texture();
 
-	void create2DTexture(std::string texturePath, VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL, VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
-	void create3DTexture(std::string texturePath, VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL, VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
+	void create2DTexture(std::string texturePath, bool isMipMapped = false, VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL, VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
+	void create3DTexture(std::string texturePath, bool isMipMapped = false, VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL, VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
 
 	void create3DTextureFromMany2DTextures(VkDevice logicalDevice, VkCommandPool commandPool, int num2DImages, int numChannels,
 		const std::string folder_path, const std::string textureBaseName, const std::string fileExtension );
@@ -40,6 +40,7 @@ private:
 	uint32_t m_width, m_height, m_depth;
 	VkFormat m_format;
 	VkImageLayout m_imageLayout;
+	uint32_t m_mipLevels; // number of levels in the mip chain
 
 	VkImage m_image = VK_NULL_HANDLE;
 	VkDeviceMemory m_imageMemory = VK_NULL_HANDLE;

@@ -24,15 +24,20 @@ namespace InputUtil
 	}
 
 	static bool leftMouseDown = false;
+	static bool changeCameraMode = false;
 	static double previousX = 0.0f;
 	static double previousY = 0.0f;
 	static float deltaForRotation = 0.25f;
-	static float deltaForMovement = 0.0001f;
+	static float deltaForMovement = 0.0025f;
 
 	void keyboardInputs(GLFWwindow* window)
 	{
 		if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
 			glfwSetWindowShouldClose(window, true);
+		}
+
+		if (glfwGetKey(window, GLFW_KEY_M) == GLFW_PRESS) {
+			changeCameraMode = true;
 		}
 
 		if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
@@ -67,6 +72,12 @@ namespace InputUtil
 		}
 		if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
 			camera->rotateAboutUp(-deltaForRotation);
+		}
+
+		if (changeCameraMode)
+		{
+			changeCameraMode = false;
+			camera->switchCameraMode();
 		}
 
 		camera->updateUniformBuffer(presentation->getIndex());
@@ -107,6 +118,7 @@ namespace InputUtil
 			(glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS))
 		{
 			deltaForMovement += static_cast<float>(yoffset) * 0.001f;
+			deltaForMovement = glm::clamp(deltaForMovement, 0.0f, 1.0f);
 		}
 		else
 		{
@@ -187,10 +199,12 @@ void GraphicsPlaygroundApplication::initialize()
 	initVulkan(applicationName);
 	initTimer();
 
-	camera = new Camera(devices, presentation->getCount(), glm::vec3(0.0f, 0.0f, 2.0f), glm::vec3(0.0f, 0.0f, 1.0f),
-		window_width, window_height, 45.0f, float(window_width) / float(window_height), 0.1f, 1000.0f);
+	camera = new Camera(devices, glm::vec3(0.0f, 3.0f, -8.0f), glm::vec3(0.0f, 0.0f, 0.0f),
+		window_width, window_height, 45.0f, float(window_width) / float(window_height), 0.1f, 1000.0f,
+		presentation->getCount(), CameraMode::ORBIT);
 
-	renderer = new Renderer(window, devices, presentation, camera, window_width, window_height);
+	RendererOptions rendererOptions = { RenderAPI::VULKAN, true };
+	renderer = new Renderer(window, rendererOptions, devices, presentation, camera, window_width, window_height);
 	
 	glfwSetWindowSizeCallback(window, InputUtil::resizeCallback);
 	glfwSetFramebufferSizeCallback(window, InputUtil::resizeCallback);

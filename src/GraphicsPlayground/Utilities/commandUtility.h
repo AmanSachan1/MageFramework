@@ -204,4 +204,15 @@ namespace VulkanCommandUtil
 			bufferMemoryBarrierCount, pBufferMemoryBarriers,
 			imageMemoryBarrierCount, pImageMemoryBarriers);
 	}
+
+	inline void blitImage(VkCommandBuffer cmdBuffer,
+		VkImage srcImage, VkImageLayout srcImageLayout,
+		VkImage dstImage, VkImageLayout dstImageLayout,
+		const VkImageBlit& blit, VkFilter filter)
+	{
+		vkCmdBlitImage(cmdBuffer,
+			srcImage, srcImageLayout,
+			dstImage, dstImageLayout,
+			1, &blit, filter);
+	}
 }

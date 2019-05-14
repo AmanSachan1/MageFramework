@@ -30,6 +30,7 @@ public:
 	VkQueue getQueue(QueueFlags flag);
 	unsigned int getQueueIndex(QueueFlags flag);
 	QueueFamilyIndices getQueueFamilyIndices();
+	VkSampleCountFlagBits getNumMSAASamples();
 
 	//Public member variables
 	VkSurfaceCapabilitiesKHR surfaceCapabilities;
@@ -51,4 +52,7 @@ private:
 
 	QueueFamilyIndices m_queueFamilyIndices;
 	std::vector<const char*> m_deviceExtensions;
+
+	// MSAA
+	VkSampleCountFlagBits m_msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 };

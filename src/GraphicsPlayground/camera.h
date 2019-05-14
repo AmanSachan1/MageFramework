@@ -17,13 +17,14 @@ struct CameraUBO {
 	//stored as .x = horizontalFovBy2 and .y = verticalFovBy2
 };
 
+enum class CameraMode { FLY, ORBIT };
+
 class Camera 
 {
 public:
 	Camera() = delete;	// https://stackoverflow.com/questions/5513881/meaning-of-delete-after-function-declaration
-	Camera(VulkanDevices* devices, unsigned int numSwapChainImages,
-		glm::vec3 eyePos, glm::vec3 lookAtPoint, int width, int height,
-		float foV_vertical, float aspectRatio, float nearClip, float farClip);
+	Camera(VulkanDevices* devices, glm::vec3 eyePos, glm::vec3 lookAtPoint, int width, int height,
+		float foV_vertical, float aspectRatio, float nearClip, float farClip, int numSwapChainImages, CameraMode mode = CameraMode::FLY);
 	~Camera();
 
 	VkBuffer getUniformBuffer(unsigned int bufferIndex) const;
@@ -31,6 +32,10 @@ public:
 	void updateUniformBuffer(unsigned int bufferIndex);
 	void updateUniformBuffer(Camera* cam, unsigned int dstCamBufferIndex, unsigned int srcCamBufferIndex);
 	void copyToGPUMemory(unsigned int bufferIndex);
+
+	inline CameraMode getCameraMode() { return m_mode; };
+	inline void setCameraMode(CameraMode mode) { m_mode = mode; };
+	void switchCameraMode();
 
 	glm::mat4 getView() const;
 	glm::mat4 getProj() const;
@@ -49,6 +54,7 @@ private:
 	VkDevice m_logicalDevice;
 	VkPhysicalDevice m_physicalDevice;
 	unsigned int m_numSwapChainImages;
+	CameraMode m_mode;
 
 	std::vector<CameraUBO> m_cameraUBOs;
 	std::vector<VkBuffer> m_uniformBuffers;

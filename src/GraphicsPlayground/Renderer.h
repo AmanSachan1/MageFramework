@@ -19,11 +19,23 @@
 
 static constexpr unsigned int WORKGROUP_SIZE = 32;
 
+enum class RenderAPI { VULKAN, DX12 };
+
+struct RendererOptions 
+{
+	RenderAPI renderAPI;
+	bool MSAA; // Geometry Anti-Aliasing
+	bool enableSampleRateShading; // Shading Anti-Aliasing (enables processing more than one sample per fragment)
+	float minSampleShading; // value between 0.0f and 1.0f --> closer to one is smoother
+	bool enableAnisotropy; // Anisotropic filtering -- image sampling will use anisotropic filter
+	float anisotropy; //controls level of anisotropic filtering
+};
+
 class Renderer 
 {
 public:
 	Renderer() = delete; // To enforce the creation of a the type of renderer we want without leaving the vulkan device, vulkan swapchain, etc as assumptions or nullptrs
-	Renderer(GLFWwindow* window, VulkanDevices* devices, VulkanPresentation* presentation, Camera* camera, uint32_t width, uint32_t height);
+	Renderer(GLFWwindow* window, RendererOptions rendererOptions, VulkanDevices* devices, VulkanPresentation* presentation, Camera* camera, uint32_t width, uint32_t height);
 	~Renderer();
 
 	void initialize();
@@ -42,6 +54,7 @@ public:
 	void createFrameBuffers();
 	void createRenderPass();
 	void createDepthResources();
+	void setupMSAA();
 
 	// Descriptors
 	void setupDescriptorSets();
@@ -68,13 +81,17 @@ private:
 	Camera* m_camera;
 
 	Model* m_model;
-	Texture* m_texture;
 
 	std::vector<VkFramebuffer> m_frameBuffers;
 	VkRenderPass m_renderPass;
 	VkImage m_depthImage;
 	VkDeviceMemory m_depthImageMemory;
 	VkImageView m_depthImageView;
+
+	// For MSAA
+	VkImage m_MSAAcolorImage;
+	VkDeviceMemory m_MSAAcolorImageMemory;
+	VkImageView m_MSAAcolorImageView;
 
 	// Pipeline Setup
 	VkPipelineLayout m_graphicsPipelineLayout;
