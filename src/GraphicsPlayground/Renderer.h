@@ -61,18 +61,21 @@ public:
 
 	// Pipelines
 	void createAllPipelines();
-	void createGraphicsPipeline(VkPipeline& graphicsPipeline, VkRenderPass& renderPass, unsigned int subpass);
+	void createGraphicsPipeline(VkPipeline& graphicsPipeline, VkPipelineLayout graphicsPipelineLayout, VkRenderPass& renderPass, unsigned int subpass);
+	void createComputePipeline(VkPipeline& computePipeline, VkPipelineLayout computePipelineLayout, const std::string &pathToShader);
+	void createPostProcessPipelines(VkRenderPass& renderPass, unsigned int subpass);
 
 	// Helpers
 	void setResizeFlag(bool value) { m_resizeFrameBuffer = value; }
 
 private:
-	GLFWwindow * m_window;
+	GLFWwindow* m_window;
 	VulkanDevices* m_devices; // manages both the logical device (VkDevice) and the physical Device (VkPhysicalDevice)
 	VkDevice m_logicalDevice;
 	VkPhysicalDevice m_physicalDevice;
 	VulkanPresentation* m_presentationObject;
 	VkQueue	m_graphicsQueue;
+	VkQueue	m_computeQueue;
 	uint32_t m_windowWidth;
 	uint32_t m_windowHeight;
 
@@ -81,6 +84,10 @@ private:
 	Camera* m_camera;
 
 	Model* m_model;
+
+	Texture* computeTexture;
+	Texture* currentFrameTexture;
+	Texture* previousFrameTexture;
 
 	std::vector<VkFramebuffer> m_frameBuffers;
 	VkRenderPass m_renderPass;
@@ -97,6 +104,15 @@ private:
 	VkPipelineLayout m_graphicsPipelineLayout;
 	VkPipeline m_graphicsPipeline;
 
+	VkPipelineLayout m_computePipelineLayout;
+	VkPipeline m_computePipeline;
+
+	VkPipelineCache m_postProcessPipeLineCache;
+	VkPipelineLayout m_postProcess_ToneMap_PipelineLayout;
+	VkPipelineLayout m_postProcess_TXAA_PipelineLayout;
+	VkPipeline m_postProcess_ToneMap_PipeLine;
+	VkPipeline m_postProcess_TXAA_PipeLine;
+
 	// Command Buffers
 	std::vector<VkCommandBuffer> m_graphicsCommandBuffers;
 	std::vector<VkCommandBuffer> m_computeCommandBuffers;
@@ -107,7 +123,20 @@ private:
 
 	// Descriptor Pools, sets, and layouts
 	VkDescriptorPool descriptorPool;
-
+	
+	//graphics
 	VkDescriptorSetLayout m_DSL_graphics;
 	std::vector<VkDescriptorSet> m_DS_graphics;	
+
+	//compute
+	VkDescriptorSetLayout m_DSL_compute;
+	std::vector<VkDescriptorSet> m_DS_compute;
+
+	//Tone Map
+	VkDescriptorSetLayout m_DSL_toneMap;
+	std::vector<VkDescriptorSet> m_DS_toneMap;
+
+	// Descriptor Sets for pingPonged TXAA
+	VkDescriptorSetLayout m_DSL_TXAA;
+	std::vector<VkDescriptorSet> m_DS_TXAA;
 };

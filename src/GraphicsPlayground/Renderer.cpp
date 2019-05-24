@@ -26,11 +26,15 @@ Renderer::~Renderer()
 void Renderer::initialize()
 {
 	m_graphicsQueue = m_devices->getQueue(QueueFlags::Graphics);
+	m_computeQueue = m_devices->getQueue(QueueFlags::Compute);
 	createCommandPoolsAndBuffers();
 	createRenderPass();
 
 	m_model = new Model(m_devices, m_graphicsQueue, m_graphicsCommandPool, m_presentationObject->getCount(), "chalet.obj", "chalet.jpg", true, false);
 	// m_model = new Model(m_devices, m_graphicsQueue, m_graphicsCommandPool, m_presentationObject->getCount(), "teapot.obj", "statue.jpg", false, true);
+
+	computeTexture = new Texture(m_devices, m_graphicsQueue, m_graphicsCommandPool, VK_FORMAT_R8G8B8A8_UNORM);
+	computeTexture->create2DTexture("chalet.jpg", false, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT);
 
 	setupDescriptorSets();
 	setupMSAA();
@@ -308,13 +312,17 @@ void Renderer::setupDescriptorSets()
 	
 	// --- Create Descriptor Pool ---
 	{
-		std::array<VkDescriptorPoolSize, 3> poolSizes = {};
+		std::array<VkDescriptorPoolSize, 4> poolSizes = {};
 		poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		poolSizes[0].descriptorCount = static_cast<uint32_t>(numSwapChainImages);
 		poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		poolSizes[1].descriptorCount = static_cast<uint32_t>(numSwapChainImages);
 		poolSizes[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 		poolSizes[2].descriptorCount = static_cast<uint32_t>(numSwapChainImages);
+		// Compute
+		poolSizes[3].type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+		poolSizes[3].descriptorCount = static_cast<uint32_t>(numSwapChainImages);
+
 		uint32_t poolSizeCount = static_cast<uint32_t>(poolSizes.size());
 
 		DescriptorUtil::createDescriptorPool(m_logicalDevice, poolSizeCount, poolSizes.data(), descriptorPool);
@@ -331,13 +339,20 @@ void Renderer::setupDescriptorSets()
 		std::array<VkDescriptorSetLayoutBinding, 3> graphicsBindings = { modelLayoutBinding, cameraLayoutBinding, samplerLayoutBinding };
 
 		DescriptorUtil::createDescriptorSetLayout(m_logicalDevice, m_DSL_graphics, static_cast<uint32_t>(graphicsBindings.size()), graphicsBindings.data());
+	
+		VkDescriptorSetLayoutBinding computeLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
+		std::array<VkDescriptorSetLayoutBinding, 1> computeBindings = { computeLayoutBinding };
+
+		DescriptorUtil::createDescriptorSetLayout(m_logicalDevice, m_DSL_compute, static_cast<uint32_t>(computeBindings.size()), computeBindings.data());
 	}
 
 	// --- Create Descriptor Sets ---
 	{
 		m_DS_graphics.resize(numSwapChainImages);
-		std::vector<VkDescriptorSetLayout> DSLs_graphics(numSwapChainImages, m_DSL_graphics);
-		
+		m_DS_compute.resize(numSwapChainImages);
+		std::vector<VkDescriptorSetLayout> DSLs_graphics(numSwapChainImages, m_DSL_graphics);		
+		std::vector<VkDescriptorSetLayout> DSLs_compute(numSwapChainImages, m_DSL_compute);
+
 		for (unsigned int i = 0; i < numSwapChainImages; i++)
 		{
 			DescriptorUtil::createDescriptorSets(m_logicalDevice, descriptorPool, 1, &DSLs_graphics[i], &m_DS_graphics[i]);
@@ -357,6 +372,16 @@ void Renderer::setupDescriptorSets()
 			writeGraphicsSetInfo[2] = DescriptorUtil::writeDescriptorSet(m_DS_graphics[i], 2, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &samplerImageSetInfo);
 
 			vkUpdateDescriptorSets(m_logicalDevice, static_cast<uint32_t>(writeGraphicsSetInfo.size()), writeGraphicsSetInfo.data(), 0, nullptr);
+
+			// Compute
+			DescriptorUtil::createDescriptorSets(m_logicalDevice, descriptorPool, 1, &DSLs_compute[i], &m_DS_compute[i]);
+			std::array<VkWriteDescriptorSet, 1> writeComputeSetInfo = {};
+			VkDescriptorImageInfo computeSetInfo;
+
+			computeSetInfo = DescriptorUtil::createDescriptorImageInfo(computeTexture->getSampler(), computeTexture->getImageView(), computeTexture->getImageLayout());
+			writeComputeSetInfo[0] = DescriptorUtil::writeDescriptorSet(m_DS_compute[i], 0, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &computeSetInfo);
+
+			vkUpdateDescriptorSets(m_logicalDevice, static_cast<uint32_t>(writeComputeSetInfo.size()), writeComputeSetInfo.data(), 0, nullptr);
 		}
 	}
 }
@@ -415,9 +440,15 @@ void Renderer::createAllPipelines()
 	std::vector<VkDescriptorSetLayout> descriptorSetLayouts = { m_DSL_graphics };
 
 	m_graphicsPipelineLayout = VulkanPipelineCreation::createPipelineLayout(m_logicalDevice, descriptorSetLayouts, 0, nullptr);
-	createGraphicsPipeline(m_graphicsPipeline, m_renderPass, 0);
+	m_computePipelineLayout = VulkanPipelineCreation::createPipelineLayout(m_logicalDevice, descriptorSetLayouts, 0, nullptr);
+	m_postProcess_ToneMap_PipelineLayout = VulkanPipelineCreation::createPipelineLayout(m_logicalDevice, descriptorSetLayouts, 0, nullptr);
+	m_postProcess_TXAA_PipelineLayout = VulkanPipelineCreation::createPipelineLayout(m_logicalDevice, descriptorSetLayouts, 0, nullptr);
+
+	createGraphicsPipeline(m_graphicsPipeline, m_graphicsPipelineLayout, m_renderPass, 0);
+	createComputePipeline(m_computePipeline, m_computePipelineLayout, "CloudScapes/shaders/shader.comp.spv");
+	createPostProcessPipelines( m_renderPass, 0);
 }
-void Renderer::createGraphicsPipeline(VkPipeline& graphicsPipeline, VkRenderPass& renderPass, unsigned int subpassIndex)
+void Renderer::createGraphicsPipeline(VkPipeline& graphicsPipeline, VkPipelineLayout graphicsPipelineLayout, VkRenderPass& renderPass, unsigned int subpassIndex)
 {
 	//--------------------------------------------------------
 	//---------------- Set up shader stages ------------------
@@ -547,4 +578,108 @@ void Renderer::createGraphicsPipeline(VkPipeline& graphicsPipeline, VkRenderPass
 	// No need for the shader modules anymore, so we destory them!
 	vkDestroyShaderModule(m_logicalDevice, vertShaderModule, nullptr);
 	vkDestroyShaderModule(m_logicalDevice, fragShaderModule, nullptr);
+}
+void Renderer::createComputePipeline(VkPipeline& computePipeline, VkPipelineLayout computePipelineLayout, const std::string &pathToShader)
+{
+	VkShaderModule compShaderModule = ShaderUtil::createShaderModule(pathToShader, m_logicalDevice);
+	
+	VkPipelineShaderStageCreateInfo compShaderStageInfo = {};
+	compShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	compShaderStageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+	compShaderStageInfo.module = compShaderModule;
+	compShaderStageInfo.pName = "main";
+
+	VkComputePipelineCreateInfo pipelineInfo = {};
+	pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+	pipelineInfo.stage = compShaderStageInfo;
+	pipelineInfo.layout = computePipelineLayout;
+
+	if (vkCreateComputePipelines(m_logicalDevice, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &computePipeline) != VK_SUCCESS) {
+		throw std::runtime_error("Failed to create pipeline");
+	}
+
+	vkDestroyShaderModule(m_logicalDevice, compShaderModule, nullptr);
+}
+void Renderer::createPostProcessPipelines(VkRenderPass& renderPass, unsigned int subpass)
+{
+	// Create multiple post process pipelines based that are very similar because they are all post process effects that 
+	// operate solely on a big triangle that gets clipped to a quad.
+
+	float viewportWidth = static_cast<float>(m_presentationObject->getVkExtent().width);
+	float viewportHeight = static_cast<float>(m_presentationObject->getVkExtent().height);
+
+	//Shader Stages are defined later on because it changes per pipeline binding since we are creating many pipelines here
+	std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages;
+
+	VkPipelineVertexInputStateCreateInfo emptyVertexInput =	VulkanPipelineStructures::vertexInputInfo(0, nullptr, 0, nullptr);
+
+	VkPipelineInputAssemblyStateCreateInfo inputAssembly =
+		VulkanPipelineStructures::inputAssemblyStateCreationInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_FALSE);
+
+	VkViewport viewport = Util::createViewport(	0.0f, 0.0f, viewportWidth, viewportHeight, 0.0f, 1.0f);
+	VkRect2D scissor = Util::createRectangle({ 0,0 }, m_presentationObject->getVkExtent());
+
+	VkPipelineViewportStateCreateInfo viewportState = VulkanPipelineStructures::viewportStateCreationInfo(1, &viewport, 1, &scissor);
+
+	VkPipelineRasterizationStateCreateInfo rasterizer =
+		VulkanPipelineStructures::rasterizerCreationInfo(VK_FALSE, VK_FALSE, VK_POLYGON_MODE_FILL, 1.0f,
+			VK_CULL_MODE_NONE, VK_FRONT_FACE_COUNTER_CLOCKWISE, VK_FALSE, 0.0f, 0.0f, 0.0f);
+
+	VkPipelineMultisampleStateCreateInfo multisampling =
+		VulkanPipelineStructures::multiSampleStateCreationInfo(VK_SAMPLE_COUNT_1_BIT, VK_FALSE, 0.0f, nullptr, VK_FALSE, VK_FALSE);
+
+	VkPipelineDepthStencilStateCreateInfo depthAndStencil =
+		VulkanPipelineStructures::depthStencilStateCreationInfo(VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS, VK_FALSE, 0.0f, 1.0f, VK_FALSE, {}, {});
+
+	VkPipelineColorBlendAttachmentState colorBlendAttachment =
+		VulkanPipelineStructures::colorBlendAttachmentStateInfo(
+			VK_FALSE, VK_BLEND_OP_ADD, VK_BLEND_OP_ADD, 0x0,
+			VK_BLEND_FACTOR_SRC_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+			VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ZERO);
+
+	VkPipelineColorBlendStateCreateInfo colorBlending =
+		VulkanPipelineStructures::colorBlendStateCreationInfo(VK_FALSE, VK_LOGIC_OP_COPY, 1, &colorBlendAttachment, 0.0f, 0.0f, 0.0f, 0.0f);
+	
+	VkGraphicsPipelineCreateInfo postProcessPipelineCreateInfo =
+		VulkanPipelineStructures::graphicsPipelineCreationInfo(
+			static_cast<uint32_t>(shaderStages.size()), shaderStages.data(),
+			&emptyVertexInput,
+			&inputAssembly,
+			nullptr, //tessellation
+			&viewportState,
+			&rasterizer,
+			&multisampling,
+			&depthAndStencil,
+			&colorBlending,
+			nullptr, //dynamicState
+			m_postProcess_ToneMap_PipelineLayout,
+			renderPass, 0,
+			VK_NULL_HANDLE, -1);
+
+	// -------- Create Multiple Pipelines based on the above base ---------
+	// Create a pipeline cache so multiple pieplines cane be created from the same pipeline creation Info
+	VulkanPipelineCreation::createPipelineCache(m_logicalDevice, m_postProcessPipeLineCache);
+
+	VkShaderModule generic_vertShaderModule = ShaderUtil::createShaderModule("GraphicsPlayground/shaders/postProcess_GenericVertShader.vert.spv", m_logicalDevice);
+	shaderStages[0] = ShaderUtil::shaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT, generic_vertShaderModule, "main");
+	
+	// --------- Tone Map Post Process Piepline ----------
+	VkShaderModule toneMap_fragShaderModule = ShaderUtil::createShaderModule("GraphicsPlayground/shaders/postProcess_ToneMap.frag.spv", m_logicalDevice);
+	shaderStages[1] = ShaderUtil::shaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT, toneMap_fragShaderModule, "main");
+
+	postProcessPipelineCreateInfo.layout = m_postProcess_ToneMap_PipelineLayout;
+
+	VulkanPipelineCreation::createGraphicsPipelines(m_logicalDevice, m_postProcessPipeLineCache, 1, &postProcessPipelineCreateInfo, &m_postProcess_ToneMap_PipeLine);
+	vkDestroyShaderModule(m_logicalDevice, toneMap_fragShaderModule, nullptr);
+	
+	// --------- TXAA Post Process Piepline ----------
+	VkShaderModule TXAA_fragShaderModule = ShaderUtil::createShaderModule("GraphicsPlayground/shaders/postProcess_TXAA.frag.spv", m_logicalDevice);
+	shaderStages[1] = ShaderUtil::shaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT, TXAA_fragShaderModule, "main");
+
+	postProcessPipelineCreateInfo.layout = m_postProcess_TXAA_PipelineLayout;
+
+	VulkanPipelineCreation::createGraphicsPipelines(m_logicalDevice, m_postProcessPipeLineCache, 1, &postProcessPipelineCreateInfo, &m_postProcess_TXAA_PipeLine);
+
+	vkDestroyShaderModule(m_logicalDevice, TXAA_fragShaderModule, nullptr);
+	vkDestroyShaderModule(m_logicalDevice, generic_vertShaderModule, nullptr);
 }

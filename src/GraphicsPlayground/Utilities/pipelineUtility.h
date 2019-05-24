@@ -79,7 +79,7 @@ namespace VulkanPipelineStructures
 
 	inline VkPipelineMultisampleStateCreateInfo multiSampleStateCreationInfo(
 		VkSampleCountFlagBits rasterizationSamples,	
-		VkBool32 sampleShadingEnable, float minSampleShading,	const VkSampleMask* pSampleMask,
+		VkBool32 sampleShadingEnable, float minSampleShading, const VkSampleMask* pSampleMask,
 		VkBool32 alphaToCoverageEnable,	VkBool32 alphaToOneEnable)
 	{
 		// Multisampling is one of the ways to perform anti-aliasing. 
