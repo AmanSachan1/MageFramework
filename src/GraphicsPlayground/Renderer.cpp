@@ -16,7 +16,7 @@ Renderer::~Renderer()
 	cleanup();
 
 	// Models
-	delete m_model;
+	delete m_scene;
 
 	// Command Pools
 	vkDestroyCommandPool(m_logicalDevice, m_graphicsCommandPool, nullptr);
@@ -30,11 +30,9 @@ void Renderer::initialize()
 	createCommandPoolsAndBuffers();
 	createRenderPass();
 
-	m_model = new Model(m_devices, m_graphicsQueue, m_graphicsCommandPool, m_presentationObject->getCount(), "chalet.obj", "chalet.jpg", true, false);
-	// m_model = new Model(m_devices, m_graphicsQueue, m_graphicsCommandPool, m_presentationObject->getCount(), "teapot.obj", "statue.jpg", false, true);
-
-	computeTexture = new Texture(m_devices, m_graphicsQueue, m_graphicsCommandPool, VK_FORMAT_R8G8B8A8_UNORM);
-	computeTexture->create2DTexture("chalet.jpg", false, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT);
+	m_scene = new Scene(m_devices, m_presentationObject->getCount(), m_windowWidth, m_windowHeight,
+					   m_graphicsQueue, m_graphicsCommandPool, m_computeQueue, m_computeCommandPool);
+	m_scene->createScene();
 
 	setupDescriptorSets();
 	setupMSAA();
@@ -45,6 +43,13 @@ void Renderer::initialize()
 }
 void Renderer::renderLoop()
 {
+	//compute queue first
+	VkCommandBuffer* computeCommandBuffer = &m_computeCommandBuffers[m_presentationObject->getIndex()];
+	VulkanCommandUtil::submitToQueueSynced(m_computeQueue, 1, computeCommandBuffer,
+		0, nullptr, nullptr,
+		0, nullptr, nullptr);
+
+
 	// Wait for the the frame to be finished before working on it
 	VkFence inFlightFence = m_presentationObject->getInFlightFence();
 
@@ -56,7 +61,7 @@ void Renderer::renderLoop()
 	if (!flag_recreateSwapChain) { recreate(); };	
 
 	m_camera->updateUniformBuffer(m_presentationObject->getIndex());
-	m_model->updateUniformBuffer(m_presentationObject->getIndex());
+	m_scene->updateUniforms(m_presentationObject->getIndex());
 
 	//-------------------------------------
 	//	Submit Commands To Graphics Queue
@@ -132,6 +137,15 @@ void Renderer::cleanup()
 	
 	vkDestroyPipeline(m_logicalDevice, m_graphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(m_logicalDevice, m_graphicsPipelineLayout, nullptr);
+
+	vkDestroyPipeline(m_logicalDevice, m_computePipeline, nullptr);
+	vkDestroyPipelineLayout(m_logicalDevice, m_computePipelineLayout, nullptr);
+	
+	//vkDestroyPipeline(m_logicalDevice, m_postProcess_ToneMap_PipeLine, nullptr);
+	vkDestroyPipelineLayout(m_logicalDevice, m_postProcess_ToneMap_PipelineLayout, nullptr);
+	//vkDestroyPipeline(m_logicalDevice, m_postProcess_TXAA_PipeLine, nullptr);
+	vkDestroyPipelineLayout(m_logicalDevice, m_postProcess_TXAA_PipelineLayout, nullptr);
+	
 	vkDestroyRenderPass(m_logicalDevice, m_renderPass, nullptr);
 	
 	m_presentationObject->cleanup();
@@ -139,6 +153,9 @@ void Renderer::cleanup()
 	// Descriptors
 	//Descriptor sets are automatically deallocated when the descriptor pool is destroyed
 	vkDestroyDescriptorSetLayout(m_logicalDevice, m_DSL_graphics, nullptr);
+	vkDestroyDescriptorSetLayout(m_logicalDevice, m_DSL_compute, nullptr);
+	//vkDestroyDescriptorSetLayout(m_logicalDevice, m_DSL_toneMap, nullptr);
+	//vkDestroyDescriptorSetLayout(m_logicalDevice, m_DSL_TXAA, nullptr);
 
 	vkDestroyDescriptorPool(m_logicalDevice, descriptorPool, nullptr);
 }
@@ -169,8 +186,10 @@ void Renderer::recordGraphicsCommandBuffer(VkCommandBuffer& graphicsCmdBuffer, V
 	VulkanCommandUtil::beginRenderPass(graphicsCmdBuffer, m_renderPass, frameBuffer, renderArea, static_cast<uint32_t>(clearValues.size()), clearValues.data());
 	vkCmdBindPipeline(graphicsCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
 
-	VkBuffer vertexBuffers[] = { m_model->getVertexBuffer() };
-	VkBuffer indexBuffer = m_model->getIndexBuffer();
+	Model* model = m_scene->getModel("house");
+
+	VkBuffer vertexBuffers[] = { model->getVertexBuffer() };
+	VkBuffer indexBuffer = model->getIndexBuffer();
 	VkDeviceSize offsets[] = { 0 };
 	vkCmdBindVertexBuffers(graphicsCmdBuffer, 0, 1, vertexBuffers, offsets);
 	vkCmdBindIndexBuffer(graphicsCmdBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
@@ -183,13 +202,26 @@ void Renderer::recordGraphicsCommandBuffer(VkCommandBuffer& graphicsCmdBuffer, V
 	// firstIndex    : Offset into the indexBuffer. Since it is a standalone buffer for us this is zero.
 	// VertexOffset  : Used to specify an offset to add to the indices of the index buffer
 	// firstInstance : Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
-	vkCmdDrawIndexed(graphicsCmdBuffer, m_model->getNumIndices(), 1, 0, 0, 0);
+	vkCmdDrawIndexed(graphicsCmdBuffer, model->getNumIndices(), 1, 0, 0, 0);
 
 	vkCmdEndRenderPass(graphicsCmdBuffer);
 }
 void Renderer::recordComputeCommandBuffer(VkCommandBuffer& ComputeCmdBuffer, unsigned int frameIndex)
 {
+	// get compute texture
+	std::string name = "compute" + std::to_string(frameIndex);
+	Texture* texture = m_scene->getTexture(name);
+	const uint32_t numBlocksX = (texture->getWidth() + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
+	const uint32_t numBlocksY = (texture->getHeight() + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
+	const uint32_t numBlocksZ = 1;
+	
+	vkCmdBindPipeline(ComputeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipeline);
 
+	//Bind Descriptor Sets for compute
+	vkCmdBindDescriptorSets(ComputeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipelineLayout, 0, 1, &m_DS_compute[frameIndex], 0, nullptr);
+
+	// Dispatch the compute kernel, with number of threads =  numBlocksX * numBlocksY * numBlocksZ
+	vkCmdDispatch(ComputeCmdBuffer, numBlocksX, numBlocksY, numBlocksZ);
 }
 void Renderer::createCommandPoolsAndBuffers()
 {
@@ -308,24 +340,33 @@ void Renderer::createRenderPass()
 
 void Renderer::setupDescriptorSets()
 {
-	unsigned int numSwapChainImages = m_presentationObject->getCount();
+	int numSwapChainImages = m_presentationObject->getCount();
 	
 	// --- Create Descriptor Pool ---
 	{
-		std::array<VkDescriptorPoolSize, 4> poolSizes = {};
+		// There's a  difference between descriptor Sets and bindings inside a descriptor Set, 
+		// multiple bindings can exist inside a descriptor set. So a pool can have fewer sets than number of bindings.
+		int numSets = 0;
+		// Graphics Model Set
+		numSets++;
+		std::array<VkDescriptorPoolSize, 5> poolSizes = {};
 		poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		poolSizes[0].descriptorCount = static_cast<uint32_t>(numSwapChainImages);
 		poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		poolSizes[1].descriptorCount = static_cast<uint32_t>(numSwapChainImages);
 		poolSizes[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 		poolSizes[2].descriptorCount = static_cast<uint32_t>(numSwapChainImages);
-		// Compute
-		poolSizes[3].type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+		poolSizes[3].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 		poolSizes[3].descriptorCount = static_cast<uint32_t>(numSwapChainImages);
+		// Compute
+		numSets++;
+		poolSizes[4].type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+		poolSizes[4].descriptorCount = static_cast<uint32_t>(numSwapChainImages);
 
-		uint32_t poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+		const uint32_t maxSets = static_cast<uint32_t>(numSets * numSwapChainImages);
+		const uint32_t poolSizesCount = static_cast<uint32_t>(poolSizes.size());
 
-		DescriptorUtil::createDescriptorPool(m_logicalDevice, poolSizeCount, poolSizes.data(), descriptorPool);
+		DescriptorUtil::createDescriptorPool(m_logicalDevice, maxSets, poolSizesCount, poolSizes.data(), descriptorPool);
 	}
 
 	// --- Create Descriptor Set Layouts ---
@@ -336,7 +377,8 @@ void Renderer::setupDescriptorSets()
 		VkDescriptorSetLayoutBinding modelLayoutBinding   = { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_ALL, nullptr };
 		VkDescriptorSetLayoutBinding cameraLayoutBinding  = { 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_ALL, nullptr };
 		VkDescriptorSetLayoutBinding samplerLayoutBinding = { 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
-		std::array<VkDescriptorSetLayoutBinding, 3> graphicsBindings = { modelLayoutBinding, cameraLayoutBinding, samplerLayoutBinding };
+		VkDescriptorSetLayoutBinding readComputeLayoutBinding = { 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
+		std::array<VkDescriptorSetLayoutBinding, 4> graphicsBindings = { modelLayoutBinding, cameraLayoutBinding, samplerLayoutBinding, readComputeLayoutBinding };
 
 		DescriptorUtil::createDescriptorSetLayout(m_logicalDevice, m_DSL_graphics, static_cast<uint32_t>(graphicsBindings.size()), graphicsBindings.data());
 	
@@ -353,27 +395,45 @@ void Renderer::setupDescriptorSets()
 		std::vector<VkDescriptorSetLayout> DSLs_graphics(numSwapChainImages, m_DSL_graphics);		
 		std::vector<VkDescriptorSetLayout> DSLs_compute(numSwapChainImages, m_DSL_compute);
 
-		for (unsigned int i = 0; i < numSwapChainImages; i++)
+		for (int i = 0; i < numSwapChainImages; i++)
 		{
 			DescriptorUtil::createDescriptorSets(m_logicalDevice, descriptorPool, 1, &DSLs_graphics[i], &m_DS_graphics[i]);
 
-			std::array<VkWriteDescriptorSet, 3> writeGraphicsSetInfo = {};
+			std::array<VkWriteDescriptorSet, 4> writeGraphicsSetInfo = {};
 			VkDescriptorBufferInfo modelBufferSetInfo, cameraBufferSetInfo;
-			VkDescriptorImageInfo samplerImageSetInfo;
+			VkDescriptorImageInfo samplerImageSetInfo, readComputeSamplerImageSetInfo;
 
 			// Model
-			Texture* texture = m_model->getTexture();
-			modelBufferSetInfo = DescriptorUtil::createDescriptorBufferInfo(m_model->getUniformBuffer(i), 0, m_model->getUniformBufferSize());
+			Model* model = m_scene->getModel("house");
+			Texture* modelTexture = model->getTexture();
+
+			std::string name = "compute" + std::to_string(i);
+			Texture* computeTexture = m_scene->getTexture(name);
+
+			modelBufferSetInfo = DescriptorUtil::createDescriptorBufferInfo(model->getUniformBuffer(i), 0, model->getUniformBufferSize());
 			cameraBufferSetInfo = DescriptorUtil::createDescriptorBufferInfo(m_camera->getUniformBuffer(i), 0, m_camera->getUniformBufferSize());
-			samplerImageSetInfo = DescriptorUtil::createDescriptorImageInfo(texture->getSampler(), texture->getImageView(), texture->getImageLayout());
+			samplerImageSetInfo = DescriptorUtil::createDescriptorImageInfo(
+					modelTexture->getSampler(), 
+					modelTexture->getImageView(), 
+					modelTexture->getImageLayout());
+			readComputeSamplerImageSetInfo = DescriptorUtil::createDescriptorImageInfo(
+				computeTexture->getSampler(), 
+				computeTexture->getImageView(), 
+				computeTexture->getImageLayout());;
 
 			writeGraphicsSetInfo[0] = DescriptorUtil::writeDescriptorSet(m_DS_graphics[i], 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &modelBufferSetInfo);
 			writeGraphicsSetInfo[1] = DescriptorUtil::writeDescriptorSet(m_DS_graphics[i], 1, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &cameraBufferSetInfo);
 			writeGraphicsSetInfo[2] = DescriptorUtil::writeDescriptorSet(m_DS_graphics[i], 2, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &samplerImageSetInfo);
+			writeGraphicsSetInfo[3] = DescriptorUtil::writeDescriptorSet(m_DS_graphics[i], 3, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &readComputeSamplerImageSetInfo);
 
 			vkUpdateDescriptorSets(m_logicalDevice, static_cast<uint32_t>(writeGraphicsSetInfo.size()), writeGraphicsSetInfo.data(), 0, nullptr);
+		}
 
+		for (int i = 0; i < numSwapChainImages; i++)
+		{
 			// Compute
+			std::string name = "compute" + std::to_string(i);
+			Texture* computeTexture = m_scene->getTexture(name);
 			DescriptorUtil::createDescriptorSets(m_logicalDevice, descriptorPool, 1, &DSLs_compute[i], &m_DS_compute[i]);
 			std::array<VkWriteDescriptorSet, 1> writeComputeSetInfo = {};
 			VkDescriptorImageInfo computeSetInfo;
@@ -437,16 +497,17 @@ void Renderer::setupMSAA()
 
 void Renderer::createAllPipelines()
 {
-	std::vector<VkDescriptorSetLayout> descriptorSetLayouts = { m_DSL_graphics };
+	std::vector<VkDescriptorSetLayout> graphicsDSL = { m_DSL_graphics };
+	std::vector<VkDescriptorSetLayout> computeDSL = { m_DSL_compute };
 
-	m_graphicsPipelineLayout = VulkanPipelineCreation::createPipelineLayout(m_logicalDevice, descriptorSetLayouts, 0, nullptr);
-	m_computePipelineLayout = VulkanPipelineCreation::createPipelineLayout(m_logicalDevice, descriptorSetLayouts, 0, nullptr);
-	m_postProcess_ToneMap_PipelineLayout = VulkanPipelineCreation::createPipelineLayout(m_logicalDevice, descriptorSetLayouts, 0, nullptr);
-	m_postProcess_TXAA_PipelineLayout = VulkanPipelineCreation::createPipelineLayout(m_logicalDevice, descriptorSetLayouts, 0, nullptr);
+	m_graphicsPipelineLayout = VulkanPipelineCreation::createPipelineLayout(m_logicalDevice, graphicsDSL, 0, nullptr);
+	m_computePipelineLayout = VulkanPipelineCreation::createPipelineLayout(m_logicalDevice, computeDSL, 0, nullptr);
+	m_postProcess_ToneMap_PipelineLayout = VulkanPipelineCreation::createPipelineLayout(m_logicalDevice, graphicsDSL, 0, nullptr);
+	m_postProcess_TXAA_PipelineLayout = VulkanPipelineCreation::createPipelineLayout(m_logicalDevice, graphicsDSL, 0, nullptr);
 
 	createGraphicsPipeline(m_graphicsPipeline, m_graphicsPipelineLayout, m_renderPass, 0);
-	createComputePipeline(m_computePipeline, m_computePipelineLayout, "CloudScapes/shaders/shader.comp.spv");
-	createPostProcessPipelines( m_renderPass, 0);
+	createComputePipeline(m_computePipeline, m_computePipelineLayout, "GraphicsPlayground/shaders/testComputeShader.comp.spv");
+	//createPostProcessPipelines( m_renderPass, 0);
 }
 void Renderer::createGraphicsPipeline(VkPipeline& graphicsPipeline, VkPipelineLayout graphicsPipelineLayout, VkRenderPass& renderPass, unsigned int subpassIndex)
 {

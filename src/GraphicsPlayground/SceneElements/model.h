@@ -4,7 +4,7 @@
 #include <global.h>
 #include <Utilities/bufferUtility.h>
 
-#include "vulkanDevices.h"
+#include "VulkanSetup/vulkanDevices.h"
 #include "texture.h"
 
 struct ModelUBO

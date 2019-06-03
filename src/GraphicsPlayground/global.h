@@ -22,6 +22,10 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/hash.hpp>
 
+#ifdef _DEBUG
+#define DEBUG
+#endif // _DEBUG
+
 enum QueueFlags
 {
 	Graphics,

@@ -4,8 +4,9 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/glm.hpp>
 
-#include "VulkanDevices.h"
 #include <Utilities/bufferUtility.h>
+#include "VulkanSetup/vulkanDevices.h"
+
 
 #define PI 3.14159
 

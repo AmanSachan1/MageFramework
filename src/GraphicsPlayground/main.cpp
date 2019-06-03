@@ -1,12 +1,12 @@
 #pragma once
 #include <global.h>
 #include <forward.h>
-#include "vulkanInstance.h"
-#include "vulkanDevices.h"
-#include "vulkanPresentation.h"
+#include "VulkanSetup/vulkanInstance.h"
+#include "VulkanSetup/vulkanDevices.h"
+#include "VulkanSetup/vulkanPresentation.h"
 
 #include "camera.h"
-#include "Renderer.h"
+#include "renderer.h"
 
 int window_height = 720;
 int window_width = 1284;
@@ -30,16 +30,22 @@ namespace InputUtil
 	static float deltaForRotation = 0.25f;
 	static float deltaForMovement = 0.0025f;
 
-	void keyboardInputs(GLFWwindow* window)
+	void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 	{
-		if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
+		if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+		{
 			glfwSetWindowShouldClose(window, true);
 		}
 
-		if (glfwGetKey(window, GLFW_KEY_M) == GLFW_PRESS) {
+		if (key == GLFW_KEY_M && action == GLFW_PRESS)
+		{
 			changeCameraMode = true;
+			camera->switchCameraMode();
 		}
+	}
 
+	void keyboardInputs(GLFWwindow* window)
+	{
 		if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
 			camera->translateAlongLook(deltaForMovement);
 		}			
@@ -72,12 +78,6 @@ namespace InputUtil
 		}
 		if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
 			camera->rotateAboutUp(-deltaForRotation);
-		}
-
-		if (changeCameraMode)
-		{
-			changeCameraMode = false;
-			camera->switchCameraMode();
 		}
 
 		camera->updateUniformBuffer(presentation->getIndex());
@@ -209,6 +209,7 @@ void GraphicsPlaygroundApplication::initialize()
 	glfwSetWindowSizeCallback(window, InputUtil::resizeCallback);
 	glfwSetFramebufferSizeCallback(window, InputUtil::resizeCallback);
 
+	glfwSetKeyCallback(window, InputUtil::key_callback);
 	glfwSetScrollCallback(window, InputUtil::scrollCallback);
 	glfwSetMouseButtonCallback(window, InputUtil::mouseDownCallback);
 	glfwSetCursorPosCallback(window, InputUtil::mouseMoveCallback);
@@ -219,7 +220,7 @@ void GraphicsPlaygroundApplication::mainLoop()
 	// Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Drawing/Rendering_and_presentation
 	while (!glfwWindowShouldClose(window))
 	{
-		//Mouse inputs and window resize callbacks
+		//Mouse inputs, window resize callbacks, and certain key press events
 		glfwPollEvents();
 		InputUtil::keyboardInputs(window);
 

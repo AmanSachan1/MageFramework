@@ -167,7 +167,7 @@ namespace DescriptorUtil
 		return l_poolSize;
 	}
 
-	inline void createDescriptorPool(VkDevice& logicalDevice, uint32_t poolSizeCount, VkDescriptorPoolSize* data, VkDescriptorPool& descriptorPool)
+	inline void createDescriptorPool(VkDevice& logicalDevice, uint32_t maxSets, uint32_t poolSizeCount, VkDescriptorPoolSize* data, VkDescriptorPool& descriptorPool)
 	{
 		VkDescriptorPoolCreateInfo descriptorPoolInfo = {};
 		descriptorPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -175,7 +175,7 @@ namespace DescriptorUtil
 		descriptorPoolInfo.flags = 0; // Change if you're going to modify the descriptor set after its creation
 		descriptorPoolInfo.poolSizeCount = poolSizeCount;
 		descriptorPoolInfo.pPoolSizes = data;
-		descriptorPoolInfo.maxSets = poolSizeCount; // max number of descriptor sets allowed
+		descriptorPoolInfo.maxSets = maxSets; // max number of descriptor sets allowed
 
 		if (vkCreateDescriptorPool(logicalDevice, &descriptorPoolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
 			throw std::runtime_error("Failed to create descriptor pool");

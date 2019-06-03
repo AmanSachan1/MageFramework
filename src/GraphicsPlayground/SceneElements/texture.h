@@ -1,6 +1,6 @@
 #pragma once
 
-#include "vulkanDevices.h"
+#include "VulkanSetup/vulkanDevices.h"
 #include <Utilities/bufferUtility.h>
 #include <Utilities/imageUtility.h>
 
@@ -11,10 +11,29 @@ public:
 	Texture(VulkanDevices* devices, VkQueue& queue, VkCommandPool& cmdPool, VkFormat format);
 	~Texture();
 
-	void create2DTexture(std::string texturePath, bool isMipMapped = false, VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL, VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
-	void create3DTexture(std::string texturePath, bool isMipMapped = false, VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL, VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
+	void create2DTexture(
+		std::string texturePath, 
+		bool isMipMapped = false, 
+		VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL, 
+		VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
 
-	void create3DTextureFromMany2DTextures(VkDevice logicalDevice, VkCommandPool commandPool, int num2DImages, int numChannels,
+	void createEmpty2DTexture(
+		std::string texturePath, 
+		uint32_t width, uint32_t height, uint32_t depth,
+		bool isMipMapped = false, 
+		VkSamplerAddressMode samplerAddressMode = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+		VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL,
+		VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
+
+	void create3DTexture(
+		std::string texturePath, 
+		bool isMipMapped = false, 
+		VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL, 
+		VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
+
+	void create3DTextureFromMany2DTextures(
+		VkDevice logicalDevice, VkCommandPool commandPool, 
+		int num2DImages, int numChannels,
 		const std::string folder_path, const std::string textureBaseName, const std::string fileExtension );
 	
 	uint32_t getWidth() const;

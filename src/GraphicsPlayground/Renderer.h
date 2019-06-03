@@ -9,13 +9,13 @@
 #include <Utilities\renderUtility.h>
 #include <Utilities\generalUtility.h>
 
-#include "vulkanDevices.h"
-#include "vulkanPresentation.h"
+#include "VulkanSetup\vulkanDevices.h"
+#include "VulkanSetup\vulkanPresentation.h"
 
 #include "Camera.h"
 #include "Scene.h"
-#include "Model.h"
-#include "Texture.h"
+#include "SceneElements\model.h"
+#include "SceneElements\texture.h"
 
 static constexpr unsigned int WORKGROUP_SIZE = 32;
 
@@ -83,11 +83,7 @@ private:
 	bool m_resizeFrameBuffer = false;
 	Camera* m_camera;
 
-	Model* m_model;
-
-	Texture* computeTexture;
-	Texture* currentFrameTexture;
-	Texture* previousFrameTexture;
+	Scene* m_scene;
 
 	std::vector<VkFramebuffer> m_frameBuffers;
 	VkRenderPass m_renderPass;
@@ -100,37 +96,36 @@ private:
 	VkDeviceMemory m_MSAAcolorImageMemory;
 	VkImageView m_MSAAcolorImageView;
 
-	// Pipeline Setup
-	VkPipelineLayout m_graphicsPipelineLayout;
-	VkPipeline m_graphicsPipeline;
-
+	// --- Command Buffers, Memory Pools, and Pipeline Setup
+	// ----- Compute -----
+	std::vector<VkCommandBuffer> m_computeCommandBuffers;
+	VkCommandPool m_computeCommandPool;
 	VkPipelineLayout m_computePipelineLayout;
 	VkPipeline m_computePipeline;
 
+	// ----- Standard Graphics -----
+	std::vector<VkCommandBuffer> m_graphicsCommandBuffers;
+	VkCommandPool m_graphicsCommandPool;
+	VkPipelineLayout m_graphicsPipelineLayout;
+	VkPipeline m_graphicsPipeline;
+
+	// ----- Post Process ----- 
 	VkPipelineCache m_postProcessPipeLineCache;
 	VkPipelineLayout m_postProcess_ToneMap_PipelineLayout;
 	VkPipelineLayout m_postProcess_TXAA_PipelineLayout;
 	VkPipeline m_postProcess_ToneMap_PipeLine;
 	VkPipeline m_postProcess_TXAA_PipeLine;
 
-	// Command Buffers
-	std::vector<VkCommandBuffer> m_graphicsCommandBuffers;
-	std::vector<VkCommandBuffer> m_computeCommandBuffers;
-
-	// Memory Pools
-	VkCommandPool m_graphicsCommandPool;
-	VkCommandPool m_computeCommandPool;
-
 	// Descriptor Pools, sets, and layouts
 	VkDescriptorPool descriptorPool;
 	
-	//graphics
-	VkDescriptorSetLayout m_DSL_graphics;
-	std::vector<VkDescriptorSet> m_DS_graphics;	
-
 	//compute
 	VkDescriptorSetLayout m_DSL_compute;
 	std::vector<VkDescriptorSet> m_DS_compute;
+
+	//graphics
+	VkDescriptorSetLayout m_DSL_graphics;
+	std::vector<VkDescriptorSet> m_DS_graphics;	
 
 	//Tone Map
 	VkDescriptorSetLayout m_DSL_toneMap;

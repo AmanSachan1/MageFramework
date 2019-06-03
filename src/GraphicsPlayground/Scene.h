@@ -1,69 +1,42 @@
 #pragma once
 
-/*
-#include <glm/glm.hpp>
-#include <chrono>
+#include <iostream> 
+#include <unordered_map>
+#include <string>
 
-#include "VulkanDevice.h"
-#include "BufferUtils.h"
-#include "Model.h"
+#include <global.h>
+#include <Utilities/bufferUtility.h>
 
-using namespace std::chrono;
+#include "VulkanSetup/vulkanDevices.h"
 
-struct Time 
-{
-	//16 values stored in halton seq because 2D case
-	glm::vec4 haltonSeq1;
-	glm::vec4 haltonSeq2;
-	glm::vec4 haltonSeq3;
-	glm::vec4 haltonSeq4;
-	glm::vec2 _time = glm::vec2(0.0f, 0.0f); //stores delta time and total time packed as a vec2 so vulkan offsetting doesnt become an issue later
-	int frameCount = 1;
-};
-
-struct KeyPressQuery
-{
-	int key_debug = 0;
-};
+#include "SceneElements/model.h"
+#include "SceneElements/time.h"
 
 class Scene 
 {
 private:
-	VulkanDevice* device;
+	VulkanDevices* m_devices;
+	VkDevice m_logicalDevice;
+	VkPhysicalDevice m_physicalDevice;
+	VkQueue	m_graphicsQueue;
+	VkQueue	m_computeQueue;
+	VkCommandPool m_graphicsCommandPool;
+	VkCommandPool m_computeCommandPool;
+	int m_numSwapChainImages;
+	uint32_t m_windowWidth, m_windowHeight;
 
-	Time time;
-	VkBuffer timeBuffer;
-	VkDeviceMemory timeBufferMemory;
-	void* time_mappedData;
-
-	KeyPressQuery keyPressQuery;
-	VkBuffer keyPressQueryBuffer;
-	VkDeviceMemory keyPressQueryBufferMemory;
-	void* keyPressQuery_mappedData;
-
-	std::vector<Model*> models;
-
-	high_resolution_clock::time_point startTime = high_resolution_clock::now();
+	std::unordered_map<std::string, Model*> m_modelMap;
+	std::unordered_map<std::string, Texture*> m_textureMap;
 
 public:
 	Scene() = delete;
-	Scene(VulkanDevice* device);
+	Scene(VulkanDevices* devices, int numSwapChainImages, uint32_t windowWidth, uint32_t windoHeight,
+		VkQueue& graphicsQueue, VkCommandPool& graphicsCommandPool,
+		VkQueue& computeQueue, VkCommandPool& computeCommandPool);
 	~Scene();
 
-	void CreateModelsInScene(VkCommandPool commandPool);
-	const std::vector<Model*>& GetModels() const;
-	void AddModel(Model* model);
-
-	VkBuffer GetTimeBuffer() const;
-	void UpdateTime();
-	void InitializeTime();
-	glm::vec2 GetTime() const;
-	float HaltonSequenceAt(int index, int base);
-
-	int count = 0;
-
-	VkBuffer GetKeyPressQueryBuffer() const;
-	void UpdateKeyPressQuery();
-	//KeyPressQuery GetKeyPressQuery() const;
+	void createScene();
+	void updateUniforms(uint32_t currentImageIndex);
+	Model* getModel(std::string key);
+	Texture* getTexture(std::string key);
 };
-*/

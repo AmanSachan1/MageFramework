@@ -84,6 +84,37 @@ void Texture::create2DTexture(std::string texturePath, bool isMipMapped, VkImage
 	}
 }
 
+void Texture::createEmpty2DTexture(std::string texturePath, uint32_t width, uint32_t height, uint32_t depth, 
+	bool isMipMapped, VkSamplerAddressMode samplerAddressMode, VkImageTiling tiling, VkImageUsageFlags usage)
+{
+	m_width = static_cast<uint32_t>(width);
+	m_height = static_cast<uint32_t>(height);
+	m_depth = 1;
+	if (isMipMapped)
+	{
+		m_mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(m_width, m_height)))) + 1;
+	}
+	else
+	{
+		m_mipLevels = 1;
+	}
+
+	ImageUtil::createImage(m_logicalDevice, m_physicalDevice, m_image, m_imageMemory,
+		VK_IMAGE_TYPE_2D, m_format, m_width, m_height, m_depth, usage,
+		VK_SAMPLE_COUNT_1_BIT, tiling, m_mipLevels, 1, VK_IMAGE_LAYOUT_UNDEFINED, VK_SHARING_MODE_EXCLUSIVE);
+
+	m_imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+	ImageUtil::transitionImageLayout(m_logicalDevice, m_graphicsQueue, m_cmdPool, m_image, m_format, 
+		VK_IMAGE_LAYOUT_UNDEFINED, m_imageLayout, m_mipLevels);
+	
+	// Create 2D image View
+	ImageUtil::createImageView(m_logicalDevice, m_image, &m_imageView, VK_IMAGE_VIEW_TYPE_2D, m_format, VK_IMAGE_ASPECT_COLOR_BIT, m_mipLevels, nullptr);
+
+	// Create Texture Sampler
+	ImageUtil::createImageSampler(m_logicalDevice, m_sampler, VK_FILTER_LINEAR, VK_FILTER_LINEAR, samplerAddressMode,
+		VK_SAMPLER_MIPMAP_MODE_LINEAR, 0, 0, static_cast<float>(m_mipLevels), 16, VK_COMPARE_OP_NEVER);
+}
+
 // Getters
 uint32_t Texture::getWidth() const
 {

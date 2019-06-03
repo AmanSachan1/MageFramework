@@ -1,6 +1,20 @@
 function(buildSource SAMPLE_NAME)
-	file(GLOB SAMPLE_SOURCES ${SAMPLE_NAME}/*.cpp ${SAMPLE_NAME}/*.h ${SAMPLE_NAME}/*.inl)
-	file(GLOB UTILITY_SOURCES ${SAMPLE_NAME}/Utilities/*.cpp ${SAMPLE_NAME}/Utilities/*.h ${SAMPLE_NAME}/Utilities/*.inl)
+	file(GLOB SAMPLE_SOURCES 
+		${SAMPLE_NAME}/*.cpp 
+		${SAMPLE_NAME}/*.h 
+		${SAMPLE_NAME}/*.inl)
+	file(GLOB UTILITY_SOURCES 
+		${SAMPLE_NAME}/Utilities/*.cpp 
+		${SAMPLE_NAME}/Utilities/*.h 
+		${SAMPLE_NAME}/Utilities/*.inl)
+	file(GLOB VULKAN_SETUP_SOURCES 
+		${SAMPLE_NAME}/VulkanSetup/*.cpp 
+		${SAMPLE_NAME}/VulkanSetup/*.h 
+		${SAMPLE_NAME}/VulkanSetup/*.inl)
+	file(GLOB SCENE_ELEMENTS_SOURCES 
+		${SAMPLE_NAME}/SceneElements/*.cpp 
+		${SAMPLE_NAME}/SceneElements/*.h 
+		${SAMPLE_NAME}/SceneElements/*.inl)
 	file(GLOB_RECURSE SHADER_SOURCES
 		${SAMPLE_NAME}/*.vert
 		${SAMPLE_NAME}/*.frag
@@ -12,12 +26,24 @@ function(buildSource SAMPLE_NAME)
 	SET(MAIN_CPP ${SAMPLE_NAME}/main.cpp)
 	source_group("Shaders" FILES ${SHADER_SOURCES})
 	source_group("Utilities" FILES ${UTILITY_SOURCES})
+	source_group("VulkanSetup" FILES ${VULKAN_SETUP_SOURCES})
+	source_group("SceneElements" FILES ${SCENE_ELEMENTS_SOURCES})
 
 	if(WIN32)
-		add_executable(${SAMPLE_NAME} ${MAIN_CPP} ${SAMPLE_SOURCES} ${UTILITY_SOURCES} ${SHADER_SOURCES})
+		add_executable(${SAMPLE_NAME} ${MAIN_CPP} 
+			${SAMPLE_SOURCES} 
+			${UTILITY_SOURCES} 
+			${SHADER_SOURCES} 
+			${VULKAN_SETUP_SOURCES} 
+			${SCENE_ELEMENTS_SOURCES})
 		target_link_libraries(${SAMPLE_NAME} ${WINLIBS})
 	else(WIN32)
-		add_executable(${SAMPLE_NAME} ${MAIN_CPP} ${SAMPLE_SOURCES} ${UTILITY_SOURCES})
+		add_executable(${SAMPLE_NAME} ${MAIN_CPP} 
+			${SAMPLE_SOURCES} 
+			${UTILITY_SOURCES}
+			${SHADER_SOURCES} 
+			${VULKAN_SETUP_SOURCES} 
+			${SCENE_ELEMENTS_SOURCES})
 		target_link_libraries(${SAMPLE_NAME} ${CMAKE_THREAD_LIBS_INIT})
 	endif(WIN32)
 

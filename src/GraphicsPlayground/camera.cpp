@@ -73,8 +73,16 @@ void Camera::copyToGPUMemory(unsigned int bufferIndex)
 
 void Camera::switchCameraMode()
 {
-	if (m_mode == CameraMode::FLY) { m_mode = CameraMode::ORBIT; }
-	else if (m_mode == CameraMode::ORBIT) {	m_mode = CameraMode::FLY; }
+	if (m_mode == CameraMode::FLY) 
+	{ 
+		m_mode = CameraMode::ORBIT;
+		std::cout << "Camera is in ORBIT mode \n";
+	}
+	else if (m_mode == CameraMode::ORBIT) 
+	{	
+		m_mode = CameraMode::FLY;
+		std::cout << "Camera is in FLY mode \n";
+	}
 }
 
 glm::mat4 Camera::getViewProj() const
