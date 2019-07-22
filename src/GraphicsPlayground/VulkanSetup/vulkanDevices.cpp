@@ -236,7 +236,3 @@ QueueFamilyIndices VulkanDevices::getQueueFamilyIndices()
 {
 	return m_queueFamilyIndices;
 }
-VkSampleCountFlagBits VulkanDevices::getNumMSAASamples()
-{
-	return m_msaaSamples;
-}

@@ -6,7 +6,7 @@
 #include "vulkanInstance.h"
 #include "vulkanDevices.h"
 
-const static unsigned int MAX_FRAMES_IN_FLIGHT = 2;
+const static unsigned int MAX_FRAMES_IN_FLIGHT = 3;
 
 class VulkanPresentation
 {

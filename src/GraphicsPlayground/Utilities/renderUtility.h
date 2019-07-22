@@ -2,14 +2,6 @@
 #include <global.h>
 #include <Utilities/imageUtility.h>
 
-namespace RenderUtil
-{
-	inline void MSAA()
-	{
-
-	}
-}
-
 namespace RenderPassUtil
 {
 	inline VkSubpassDescription subpassDescription(
@@ -39,11 +31,12 @@ namespace RenderPassUtil
 
 		return l_subpassDescription;
 	}
-	
+
 	inline VkSubpassDependency subpassDependency(
 		uint32_t srcSubpass, uint32_t dstSubpass,
-		VkPipelineStageFlags srcStageMask, VkAccessFlags srcAccessMask, 
-		VkPipelineStageFlags dstStageMask, VkAccessFlags dstAccessMask)
+		VkPipelineStageFlags srcStageMask, VkAccessFlags srcAccessMask,
+		VkPipelineStageFlags dstStageMask, VkAccessFlags dstAccessMask, 
+		VkDependencyFlags dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT)
 	{
 		// Subpasses in a render pass automatically take care of image layout transitions.
 		// These transitions are controlled by subpass dependencies, which specify memory and execution dependencies between subpasses.
@@ -65,6 +58,9 @@ namespace RenderPassUtil
 		l_subpassDependency.dstStageMask = dstStageMask;
 		l_subpassDependency.dstAccessMask = dstAccessMask;
 
+		// Bitmask specifying how execution and memory dependencies are formed
+		l_subpassDependency.dependencyFlags = dependencyFlags;
+
 		return l_subpassDependency;
 	}
 
@@ -82,9 +78,27 @@ namespace RenderPassUtil
 		renderPassInfo.dependencyCount = dependencyCount;
 		renderPassInfo.pDependencies = pDependencies;
 
-		if (vkCreateRenderPass(logicalDevice, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) 
+		if (vkCreateRenderPass(logicalDevice, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS)
 		{
 			throw std::runtime_error("failed to create render pass!");
+		}
+	}
+
+	inline void createFrameBuffer(VkDevice& logicalDevice, VkFramebuffer& frameBuffer, VkExtent2D imageExtent,
+		VkRenderPass& renderPass, uint32_t attachmentCount, const VkImageView* pAttachments, uint32_t layers = 1)
+	{
+		VkFramebufferCreateInfo l_framebufferInfo = {};
+		l_framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		l_framebufferInfo.renderPass = renderPass;
+		l_framebufferInfo.attachmentCount = attachmentCount;
+		l_framebufferInfo.pAttachments = pAttachments;
+		l_framebufferInfo.width = imageExtent.width;
+		l_framebufferInfo.height = imageExtent.height;
+		l_framebufferInfo.layers = layers;
+
+		if (vkCreateFramebuffer(logicalDevice, &l_framebufferInfo, nullptr, &frameBuffer) != VK_SUCCESS)
+		{
+			throw std::runtime_error("failed to create framebuffer!");
 		}
 	}
 
@@ -152,7 +166,7 @@ namespace DescriptorUtil
 		descriptorSetLayoutCreateInfo.bindingCount = bindingCount;
 		descriptorSetLayoutCreateInfo.pBindings = data;
 
-		if (vkCreateDescriptorSetLayout(logicalDevice, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) 
+		if (vkCreateDescriptorSetLayout(logicalDevice, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS)
 		{
 			throw std::runtime_error("failed to create descriptor set layout!");
 		}
@@ -191,7 +205,7 @@ namespace DescriptorUtil
 		allocInfo.descriptorSetCount = descriptorSetCount;
 		allocInfo.pSetLayouts = descriptorSetLayouts;
 
-		if (vkAllocateDescriptorSets(logicalDevice, &allocInfo, descriptorSetData) != VK_SUCCESS) 
+		if (vkAllocateDescriptorSets(logicalDevice, &allocInfo, descriptorSetData) != VK_SUCCESS)
 		{
 			throw std::runtime_error("failed to allocate descriptor sets!");
 		}
@@ -215,8 +229,8 @@ namespace DescriptorUtil
 		return l_descriptorImageInfo;
 	}
 
-	inline VkWriteDescriptorSet writeDescriptorSet( 
-		VkDescriptorSet dstSet,	uint32_t dstBinding, uint32_t descriptorCount, VkDescriptorType descriptorType,
+	inline VkWriteDescriptorSet writeDescriptorSet(
+		VkDescriptorSet dstSet, uint32_t dstBinding, uint32_t descriptorCount, VkDescriptorType descriptorType,
 		const VkDescriptorBufferInfo* pBufferInfo, uint32_t dstArrayElement = 0)
 	{
 		VkWriteDescriptorSet l_descriptorWrite = {};

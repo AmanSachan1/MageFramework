@@ -15,13 +15,13 @@ Model::Model(VulkanDevices* devices, VkQueue& graphicsQueue, VkCommandPool& comm
 	m_modelUBOs.resize(m_numSwapChainImages);
 	m_mappedDataUniformBuffers.resize(m_numSwapChainImages);
 
-	BufferUtil::createVertexBuffer(m_devices, m_physicalDevice, m_logicalDevice, graphicsQueue, commandPool,
+	BufferUtil::createVertexBuffer(m_physicalDevice, m_logicalDevice, graphicsQueue, commandPool,
 		m_vertexBuffer, m_vertexBufferMemory, m_vertexBufferSize, m_mappedDataVertexBuffer, vertices.data());
 
-	BufferUtil::createIndexBuffer(m_devices, m_physicalDevice, m_logicalDevice, graphicsQueue, commandPool,
+	BufferUtil::createIndexBuffer(m_physicalDevice, m_logicalDevice, graphicsQueue, commandPool,
 		m_indexBuffer, m_indexBufferMemory, m_indexBufferSize, m_mappedDataIndexBuffer, indices.data());
 
-	BufferUtil::createUniformBuffers(m_devices, m_physicalDevice, m_logicalDevice, m_numSwapChainImages,
+	BufferUtil::createUniformBuffers(m_physicalDevice, m_logicalDevice, m_numSwapChainImages,
 		m_uniformBuffers, m_uniformBufferMemories, m_uniformBufferSize);
 
 	for (unsigned int i = 0; i < numSwapChainImages; i++)
@@ -48,13 +48,13 @@ Model::Model(VulkanDevices* devices, VkQueue& graphicsQueue, VkCommandPool& comm
 	m_modelUBOs.resize(m_numSwapChainImages);
 	m_mappedDataUniformBuffers.resize(m_numSwapChainImages);
 
-	BufferUtil::createVertexBuffer(m_devices, m_physicalDevice, m_logicalDevice, graphicsQueue, commandPool,
+	BufferUtil::createVertexBuffer(m_physicalDevice, m_logicalDevice, graphicsQueue, commandPool,
 		m_vertexBuffer, m_vertexBufferMemory, m_vertexBufferSize, m_mappedDataVertexBuffer, m_vertices.data());
 
-	BufferUtil::createIndexBuffer(m_devices, m_physicalDevice, m_logicalDevice, graphicsQueue, commandPool,
+	BufferUtil::createIndexBuffer(m_physicalDevice, m_logicalDevice, graphicsQueue, commandPool,
 		m_indexBuffer, m_indexBufferMemory, m_indexBufferSize, m_mappedDataIndexBuffer, m_indices.data());
 
-	BufferUtil::createUniformBuffers(m_devices, m_physicalDevice, m_logicalDevice, m_numSwapChainImages,
+	BufferUtil::createUniformBuffers(m_physicalDevice, m_logicalDevice, m_numSwapChainImages,
 		m_uniformBuffers, m_uniformBufferMemories, m_uniformBufferSize);
 
 	for (unsigned int i = 0; i < numSwapChainImages; i++)
@@ -65,6 +65,9 @@ Model::Model(VulkanDevices* devices, VkQueue& graphicsQueue, VkCommandPool& comm
 }
 Model::~Model()
 {
+	// Destroy Descriptor Stuff
+	m_DS_model.clear();
+
 	delete m_texture;
 
 	vkDestroyBuffer(m_logicalDevice, m_indexBuffer, nullptr);
@@ -83,8 +86,7 @@ Model::~Model()
 
 void Model::updateUniformBuffer(uint32_t currentImageIndex)
 {
-	auto currentTime = std::chrono::high_resolution_clock::now();
-	float deltaTime = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+	const float deltaTime = TimerUtil::getTimeElapsedSinceStart();
 
 	glm::mat4 m = glm::mat4(1.0f);
 
@@ -96,6 +98,49 @@ void Model::updateUniformBuffer(uint32_t currentImageIndex)
 
 	m_modelUBOs[currentImageIndex].modelMat = m;
 	memcpy(m_mappedDataUniformBuffers[currentImageIndex], &m_modelUBOs[currentImageIndex], (size_t)m_uniformBufferSize);
+}
+
+// Descriptor Setup
+void Model::addToDescriptorPoolSize(std::vector<VkDescriptorPoolSize>& poolSizes)
+{
+	poolSizes.push_back({ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, m_numSwapChainImages });			// Model Matrix
+	poolSizes.push_back({ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, m_numSwapChainImages });	// Model Texture
+	//poolSizes.push_back({ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, m_numSwapChainImages });	// Compute Texture used to color the model somehow
+}
+void Model::createDescriptorSetLayout(VkDescriptorSetLayout& DSL_model)
+{
+	//We pass in a descriptor Set layout because it will remain common to all models that we create. So no point keep multiple copies of it.
+	VkDescriptorSetLayoutBinding modelLayoutBinding =		{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,			1, VK_SHADER_STAGE_ALL,			 nullptr };
+	VkDescriptorSetLayoutBinding samplerLayoutBinding =		{ 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
+	//VkDescriptorSetLayoutBinding readComputeLayoutBinding = { 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
+	std::array<VkDescriptorSetLayoutBinding, 2> graphicsBindings = { modelLayoutBinding, samplerLayoutBinding };// , readComputeLayoutBinding
+
+	DescriptorUtil::createDescriptorSetLayout(m_logicalDevice, DSL_model, static_cast<uint32_t>(graphicsBindings.size()), graphicsBindings.data());
+}
+void Model::createAndWriteDescriptorSets(VkDescriptorPool descriptorPool, VkDescriptorSetLayout& DSL_model, Texture* computeTexture, uint32_t index)
+{
+	DescriptorUtil::createDescriptorSets(m_logicalDevice, descriptorPool, 1, &DSL_model, &m_DS_model[index]);
+
+	std::array<VkWriteDescriptorSet, 2> writeGraphicsSetInfo = {};
+	VkDescriptorBufferInfo modelBufferSetInfo;
+	VkDescriptorImageInfo samplerImageSetInfo;// , readComputeSamplerImageSetInfo;
+
+	// Model
+	modelBufferSetInfo = DescriptorUtil::createDescriptorBufferInfo(getUniformBuffer(index), 0, getUniformBufferSize());
+	samplerImageSetInfo = DescriptorUtil::createDescriptorImageInfo(
+		m_texture->getSampler(),
+		m_texture->getImageView(),
+		m_texture->getImageLayout());
+	//readComputeSamplerImageSetInfo = DescriptorUtil::createDescriptorImageInfo(
+	//	computeTexture->getSampler(),
+	//	computeTexture->getImageView(),
+	//	computeTexture->getImageLayout());;
+
+	writeGraphicsSetInfo[0] = DescriptorUtil::writeDescriptorSet(m_DS_model[index], 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &modelBufferSetInfo);
+	writeGraphicsSetInfo[1] = DescriptorUtil::writeDescriptorSet(m_DS_model[index], 1, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &samplerImageSetInfo);
+	//writeGraphicsSetInfo[2] = DescriptorUtil::writeDescriptorSet(m_DS_model[index], 2, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &readComputeSamplerImageSetInfo);
+
+	vkUpdateDescriptorSets(m_logicalDevice, static_cast<uint32_t>(writeGraphicsSetInfo.size()), writeGraphicsSetInfo.data(), 0, nullptr);
 }
 
 //Getters

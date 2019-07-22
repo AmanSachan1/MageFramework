@@ -23,7 +23,7 @@ namespace VulkanPipelineStructures
 	}
 
 	inline VkPipelineVertexInputStateCreateInfo vertexInputInfo(
-		uint32_t vertexBindingDescriptionCount, const VkVertexInputBindingDescription* pVertexBindingDescriptions, 
+		uint32_t vertexBindingDescriptionCount, const VkVertexInputBindingDescription* pVertexBindingDescriptions,
 		uint32_t vertexAttributeDescriptionCount, const VkVertexInputAttributeDescription* pVertexAttributeDescriptions)
 	{
 		VkPipelineVertexInputStateCreateInfo l_vertexInputInfo{};
@@ -32,6 +32,7 @@ namespace VulkanPipelineStructures
 		l_vertexInputInfo.pVertexBindingDescriptions = pVertexBindingDescriptions;
 		l_vertexInputInfo.vertexAttributeDescriptionCount = vertexAttributeDescriptionCount;
 		l_vertexInputInfo.pVertexAttributeDescriptions = pVertexAttributeDescriptions;
+		l_vertexInputInfo.flags = 0;
 		return l_vertexInputInfo;
 	}
 
@@ -41,11 +42,12 @@ namespace VulkanPipelineStructures
 		l_inputAssemblyStateCreationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 		l_inputAssemblyStateCreationInfo.topology = topology;
 		l_inputAssemblyStateCreationInfo.primitiveRestartEnable = primitiveRestartEnable;
+		l_inputAssemblyStateCreationInfo.flags = 0;
 		return l_inputAssemblyStateCreationInfo;
 	}
 
 	inline VkPipelineViewportStateCreateInfo viewportStateCreationInfo(
-		uint32_t viewportCount,	const VkViewport* pViewports,
+		uint32_t viewportCount, const VkViewport* pViewports,
 		uint32_t scissorCount, const VkRect2D* pScissors)
 	{
 		VkPipelineViewportStateCreateInfo l_viewportStateCreationInfo{};
@@ -54,6 +56,7 @@ namespace VulkanPipelineStructures
 		l_viewportStateCreationInfo.pViewports = pViewports;
 		l_viewportStateCreationInfo.scissorCount = scissorCount;
 		l_viewportStateCreationInfo.pScissors = pScissors;
+		l_viewportStateCreationInfo.flags = 0;
 		return l_viewportStateCreationInfo;
 	}
 
@@ -74,13 +77,14 @@ namespace VulkanPipelineStructures
 		l_rasterizerCreationInfo.depthBiasConstantFactor = depthBiasConstantFactor;
 		l_rasterizerCreationInfo.depthBiasClamp = depthBiasClamp;
 		l_rasterizerCreationInfo.depthBiasSlopeFactor = depthBiasSlopeFactor;
+		l_rasterizerCreationInfo.flags = 0;
 		return l_rasterizerCreationInfo;
 	}
 
 	inline VkPipelineMultisampleStateCreateInfo multiSampleStateCreationInfo(
-		VkSampleCountFlagBits rasterizationSamples,	
+		VkSampleCountFlagBits rasterizationSamples,
 		VkBool32 sampleShadingEnable, float minSampleShading, const VkSampleMask* pSampleMask,
-		VkBool32 alphaToCoverageEnable,	VkBool32 alphaToOneEnable)
+		VkBool32 alphaToCoverageEnable, VkBool32 alphaToOneEnable)
 	{
 		// Multisampling is one of the ways to perform anti-aliasing. 
 		// It works by combining the fragment shader results of multiple polygons that rasterize to the same pixel. This mainly occurs 
@@ -96,12 +100,13 @@ namespace VulkanPipelineStructures
 		l_multiSampleStateCtreationInfo.pSampleMask = pSampleMask;
 		l_multiSampleStateCtreationInfo.alphaToCoverageEnable = alphaToCoverageEnable;
 		l_multiSampleStateCtreationInfo.alphaToOneEnable = alphaToOneEnable;
+		l_multiSampleStateCtreationInfo.flags = 0;
 		return l_multiSampleStateCtreationInfo;
 	}
 
 	inline VkPipelineDepthStencilStateCreateInfo depthStencilStateCreationInfo(
-		VkBool32 depthTestEnable, VkBool32 depthWriteEnable, VkCompareOp depthCompareOp, 
-		VkBool32 depthBoundsTestEnable,	float minDepthBounds, float maxDepthBounds,
+		VkBool32 depthTestEnable, VkBool32 depthWriteEnable, VkCompareOp depthCompareOp,
+		VkBool32 depthBoundsTestEnable, float minDepthBounds, float maxDepthBounds,
 		VkBool32 stencilTestEnable, VkStencilOpState front, VkStencilOpState back)
 	{
 		VkPipelineDepthStencilStateCreateInfo l_depthStencilStateCreationInfo{};
@@ -114,10 +119,12 @@ namespace VulkanPipelineStructures
 		l_depthStencilStateCreationInfo.depthBoundsTestEnable = depthBoundsTestEnable;
 		l_depthStencilStateCreationInfo.minDepthBounds = minDepthBounds;
 		l_depthStencilStateCreationInfo.maxDepthBounds = maxDepthBounds;
-		
+
 		l_depthStencilStateCreationInfo.stencilTestEnable = stencilTestEnable;
 		l_depthStencilStateCreationInfo.front = front;
 		l_depthStencilStateCreationInfo.back = back;
+
+		l_depthStencilStateCreationInfo.flags = 0;
 
 		return l_depthStencilStateCreationInfo;
 	}
@@ -125,7 +132,7 @@ namespace VulkanPipelineStructures
 	inline VkPipelineColorBlendAttachmentState colorBlendAttachmentStateInfo(
 		VkBool32 blendEnable, VkBlendOp colorBlendOp, VkBlendOp alphaBlendOp, VkColorComponentFlags colorWriteMask,
 		VkBlendFactor srcColorBlendFactor, VkBlendFactor dstColorBlendFactor,
-		VkBlendFactor srcAlphaBlendFactor, VkBlendFactor dstAlphaBlendFactor )
+		VkBlendFactor srcAlphaBlendFactor, VkBlendFactor dstAlphaBlendFactor)
 	{
 		// Configuration per attached framebuffer (To set this globally use VkPipelineColorBlendStateCreateInfo)
 		VkPipelineColorBlendAttachmentState l_colorBlendAttachmentStateInfo{};
@@ -141,7 +148,7 @@ namespace VulkanPipelineStructures
 	}
 
 	inline VkPipelineColorBlendStateCreateInfo colorBlendStateCreationInfo(
-		VkBool32 logicOpEnable,	VkLogicOp logicOp, 
+		VkBool32 logicOpEnable, VkLogicOp logicOp,
 		uint32_t attachmentCount, const VkPipelineColorBlendAttachmentState* pAttachments,
 		float blendConstant0, float blendConstant1, float blendConstant2, float blendConstant3)
 	{
@@ -156,6 +163,7 @@ namespace VulkanPipelineStructures
 		l_colorBlendStateCreationInfo.blendConstants[1] = blendConstant1;
 		l_colorBlendStateCreationInfo.blendConstants[2] = blendConstant2;
 		l_colorBlendStateCreationInfo.blendConstants[3] = blendConstant3;
+		l_colorBlendStateCreationInfo.flags = 0;
 		return l_colorBlendStateCreationInfo;
 	}
 
@@ -165,6 +173,7 @@ namespace VulkanPipelineStructures
 		l_dynamicStateCreationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
 		l_dynamicStateCreationInfo.dynamicStateCount = dynamicStateCount;
 		l_dynamicStateCreationInfo.pDynamicStates = pDynamicStates;
+		l_dynamicStateCreationInfo.flags = 0;
 		return l_dynamicStateCreationInfo;
 	}
 
@@ -183,7 +192,7 @@ namespace VulkanPipelineStructures
 		VkRenderPass renderPass, uint32_t subpass,
 		VkPipeline basePipelineHandle, int32_t basePipelineIndex)
 	{
-		VkGraphicsPipelineCreateInfo l_graphicsPipelineCreationInfo{};		
+		VkGraphicsPipelineCreateInfo l_graphicsPipelineCreationInfo{};
 		l_graphicsPipelineCreationInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 		// Shader stages refer to the vertex, fragment, tesselation, geometry shaders (maybe more with RTX stuff) 
 		// associated with the pipeline.
@@ -206,6 +215,8 @@ namespace VulkanPipelineStructures
 		// Specify the basePipelineHandle and basePipelineIndex to derive a pipeline from an existing one.
 		l_graphicsPipelineCreationInfo.basePipelineHandle = basePipelineHandle;
 		l_graphicsPipelineCreationInfo.basePipelineIndex = basePipelineIndex;
+
+		l_graphicsPipelineCreationInfo.flags = 0;
 		return l_graphicsPipelineCreationInfo;
 	}
 };
@@ -222,6 +233,7 @@ namespace VulkanPipelineCreation
 		pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
 		pipelineLayoutInfo.pushConstantRangeCount = pushConstantRangeCount;
 		pipelineLayoutInfo.pPushConstantRanges = pPushConstantRanges;
+		pipelineLayoutInfo.flags = 0;
 
 		VkPipelineLayout pipelineLayout;
 		if (vkCreatePipelineLayout(logicalDevice, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
@@ -231,19 +243,40 @@ namespace VulkanPipelineCreation
 
 		return pipelineLayout;
 	}
-	
+
+	inline VkPipelineLayout createPipelineLayout(
+		VkDevice& logicalDevice, VkDescriptorSetLayout* descriptorSetLayouts,
+		uint32_t pushConstantRangeCount, const VkPushConstantRange* pPushConstantRanges)
+	{
+		VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
+		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+		pipelineLayoutInfo.setLayoutCount = 1;
+		pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts;
+		pipelineLayoutInfo.pushConstantRangeCount = pushConstantRangeCount;
+		pipelineLayoutInfo.pPushConstantRanges = pPushConstantRanges;
+		pipelineLayoutInfo.flags = 0;
+
+		VkPipelineLayout pipelineLayout;
+		if (vkCreatePipelineLayout(logicalDevice, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to create pipeline layout");
+		}
+
+		return pipelineLayout;
+	}
+
 	inline void createPipelineCache(VkDevice& logicalDevice, VkPipelineCache &pipelineCache)
 	{
 		VkPipelineCacheCreateInfo pipelineCacheCreateInfo = {};
 		pipelineCacheCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
-		if (vkCreatePipelineCache(logicalDevice, &pipelineCacheCreateInfo, nullptr, &pipelineCache) != VK_SUCCESS) 
+		if (vkCreatePipelineCache(logicalDevice, &pipelineCacheCreateInfo, nullptr, &pipelineCache) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to create pipeline cache");
 		}
 	}
 
 	inline bool createGraphicsPipelines(
-		VkDevice& logicalDevice, VkPipelineCache pipelineCache, 
+		VkDevice& logicalDevice, VkPipelineCache pipelineCache,
 		uint32_t createInfoCount, const VkGraphicsPipelineCreateInfo* pCreateInfos, VkPipeline* pPipelines)
 	{
 		if (vkCreateGraphicsPipelines(logicalDevice, pipelineCache, createInfoCount, pCreateInfos, nullptr, pPipelines) != VK_SUCCESS)

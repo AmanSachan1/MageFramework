@@ -20,7 +20,7 @@ namespace ImageUtil
 	}
 
 	inline void createImage(VkDevice& logicalDevice, VkPhysicalDevice& pDevice, VkImage& image, VkDeviceMemory& imageMemory,
-		VkImageType imageType, VkFormat format, uint32_t width, uint32_t height, uint32_t depth,
+		VkImageType imageType, VkFormat format, VkExtent3D extents,
 		VkImageUsageFlags usage, VkSampleCountFlagBits samples, VkImageTiling tiling,
 		uint32_t mipLevels, uint32_t arrayLayers, VkImageLayout initialLayout, VkSharingMode sharingMode)
 	{
@@ -36,9 +36,7 @@ namespace ImageUtil
 		// You should ideally have a list of acceptable alternatives and go with the best one that is supported.
 		// VK_FORMAT_R8G8B8A8_UNORM has wide spread acceptance almost everywhere
 		l_imageCreationInfo.format = format;
-		l_imageCreationInfo.extent.width = width;
-		l_imageCreationInfo.extent.height = height;
-		l_imageCreationInfo.extent.depth = depth;
+		l_imageCreationInfo.extent = extents;
 
 		l_imageCreationInfo.usage = usage;
 		// The samples flag is related to multisampling.
@@ -61,7 +59,7 @@ namespace ImageUtil
 		l_imageCreationInfo.initialLayout = initialLayout;
 		l_imageCreationInfo.sharingMode = sharingMode;
 
-		if (vkCreateImage(logicalDevice, &l_imageCreationInfo, nullptr, &image) != VK_SUCCESS) 
+		if (vkCreateImage(logicalDevice, &l_imageCreationInfo, nullptr, &image) != VK_SUCCESS)
 		{
 			throw std::runtime_error("failed to create image!");
 		}
@@ -96,10 +94,10 @@ namespace ImageUtil
 		l_createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
 		l_createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
 		l_createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-		
+
 		//No Mipmapping and no multiple targets
 		l_createInfo.subresourceRange = createImageSubResourceRange(aspectMask, 0, mipLevels, 0, 1);
-		
+
 		if (vkCreateImageView(logicalDevice, &l_createInfo, pAllocator, imageView) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to create image views!");
@@ -108,7 +106,7 @@ namespace ImageUtil
 
 	inline void createImageSampler(VkDevice& logicalDevice, VkSampler& imageSampler,
 		VkFilter magFilter, VkFilter minFilter, VkSamplerAddressMode addressMode,
-		VkSamplerMipmapMode mipmapMode, float mipLodBias, float minLod,	float maxLod,
+		VkSamplerMipmapMode mipmapMode, float mipLodBias, float minLod, float maxLod,
 		float maxAnisotropy = 16, VkCompareOp compareOp = VK_COMPARE_OP_NEVER)
 	{
 		// It is possible for shaders to read texels directly from images, but that is not very common when they are used as textures. 
@@ -200,7 +198,7 @@ namespace ImageUtil
 		return l_imageBarrier;
 	}
 
-	inline void transitionImageLayout(VkDevice& logicalDevice, VkQueue& queue, VkCommandPool& cmdPool, 
+	inline void transitionImageLayout(VkDevice& logicalDevice, VkQueue& queue, VkCommandPool& cmdPool,
 		VkImage& image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels)
 	{
 		VkCommandBuffer cmdBuffer;
@@ -219,7 +217,7 @@ namespace ImageUtil
 
 		switch (oldLayout)
 		{
-		case VK_IMAGE_LAYOUT_UNDEFINED:			
+		case VK_IMAGE_LAYOUT_UNDEFINED:
 			srcAccessMask = 0;
 			srcStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 
@@ -229,7 +227,7 @@ namespace ImageUtil
 		case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
 			srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 			srcStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
-			
+
 			flag_ImageLayoutSupported = true;
 			break;
 		}
@@ -239,7 +237,7 @@ namespace ImageUtil
 		case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
 			dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 			dstStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
-			
+
 			flag_ImageLayoutSupported = true;
 			break;
 
@@ -259,31 +257,31 @@ namespace ImageUtil
 		case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
 			dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 			dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-			
+
 			flag_ImageLayoutSupported = true;
 			break;
 
 		case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
 			dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 			dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-			
+
 			flag_ImageLayoutSupported = true;
 			break;
 		}
 
-		if(!flag_ImageLayoutSupported)
+		if (!flag_ImageLayoutSupported)
 		{
 			throw std::invalid_argument("unsupported layout transition!");
 		}
-		
+
 		VkImageSubresourceRange imageSubresourceRange = createImageSubResourceRange(aspectMask, 0, mipLevels, 0, 1);
 		VkImageMemoryBarrier imageBarrier = createImageMemoryBarrier(image, oldLayout, newLayout, srcAccessMask, dstAccessMask, imageSubresourceRange);
 		VulkanCommandUtil::pipelineBarrier(cmdBuffer, srcStageMask, dstStageMask, 0, 0, nullptr, 0, nullptr, 1, &imageBarrier);
-		
+
 		VulkanCommandUtil::endAndSubmitSingleTimeCommand(logicalDevice, queue, cmdPool, cmdBuffer);
 	}
 
-	inline void copyBufferToImage(VkDevice& logicalDevice, VkQueue& queue, VkCommandPool& cmdPool, 
+	inline void copyBufferToImage(VkDevice& logicalDevice, VkQueue& queue, VkCommandPool& cmdPool,
 		VkBuffer& buffer, VkImage& image, VkImageLayout dstImageLayout, uint32_t width, uint32_t height)
 	{
 		VkCommandBuffer cmdBuffer;
@@ -311,12 +309,12 @@ namespace ImageUtil
 		region.imageExtent = { width, height, 1 };
 
 		// The fourth parameter indicates which layout the image is currently using
-		vkCmdCopyBufferToImage(	cmdBuffer, buffer, image, dstImageLayout, 1, &region );
+		vkCmdCopyBufferToImage(cmdBuffer, buffer, image, dstImageLayout, 1, &region);
 
 		VulkanCommandUtil::endAndSubmitSingleTimeCommand(logicalDevice, queue, cmdPool, cmdBuffer);
 	}
 
-	inline VkImageBlit imageBlit(int32_t mipWidth, int32_t mipHeight, int32_t mipDepth,	uint32_t srcMipLevel, uint32_t dstMipLevel)
+	inline VkImageBlit imageBlit(int32_t mipWidth, int32_t mipHeight, int32_t mipDepth, uint32_t srcMipLevel, uint32_t dstMipLevel)
 	{
 		// specify the regions that will be used in the blit operation.
 		VkImageBlit l_blit = {};
@@ -324,7 +322,7 @@ namespace ImageUtil
 		// srcOffsets array determine the 3D region that data will be blitted from		
 		l_blit.srcOffsets[0] = { 0, 0, 0 };
 		l_blit.srcOffsets[1] = { mipWidth, mipHeight, mipDepth };
-		
+
 		l_blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		l_blit.srcSubresource.mipLevel = srcMipLevel; //i-1
 		l_blit.srcSubresource.baseArrayLayer = 0;
@@ -333,9 +331,9 @@ namespace ImageUtil
 		// dstOffsets determines the region that data will be blitted to
 		// dimensions of the dstOffsets[1] are divided by two since each mip level is half the size of the previous level.
 		l_blit.dstOffsets[0] = { 0, 0, 0 };
-		l_blit.dstOffsets[1] = { mipWidth  > 1 ? mipWidth  / 2 : 1, 
-								 mipHeight > 1 ? mipHeight / 2 : 1,
-								 mipDepth  > 1 ? mipDepth  / 2 : 1 };
+		l_blit.dstOffsets[1] = { mipWidth  > 1 ? mipWidth / 2 : 1,
+			mipHeight > 1 ? mipHeight / 2 : 1,
+			mipDepth  > 1 ? mipDepth / 2 : 1 };
 
 		l_blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		l_blit.dstSubresource.mipLevel = dstMipLevel; //i
@@ -350,7 +348,7 @@ namespace ImageUtil
 	{
 		// Our texture image has multiple mip levels, but the staging buffer can only be used to fill mip level 0. 
 		// The other levels are still undefined. To fill these levels we need to generate the data from the single level that we have.
-		
+
 		// Use the vkCmdBlitImage command. This command performs copying, scaling, and filtering operations.
 		// We will call this multiple times to blit data to each level of our texture image.
 
@@ -371,7 +369,7 @@ namespace ImageUtil
 		vkGetPhysicalDeviceFormatProperties(pDevice, imgFormat, &formatProperties);
 
 		// We create texture images with the optimal tiling format, so we need to check optimalTilingFeatures
-		if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)) 
+		if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT))
 		{
 			throw std::runtime_error("texture image format does not support linear blitting!");
 		}
@@ -392,7 +390,7 @@ namespace ImageUtil
 
 		// Reuse VkImageMemoryBarrier
 		// imageSubresourceRange.miplevel, oldLayout, newLayout, srcAccessMask, and dstAccessMask will be changed for each transition.
-		for (uint32_t i = 1; i < mipLevels; i++) 
+		for (uint32_t i = 1; i < mipLevels; i++)
 		{
 			// The source mip level was just transitioned to VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL 
 			// and the destination level is still in VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
@@ -402,19 +400,19 @@ namespace ImageUtil
 			imageBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 			imageBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
 
-			VulkanCommandUtil::pipelineBarrier(cmdBuffer, 
-				VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 
-				0, nullptr, 
-				0, nullptr, 
+			VulkanCommandUtil::pipelineBarrier(cmdBuffer,
+				VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
+				0, nullptr,
+				0, nullptr,
 				1, &imageBarrier);
 
-			VkImageBlit imgBlit = imageBlit( mipWidth,  mipHeight, mipDepth, i-1, i);
+			VkImageBlit imgBlit = imageBlit(mipWidth, mipHeight, mipDepth, i - 1, i);
 
 			VulkanCommandUtil::blitImage(cmdBuffer,
 				image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-				image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 
+				image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 				imgBlit, VK_FILTER_LINEAR);
-			 
+
 			// Use the barrier to transition mip level i - 1 to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL.
 			// This transition waits on the current blit command to finish
 			imageBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;

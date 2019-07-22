@@ -27,8 +27,8 @@ namespace InputUtil
 	static bool changeCameraMode = false;
 	static double previousX = 0.0f;
 	static double previousY = 0.0f;
-	static float deltaForRotation = 0.25f;
-	static float deltaForMovement = 0.0025f;
+	static float deltaForRotation = 0.4f;
+	static float deltaForMovement = 0.015f;
 
 	void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 	{
@@ -48,7 +48,7 @@ namespace InputUtil
 	{
 		if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
 			camera->translateAlongLook(deltaForMovement);
-		}			
+		}
 		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
 			camera->translateAlongLook(-deltaForMovement);
 		}
@@ -58,11 +58,11 @@ namespace InputUtil
 		}
 		if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
 			camera->translateAlongRight(deltaForMovement);
-		}			
+		}
 
 		if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) {
 			camera->translateAlongUp(deltaForMovement);
-		}		
+		}
 		if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) {
 			camera->translateAlongUp(-deltaForMovement);
 		}
@@ -114,7 +114,7 @@ namespace InputUtil
 
 	void scrollCallback(GLFWwindow* window, double xoffset, double yoffset)
 	{
-		if ((glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) || 
+		if ((glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) ||
 			(glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS))
 		{
 			deltaForMovement += static_cast<float>(yoffset) * 0.001f;
@@ -123,7 +123,7 @@ namespace InputUtil
 		else
 		{
 			camera->translateAlongLook(static_cast<float>(yoffset) * 0.05f);
-		}		
+		}
 	}
 }
 
@@ -133,7 +133,7 @@ public:
 	void run();
 
 private:
-	GLFWwindow* window;
+	GLFWwindow * window;
 	VulkanInstance* instance;
 	VkSurfaceKHR vkSurface;
 
@@ -163,7 +163,7 @@ void GraphicsPlaygroundApplication::initWindow(int width, int height, const char
 	glfwWindowHint(GLFW_RESIZABLE, GL_TRUE);
 	window = glfwCreateWindow(width, height, name, nullptr, nullptr);
 
-	if (!window) 
+	if (!window)
 	{
 		fprintf(stderr, "Failed to initialize GLFW window\n");
 		glfwTerminate();
@@ -178,7 +178,7 @@ void GraphicsPlaygroundApplication::initVulkan(const char* applicationName)
 
 	// Vulkan Instance
 	instance = new VulkanInstance(applicationName, glfwExtensionCount, glfwExtensions);
-	
+
 	// Create Drawing Surface, i.e. window where things are rendered to
 	if (glfwCreateWindowSurface(instance->getVkInstance(), window, nullptr, &vkSurface) != VK_SUCCESS)
 	{
@@ -197,7 +197,7 @@ void GraphicsPlaygroundApplication::initialize()
 	static constexpr char* applicationName = "Shader Playground";
 	initWindow(window_width, window_height, applicationName);
 	initVulkan(applicationName);
-	initTimer();
+	TimerUtil::initTimer();
 
 	camera = new Camera(devices, glm::vec3(0.0f, 3.0f, -8.0f), glm::vec3(0.0f, 0.0f, 0.0f),
 		window_width, window_height, 45.0f, float(window_width) / float(window_height), 0.1f, 1000.0f,
@@ -205,7 +205,7 @@ void GraphicsPlaygroundApplication::initialize()
 
 	RendererOptions rendererOptions = { RenderAPI::VULKAN, true };
 	renderer = new Renderer(window, rendererOptions, devices, presentation, camera, window_width, window_height);
-	
+
 	glfwSetWindowSizeCallback(window, InputUtil::resizeCallback);
 	glfwSetFramebufferSizeCallback(window, InputUtil::resizeCallback);
 
@@ -232,12 +232,12 @@ void GraphicsPlaygroundApplication::cleanup()
 {
 	// Wait for the device to finish executing before cleanup
 	vkDeviceWaitIdle(devices->getLogicalDevice());
-	
-	delete camera;
+
 	delete renderer;
+	delete camera;	
 	delete presentation;
 	delete devices;
-	vkDestroySurfaceKHR(instance->getVkInstance(), vkSurface, nullptr);
+ 	vkDestroySurfaceKHR(instance->getVkInstance(), vkSurface, nullptr);
 	delete instance;
 
 	glfwDestroyWindow(window);

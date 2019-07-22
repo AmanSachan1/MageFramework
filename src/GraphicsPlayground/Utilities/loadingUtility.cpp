@@ -14,13 +14,13 @@ unsigned char* loadingUtil::loadImage(std::string imagePath, int* width, int* he
 	std::string str = "../../src/Assets/Textures/";
 	str.append(imagePath);
 	const char* image_file_path = str.c_str();
-		
+
 	// The pointer that is returned is the first element in an array of pixel values. 
 	// The pixels are laid out row by row with 4 bytes per pixel in the case of STBI_rgba_alpha for a total of texWidth * texHeight * 4 values.
 	unsigned char* pixels = stbi_load(image_file_path, width, height, numChannels, STBI_rgb_alpha);
-	if (!pixels) 
-	{ 
-		throw std::runtime_error("failed to load image!"); 
+	if (!pixels)
+	{
+		throw std::runtime_error("failed to load image!");
 	}
 
 	return pixels;
@@ -41,7 +41,7 @@ bool loadingUtil::loadObj(std::vector<Vertex>& vertices, std::vector<uint32_t>& 
 	std::vector<tinyobj::shape_t> shapes;
 	std::vector<tinyobj::material_t> materials;
 	std::string warn, err;
-		
+
 	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &err, obj_file_path, nullptr, true))
 	{
 		throw std::runtime_error(err);
@@ -69,7 +69,7 @@ bool loadingUtil::loadObj(std::vector<Vertex>& vertices, std::vector<uint32_t>& 
 		throw std::runtime_error("failed to load obj!");
 	}
 
-	for (const auto& shape : shapes) 
+	for (const auto& shape : shapes)
 	{
 		for (const auto& index : shape.mesh.indices)
 		{
@@ -117,10 +117,10 @@ bool loadingUtil::loadObj(std::vector<Vertex>& vertices, std::vector<uint32_t>& 
 			}
 			else
 			{
-				vertex.color = {1.0, 0.0, 0.0, 0.5};
+				vertex.color = { 1.0, 0.0, 0.0, 0.5 };
 			}
 
-			if (uniqueVertices.count(vertex) == 0) 
+			if (uniqueVertices.count(vertex) == 0)
 			{
 				uniqueVertices[vertex] = static_cast<uint32_t>(vertices.size());
 				vertices.push_back(vertex);

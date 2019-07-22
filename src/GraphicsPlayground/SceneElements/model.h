@@ -3,6 +3,7 @@
 #include <unordered_map>
 #include <global.h>
 #include <Utilities/bufferUtility.h>
+#include <Utilities/renderUtility.h>
 
 #include "VulkanSetup/vulkanDevices.h"
 #include "texture.h"
@@ -21,6 +22,11 @@ public:
 	~Model();
 
 	void updateUniformBuffer(uint32_t currentImageIndex);
+
+	// Descriptor Sets
+	void addToDescriptorPoolSize(std::vector<VkDescriptorPoolSize>& poolSizes);
+	void createDescriptorSetLayout(VkDescriptorSetLayout& DSL_model);
+	void createAndWriteDescriptorSets(VkDescriptorPool descriptorPool, VkDescriptorSetLayout& DSL_model, Texture* computeTexture, uint32_t index);
 
 	//Getters
 	const std::vector<Vertex>& getVertices() const;
@@ -41,7 +47,7 @@ private:
 	VulkanDevices* m_devices;
 	VkDevice m_logicalDevice;
 	VkPhysicalDevice m_physicalDevice;
-	unsigned int m_numSwapChainImages;
+	uint32_t m_numSwapChainImages;
 	bool m_yAxisIsUp;
 	
 	std::vector<Vertex> m_vertices;
@@ -65,4 +71,8 @@ private:
 	std::vector<VkDeviceMemory> m_uniformBufferMemories;
 	VkDeviceSize m_uniformBufferSize;
 	std::vector<void*> m_mappedDataUniformBuffers;
+
+public:
+	//Descriptor Stuff
+	std::vector<VkDescriptorSet> m_DS_model;
 };

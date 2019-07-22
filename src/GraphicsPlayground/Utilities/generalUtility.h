@@ -3,12 +3,12 @@
 
 namespace Util
 {
-	inline VkViewport createViewport(float x, float y, float width, float height, float minDepth, float maxDepth)
+	inline VkViewport createViewport(float width, float height, float minDepth = 0.0f, float maxDepth = 1.0f, float x = 0.0f, float y = 1.0f)
 	{
 		return { x, y, width, height, minDepth, maxDepth };
 	}
 
-	inline VkRect2D createRectangle(VkOffset2D offset, VkExtent2D extent)
+	inline VkRect2D createRectangle(VkExtent2D extent, VkOffset2D offset = { 0,0 })
 	{
 		return { offset, extent };
 	}

@@ -3,8 +3,8 @@
 
 namespace VulkanCommandUtil
 {
-	inline void copyCommandBuffer(VkDevice& logicalDevice, VkCommandBuffer& cmdBuffer, 
-		VkBuffer srcBuffer, VkBuffer dstBuffer,	VkDeviceSize srcOffset, VkDeviceSize dstOffset, VkDeviceSize size)
+	inline void copyCommandBuffer(VkDevice& logicalDevice, VkCommandBuffer& cmdBuffer,
+		VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize srcOffset, VkDeviceSize dstOffset, VkDeviceSize size)
 	{
 		VkBufferCopy copyRegion = {};
 		copyRegion.srcOffset = srcOffset;
@@ -52,7 +52,7 @@ namespace VulkanCommandUtil
 	inline void beginCommandBuffer(VkCommandBuffer& cmdBuffer)
 	{
 		// Begin recording a command buffer by calling vkBeginCommandBuffer
-		
+
 		// The flags parameter specifies how we're going to use the command buffer. The following values are available:
 		// - VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT: The command buffer will be rerecorded right after executing it once.
 		// - VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT : This is a secondary command buffer that will be entirely within a single render pass.
@@ -60,10 +60,10 @@ namespace VulkanCommandUtil
 
 		// We use VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT because we may already be scheduling the drawing commands for the next frame 
 		// while the last frame is not finished yet.
-		
+
 		// The pInheritanceInfo parameter is only relevant for secondary command buffers. 
 		// It specifies which state to inherit from the calling primary command buffers.
-		
+
 		// If the command buffer was already recorded once, then a call to vkBeginCommandBuffer will implicitly reset it. 
 		// It's not possible to append commands to a buffer at a later time.
 
@@ -72,7 +72,7 @@ namespace VulkanCommandUtil
 		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
 		beginInfo.pInheritanceInfo = nullptr; // Optional
 
-		if (vkBeginCommandBuffer(cmdBuffer, &beginInfo) != VK_SUCCESS) 
+		if (vkBeginCommandBuffer(cmdBuffer, &beginInfo) != VK_SUCCESS)
 		{
 			throw std::runtime_error("failed to begin recording command buffer!");
 		}
@@ -87,7 +87,7 @@ namespace VulkanCommandUtil
 	}
 
 	inline void submitToQueueSynced(VkQueue queue, uint32_t commandBufferCount, const VkCommandBuffer* pCommandBuffers,
-		uint32_t waitSemaphoreCount, const VkSemaphore* pWaitSemaphores, const VkPipelineStageFlags* pWaitDstStageMask,		
+		uint32_t waitSemaphoreCount, const VkSemaphore* pWaitSemaphores, const VkPipelineStageFlags* pWaitDstStageMask,
 		uint32_t signalSemaphoreCount, const VkSemaphore* pSignalSemaphores, VkFence inFlightFence)
 	{
 		VkSubmitInfo submitInfo = {};
@@ -164,8 +164,8 @@ namespace VulkanCommandUtil
 		submitToQueue(queue, 1, cmdBuffer);
 		vkFreeCommandBuffers(logicalDevice, cmdPool, 1, &cmdBuffer);
 	}
-	
-	inline void beginRenderPass(VkCommandBuffer& cmdBuffer, VkRenderPass renderPass, VkFramebuffer framebuffer, 
+
+	inline void beginRenderPass(VkCommandBuffer& cmdBuffer, VkRenderPass renderPass, VkFramebuffer framebuffer,
 		VkRect2D renderArea, uint32_t clearValueCount, const VkClearValue* clearValue)
 	{
 		VkRenderPassBeginInfo renderPassInfo = {};
@@ -192,6 +192,10 @@ namespace VulkanCommandUtil
 		uint32_t bufferMemoryBarrierCount, const VkBufferMemoryBarrier* pBufferMemoryBarriers,
 		uint32_t imageMemoryBarrierCount, const VkImageMemoryBarrier* pImageMemoryBarriers)
 	{
+		// A pipeline barrier inserts an execution dependency and a set of memory dependencies between 
+		// a set of commands earlier in the command buffer and a set of commands later in the command buffer.
+		// Reference: https://vulkan.lunarg.com/doc/view/1.0.30.0/linux/vkspec.chunked/ch06s05.html
+
 		// All types of pipeline barriers are submitted using the same function.
 
 		// srcStageMask ==> specifies which pipeline stage should happen before the barrier
@@ -199,7 +203,7 @@ namespace VulkanCommandUtil
 		// dependencyFlags ==> can be either 0 or VK_DEPENDENCY_BY_REGION_BIT, the latter turns the barrier into a per-region condition
 		//					That means that the implementation is allowed to already begin reading from the parts of a resource that
 		//					were written so far, for example.
-		vkCmdPipelineBarrier(cmdBuffer, srcStageMask, dstStageMask, dependencyFlags, 
+		vkCmdPipelineBarrier(cmdBuffer, srcStageMask, dstStageMask, dependencyFlags,
 			bufferMemoryBarrierCount, pMemoryBarriers,
 			bufferMemoryBarrierCount, pBufferMemoryBarriers,
 			imageMemoryBarrierCount, pImageMemoryBarriers);

@@ -2,12 +2,12 @@
 
 Camera::Camera(VulkanDevices* devices, glm::vec3 eyePos, glm::vec3 lookAtPoint, int width, int height,
 	float foV_vertical, float aspectRatio, float nearClip, float farClip, int numSwapChainImages, CameraMode mode)
-	: m_devices(devices), m_logicalDevice(devices->getLogicalDevice()), m_physicalDevice(devices->getPhysicalDevice()), 
+	: m_devices(devices), m_logicalDevice(devices->getLogicalDevice()), m_physicalDevice(devices->getPhysicalDevice()),
 	m_numSwapChainImages(numSwapChainImages), m_mode(mode),
 	m_eyePos(eyePos), m_ref(lookAtPoint), m_width(width), m_height(height),
 	m_fovy(foV_vertical), m_aspect(aspectRatio), m_near_clip(nearClip), m_far_clip(farClip)
 {
-	m_worldUp = glm::vec3(0,1,0);
+	m_worldUp = glm::vec3(0, 1, 0);
 	recomputeAttributes();
 
 	m_uniformBufferSize = sizeof(CameraUBO);
@@ -16,7 +16,7 @@ Camera::Camera(VulkanDevices* devices, glm::vec3 eyePos, glm::vec3 lookAtPoint, 
 	m_cameraUBOs.resize(m_numSwapChainImages);
 	m_mappedDataUniformBuffers.resize(m_numSwapChainImages);
 
-	BufferUtil::createUniformBuffers(m_devices, m_physicalDevice, m_logicalDevice, m_numSwapChainImages,
+	BufferUtil::createUniformBuffers(m_physicalDevice, m_logicalDevice, m_numSwapChainImages,
 		m_uniformBuffers, m_uniformBufferMemories, m_uniformBufferSize);
 
 	for (int i = 0; i < numSwapChainImages; i++)
@@ -27,7 +27,7 @@ Camera::Camera(VulkanDevices* devices, glm::vec3 eyePos, glm::vec3 lookAtPoint, 
 	}
 }
 
-Camera::~Camera() 
+Camera::~Camera()
 {
 	for (unsigned int i = 0; i < m_numSwapChainImages; i++)
 	{
@@ -36,7 +36,10 @@ Camera::~Camera()
 		vkFreeMemory(m_logicalDevice, m_uniformBufferMemories[i], nullptr);
 	}
 }
-
+void Camera::cleanup()
+{
+	vkDestroyDescriptorSetLayout(m_logicalDevice, m_DSL_camera, nullptr);
+}
 
 VkBuffer Camera::getUniformBuffer(unsigned int bufferIndex) const
 {
@@ -73,13 +76,13 @@ void Camera::copyToGPUMemory(unsigned int bufferIndex)
 
 void Camera::switchCameraMode()
 {
-	if (m_mode == CameraMode::FLY) 
-	{ 
+	if (m_mode == CameraMode::FLY)
+	{
 		m_mode = CameraMode::ORBIT;
 		std::cout << "Camera is in ORBIT mode \n";
 	}
-	else if (m_mode == CameraMode::ORBIT) 
-	{	
+	else if (m_mode == CameraMode::ORBIT)
+	{
 		m_mode = CameraMode::FLY;
 		std::cout << "Camera is in FLY mode \n";
 	}
@@ -159,7 +162,7 @@ void Camera::translateAlongLook(float amt)
 		m_ref += translation;
 	}
 	else if ((m_mode == CameraMode::ORBIT) &&
-			 (glm::dot(m_ref - m_eyePos, m_forward) < 0.0f))
+		(glm::dot(m_ref - m_eyePos, m_forward) < 0.0f))
 	{
 		m_eyePos -= translation;
 	}
@@ -187,7 +190,7 @@ void Camera::translateAlongUp(float amt)
 {
 	glm::vec3 translation = m_up * amt;
 	m_eyePos += translation;
-	
+
 	if (m_mode == CameraMode::FLY)
 	{
 		m_ref += translation;
@@ -199,4 +202,41 @@ void Camera::translateAlongUp(float amt)
 	}
 
 	recomputeAttributes();
+}
+
+void Camera::expandDescriptorPool(std::vector<VkDescriptorPoolSize>& poolSizes)
+{
+	poolSizes.push_back({ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, m_numSwapChainImages });	// Current Camera State
+}
+void Camera::createDescriptorSetLayouts()
+{
+	VkDescriptorSetLayoutBinding cameraSetBinding = { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_ALL, nullptr };
+	DescriptorUtil::createDescriptorSetLayout(m_logicalDevice, m_DSL_camera, 1, &cameraSetBinding);
+}
+void Camera::createAndWriteDescriptorSets(VkDescriptorPool descriptorPool)
+{
+	m_DS_camera.resize(m_numSwapChainImages);
+	uint32_t cameraUniformBufferSize = static_cast<uint32_t>(sizeof(CameraUBO));
+	for (uint32_t i = 0; i < m_numSwapChainImages; i++)
+	{
+		{
+			DescriptorUtil::createDescriptorSets(m_logicalDevice, descriptorPool, 1, &m_DSL_camera, &m_DS_camera[i]);
+
+			VkDescriptorBufferInfo cameraBufferSetInfo = 
+				DescriptorUtil::createDescriptorBufferInfo(getUniformBuffer(i), 0, cameraUniformBufferSize);
+			VkWriteDescriptorSet writecameraSetInfo =
+				DescriptorUtil::writeDescriptorSet(m_DS_camera[i], 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &cameraBufferSetInfo);
+
+			vkUpdateDescriptorSets(m_logicalDevice, 1, &writecameraSetInfo, 0, nullptr);
+		}
+	}
+}
+
+VkDescriptorSet Camera::getDescriptorSet(DSL_TYPE type, int index)
+{
+	return m_DS_camera[index];
+}
+VkDescriptorSetLayout Camera::getDescriptorSetLayout(DSL_TYPE key)
+{
+	return m_DSL_camera;
 }

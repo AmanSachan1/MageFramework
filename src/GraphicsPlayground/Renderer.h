@@ -16,6 +16,8 @@
 #include "Scene.h"
 #include "SceneElements\model.h"
 #include "SceneElements\texture.h"
+#include "renderPassManager.h"
+#include "pipelineManager.h"
 
 static constexpr unsigned int WORKGROUP_SIZE = 32;
 
@@ -24,7 +26,7 @@ enum class RenderAPI { VULKAN, DX12 };
 struct RendererOptions 
 {
 	RenderAPI renderAPI;
-	bool MSAA; // Geometry Anti-Aliasing
+	bool TXAA; // Geometry Anti-Aliasing
 	bool enableSampleRateShading; // Shading Anti-Aliasing (enables processing more than one sample per fragment)
 	float minSampleShading; // value between 0.0f and 1.0f --> closer to one is smoother
 	bool enableAnisotropy; // Anisotropic filtering -- image sampling will use anisotropic filter
@@ -46,24 +48,15 @@ public:
 	
 	// Commands
 	void recordAllCommandBuffers();
-	void recordGraphicsCommandBuffer(VkCommandBuffer& graphicsCmdBuffer, VkFramebuffer& frameBuffer, unsigned int frameIndex);
+	void recordGraphicsCommandBuffer(VkCommandBuffer& graphicsCmdBuffer, unsigned int frameIndex);
 	void recordComputeCommandBuffer(VkCommandBuffer& ComputeCmdBuffer, unsigned int frameIndex);
 	void createCommandPoolsAndBuffers();
 	
-	// Rendering Setup
-	void createFrameBuffers();
-	void createRenderPass();
-	void createDepthResources();
-	void setupMSAA();
-
 	// Descriptors
 	void setupDescriptorSets();
 
 	// Pipelines
 	void createAllPipelines();
-	void createGraphicsPipeline(VkPipeline& graphicsPipeline, VkPipelineLayout graphicsPipelineLayout, VkRenderPass& renderPass, unsigned int subpass);
-	void createComputePipeline(VkPipeline& computePipeline, VkPipelineLayout computePipelineLayout, const std::string &pathToShader);
-	void createPostProcessPipelines(VkRenderPass& renderPass, unsigned int subpass);
 
 	// Helpers
 	void setResizeFlag(bool value) { m_resizeFrameBuffer = value; }
@@ -76,62 +69,32 @@ private:
 	VulkanPresentation* m_presentationObject;
 	VkQueue	m_graphicsQueue;
 	VkQueue	m_computeQueue;
-	uint32_t m_windowWidth;
-	uint32_t m_windowHeight;
-
+	
+	Camera* m_camera;
+	Scene* m_scene;
+	RenderPassManager* m_renderPassManager;
+	PipelineManager* m_pipelineManager;
+	
 	bool m_swapPingPongBuffers = false;
 	bool m_resizeFrameBuffer = false;
-	Camera* m_camera;
 
-	Scene* m_scene;
-
-	std::vector<VkFramebuffer> m_frameBuffers;
-	VkRenderPass m_renderPass;
-	VkImage m_depthImage;
-	VkDeviceMemory m_depthImageMemory;
-	VkImageView m_depthImageView;
-
-	// For MSAA
-	VkImage m_MSAAcolorImage;
-	VkDeviceMemory m_MSAAcolorImageMemory;
-	VkImageView m_MSAAcolorImageView;
-
-	// --- Command Buffers, Memory Pools, and Pipeline Setup
+	// --- Command Buffers and Memory Pools
 	// ----- Compute -----
 	std::vector<VkCommandBuffer> m_computeCommandBuffers;
 	VkCommandPool m_computeCommandPool;
-	VkPipelineLayout m_computePipelineLayout;
-	VkPipeline m_computePipeline;
-
+	
 	// ----- Standard Graphics -----
 	std::vector<VkCommandBuffer> m_graphicsCommandBuffers;
 	VkCommandPool m_graphicsCommandPool;
-	VkPipelineLayout m_graphicsPipelineLayout;
-	VkPipeline m_graphicsPipeline;
 
-	// ----- Post Process ----- 
-	VkPipelineCache m_postProcessPipeLineCache;
-	VkPipelineLayout m_postProcess_ToneMap_PipelineLayout;
-	VkPipelineLayout m_postProcess_TXAA_PipelineLayout;
-	VkPipeline m_postProcess_ToneMap_PipeLine;
-	VkPipeline m_postProcess_TXAA_PipeLine;
-
-	// Descriptor Pools, sets, and layouts
+	// Descriptor Pools
 	VkDescriptorPool descriptorPool;
-	
-	//compute
-	VkDescriptorSetLayout m_DSL_compute;
-	std::vector<VkDescriptorSet> m_DS_compute;
 
-	//graphics
-	VkDescriptorSetLayout m_DSL_graphics;
-	std::vector<VkDescriptorSet> m_DS_graphics;	
+	////Tone Map
+	//VkDescriptorSetLayout m_DSL_toneMap;
+	//std::vector<VkDescriptorSet> m_DS_toneMap;
 
-	//Tone Map
-	VkDescriptorSetLayout m_DSL_toneMap;
-	std::vector<VkDescriptorSet> m_DS_toneMap;
-
-	// Descriptor Sets for pingPonged TXAA
-	VkDescriptorSetLayout m_DSL_TXAA;
-	std::vector<VkDescriptorSet> m_DS_TXAA;
+	//// Descriptor Sets for pingPonged TXAA
+	//VkDescriptorSetLayout m_DSL_TXAA;
+	//std::vector<VkDescriptorSet> m_DS_TXAA;
 };

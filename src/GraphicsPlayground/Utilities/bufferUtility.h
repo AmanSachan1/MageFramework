@@ -16,10 +16,10 @@ namespace BufferUtil
 		vkGetPhysicalDeviceMemoryProperties(pDevice, &memProperties);
 
 		// Find a memory type that is suitable for the buffer itself:
-		for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) 
+		for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++)
 		{
-			if (typeFilter & (1 << i) 
-				&& (memProperties.memoryTypes[i].propertyFlags & properties) == properties )
+			if (typeFilter & (1 << i)
+				&& (memProperties.memoryTypes[i].propertyFlags & properties) == properties)
 			{
 				return i;
 			}
@@ -28,8 +28,8 @@ namespace BufferUtil
 		throw std::runtime_error("failed to find suitable memory type!");
 	}
 
-	inline void allocateMemory(VkPhysicalDevice& pDevice, VkDevice& logicalDevice, 
-		VkBuffer& buffer, VkDeviceMemory& bufferMemory,	VkMemoryPropertyFlags properties)
+	inline void allocateMemory(VkPhysicalDevice& pDevice, VkDevice& logicalDevice,
+		VkBuffer& buffer, VkDeviceMemory& bufferMemory, VkMemoryPropertyFlags properties)
 	{
 		// The VkMemoryRequirements struct has three fields:
 		// - size: The size of the required amount of memory in bytes, may differ from bufferInfo.size.
@@ -63,13 +63,13 @@ namespace BufferUtil
 		return l_bufferCreationInfo;
 	}
 
-	inline void createBuffer(VkPhysicalDevice& pDevice, VkDevice& logicalDevice, 
+	inline void createBuffer(VkPhysicalDevice& pDevice, VkDevice& logicalDevice,
 		VkBuffer& buffer, VkDeviceMemory& bufferMemory, VkDeviceSize bufferSize,
-		VkBufferUsageFlags allowedUsage, VkSharingMode sharingMode, VkMemoryPropertyFlags properties )
+		VkBufferUsageFlags allowedUsage, VkSharingMode sharingMode, VkMemoryPropertyFlags properties)
 	{
 		VkBufferCreateInfo bufferCreationInfo = bufferCreateInfo(bufferSize, allowedUsage, sharingMode);
 
-		if (vkCreateBuffer(logicalDevice, &bufferCreationInfo, nullptr, &buffer) != VK_SUCCESS) 
+		if (vkCreateBuffer(logicalDevice, &bufferCreationInfo, nullptr, &buffer) != VK_SUCCESS)
 		{
 			throw std::runtime_error("failed to create buffer!");
 		}
@@ -82,8 +82,8 @@ namespace BufferUtil
 		vkBindBufferMemory(logicalDevice, buffer, bufferMemory, 0);
 	}
 
-	inline void copyBuffer(VulkanDevices* devices, VkDevice& logicalDevice, VkQueue& queue, VkCommandPool& cmdPool, 
-		VkBuffer srcBuffer, VkBuffer dstBuffer,	VkDeviceSize srcOffset, VkDeviceSize dstOffset, VkDeviceSize size)
+	inline void copyBuffer(VkDevice& logicalDevice, VkQueue& queue, VkCommandPool& cmdPool,
+		VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize srcOffset, VkDeviceSize dstOffset, VkDeviceSize size)
 	{
 		// Memory transfer operations are executed using command buffers, just like drawing commands.
 		// Therefore we must first allocate a temporary command buffer. 
@@ -111,7 +111,7 @@ namespace BufferUtil
 		vkUnmapMemory(logicalDevice, stagingBufferMemory);
 	}
 
-	inline void createVertexBuffer(VulkanDevices* devices, VkPhysicalDevice& pDevice, VkDevice& logicalDevice, VkQueue& graphicsQueue, VkCommandPool& cmdPool,
+	inline void createVertexBuffer(VkPhysicalDevice& pDevice, VkDevice& logicalDevice, VkQueue& graphicsQueue, VkCommandPool& cmdPool,
 		VkBuffer& vertexBuffer, VkDeviceMemory& vertexBufferMemory, VkDeviceSize vertexBufferSize, void* mappedData, Vertex* sourceVertexData)
 	{
 		// ----- Create Staging Buffer -----
@@ -125,7 +125,7 @@ namespace BufferUtil
 		// VK_BUFFER_USAGE_TRANSFER_DST_BIT: Buffer can be used as destination in a memory transfer operation.
 
 		createBuffer(pDevice, logicalDevice, stagingBuffer, stagingBufferMemory, vertexBufferSize,
-			VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
+			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 			VK_SHARING_MODE_EXCLUSIVE,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
@@ -146,14 +146,14 @@ namespace BufferUtil
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 		// ----- Copy Staging Buffer into the Vertex Buffer -----
-		copyBuffer(devices, logicalDevice, graphicsQueue, cmdPool, stagingBuffer, vertexBuffer, 0, 0, vertexBufferSize);
+		copyBuffer(logicalDevice, graphicsQueue, cmdPool, stagingBuffer, vertexBuffer, 0, 0, vertexBufferSize);
 
 		// ----- Free Staging Buffer and its memory -----
 		vkDestroyBuffer(logicalDevice, stagingBuffer, nullptr);
 		vkFreeMemory(logicalDevice, stagingBufferMemory, nullptr);
 	}
 
-	inline void createIndexBuffer(VulkanDevices* devices, VkPhysicalDevice& pDevice, VkDevice& logicalDevice, VkQueue& graphicsQueue, VkCommandPool& cmdPool,
+	inline void createIndexBuffer(VkPhysicalDevice& pDevice, VkDevice& logicalDevice, VkQueue& graphicsQueue, VkCommandPool& cmdPool,
 		VkBuffer& indexBuffer, VkDeviceMemory& indexBufferMemory, VkDeviceSize indexBufferSize, void* mappedData, uint32_t* sourceIndexData)
 	{
 		// Very similar to createVertexBuffer Function above
@@ -178,14 +178,14 @@ namespace BufferUtil
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 		// ----- Copy Staging Buffer into the Index Buffer -----
-		copyBuffer(devices, logicalDevice, graphicsQueue, cmdPool, stagingBuffer, indexBuffer, 0, 0, indexBufferSize);
+		copyBuffer(logicalDevice, graphicsQueue, cmdPool, stagingBuffer, indexBuffer, 0, 0, indexBufferSize);
 
 		// ----- Free Staging Buffer and its memory -----
 		vkDestroyBuffer(logicalDevice, stagingBuffer, nullptr);
 		vkFreeMemory(logicalDevice, stagingBufferMemory, nullptr);
 	}
 
-	inline void createUniformBuffers(VulkanDevices* devices, VkPhysicalDevice& pDevice, VkDevice& logicalDevice, unsigned int numSwapChainImages,
+	inline void createUniformBuffers(VkPhysicalDevice& pDevice, VkDevice& logicalDevice, unsigned int numSwapChainImages,
 		std::vector<VkBuffer>& uniformBuffers, std::vector<VkDeviceMemory>& uniformBufferMemories, VkDeviceSize uniformBufferSize)
 	{
 		// Because this buffer can change every frame, the overhead of creating and pushing data to a staging buffer outweigh the performance gain 
@@ -201,5 +201,17 @@ namespace BufferUtil
 				VK_SHARING_MODE_EXCLUSIVE,
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 		}
+	}
+
+	inline void createUniformBuffer(VkPhysicalDevice& pDevice, VkDevice& logicalDevice,
+		VkBuffer& uniformBuffers, VkDeviceMemory& uniformBufferMemories, VkDeviceSize uniformBufferSize)
+	{
+		// Because this buffer can change every frame, the overhead of creating and pushing data to a staging buffer outweigh the performance gain 
+		// obtained by moving things to more optimal memory
+
+		createBuffer(pDevice, logicalDevice, uniformBuffers, uniformBufferMemories, uniformBufferSize,
+			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+			VK_SHARING_MODE_EXCLUSIVE,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 	}
 }

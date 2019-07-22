@@ -12,7 +12,7 @@ layout(set = 0, binding = 0) uniform ModelUBO {
     mat4 modelMat;
 };
 
-layout(set = 0, binding = 1) uniform CameraUBO {
+layout(set = 1, binding = 0) uniform CameraUBO {
 	mat4 view;
 	mat4 proj;
 	vec4 eye;

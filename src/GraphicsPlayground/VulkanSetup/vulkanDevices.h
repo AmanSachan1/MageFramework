@@ -30,7 +30,6 @@ public:
 	VkQueue getQueue(QueueFlags flag);
 	unsigned int getQueueIndex(QueueFlags flag);
 	QueueFamilyIndices getQueueFamilyIndices();
-	VkSampleCountFlagBits getNumMSAASamples();
 
 	//Public member variables
 	VkSurfaceCapabilitiesKHR surfaceCapabilities;

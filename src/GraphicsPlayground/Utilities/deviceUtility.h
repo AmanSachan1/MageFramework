@@ -40,7 +40,7 @@ namespace VulkanDevicesUtil
 			if (queueFamily.queueCount > 0)
 			{
 				supportedQueues |= queueFamily.queueFlags;
-				
+
 				if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)
 				{
 					indices[QueueFlags::Graphics] = i;
@@ -107,7 +107,7 @@ namespace VulkanDevicesUtil
 		return deviceQueueCreateInfo;
 	}
 
-	inline void createLogicalDevice(VkPhysicalDevice &physicalDevice, VkDevice& logicalDevice, 
+	inline void createLogicalDevice(VkPhysicalDevice &physicalDevice, VkDevice& logicalDevice,
 		VkPhysicalDeviceFeatures* deviceFeatures,
 		uint32_t queueCreateInfoCount, VkDeviceQueueCreateInfo* queueCreateInfos,
 		uint32_t deviceExtensionCount, const char** deviceExtensionNames,

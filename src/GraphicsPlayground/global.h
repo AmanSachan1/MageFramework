@@ -1,5 +1,6 @@
 #pragma once
 #include <stdio.h>
+#include <assert.h>
 #include <cstdlib>
 #include <iostream>
 #include <stdexcept>
@@ -7,8 +8,6 @@
 #include <array>
 #include <set>
 #include <bitset>
-
-#include <chrono>
 
 #include <vulkan/vulkan.h>
 
@@ -21,6 +20,8 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/hash.hpp>
+
+#include <Utilities/timerUtility.h>
 
 #ifdef _DEBUG
 #define DEBUG
@@ -46,10 +47,4 @@ using QueueFlagBits = std::bitset<sizeof(QueueFlags)>;
 using QueueFamilyIndices = std::array<uint32_t, sizeof(QueueFlags)>;
 using Queues = std::array<VkQueue, sizeof(QueueFlags)>;
 
-// Timer
-static std::chrono::time_point<std::chrono::steady_clock> startTime;
-inline void initTimer()
-{
-	std::cout << "Starting Timer \n";
-	startTime = std::chrono::high_resolution_clock::now();
-}
+enum class DSL_TYPE { COMPUTE, MODEL, CURRENT_FRAME_CAMERA, PREV_FRAME_CAMERA, TIME, FINAL32BITIMAGE, TONEMAP, TXAA, FINAL_COMPOSITE };

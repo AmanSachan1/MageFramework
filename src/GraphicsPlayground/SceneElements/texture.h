@@ -18,7 +18,6 @@ public:
 		VkImageUsageFlags usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
 
 	void createEmpty2DTexture(
-		std::string texturePath, 
 		uint32_t width, uint32_t height, uint32_t depth,
 		bool isMipMapped = false, 
 		VkSamplerAddressMode samplerAddressMode = VK_SAMPLER_ADDRESS_MODE_REPEAT,
