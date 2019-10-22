@@ -1,5 +1,6 @@
 #pragma once
 #include <global.h>
+#include <Utilities\generalUtility.h>
 
 namespace VulkanPipelineStructures
 {
@@ -275,9 +276,31 @@ namespace VulkanPipelineCreation
 		}
 	}
 
+	inline bool createComputePipelines(VkDevice& logicalDevice, VkPipelineCache pipelineCache,
+		const uint32_t createInfoCount, const VkComputePipelineCreateInfo* pCreateInfos, VkPipeline* pPipelines)
+	{
+		if (vkCreateComputePipelines(logicalDevice, pipelineCache, createInfoCount, pCreateInfos, nullptr, pPipelines) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to create pipeline");
+			return false;
+		}
+		return true;
+	}
+
+	inline bool createComputePipeline(VkDevice& logicalDevice, VkPipelineShaderStageCreateInfo compShaderStageInfo,
+		VkPipeline& computePipeline, VkPipelineLayout computePipelineLayout)
+	{
+		VkComputePipelineCreateInfo pipelineInfo = {};
+		pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+		pipelineInfo.stage = compShaderStageInfo;
+		pipelineInfo.layout = computePipelineLayout;
+		
+		return VulkanPipelineCreation::createComputePipelines(logicalDevice, VK_NULL_HANDLE, 1, &pipelineInfo, &computePipeline);
+	}
+
 	inline bool createGraphicsPipelines(
 		VkDevice& logicalDevice, VkPipelineCache pipelineCache,
-		uint32_t createInfoCount, const VkGraphicsPipelineCreateInfo* pCreateInfos, VkPipeline* pPipelines)
+		const uint32_t createInfoCount, const VkGraphicsPipelineCreateInfo* pCreateInfos, VkPipeline* pPipelines)
 	{
 		if (vkCreateGraphicsPipelines(logicalDevice, pipelineCache, createInfoCount, pCreateInfos, nullptr, pPipelines) != VK_SUCCESS)
 		{
@@ -285,5 +308,126 @@ namespace VulkanPipelineCreation
 			return false;
 		}
 		return true;
+	}
+
+	inline bool createGraphicsPipeline(
+		VkDevice& logicalDevice, 
+		VkPipeline& pipeline, VkPipelineLayout& pipelineLayout, 
+		VkRenderPass& renderPass, const uint32_t subpass,
+		const uint32_t stageCount, const VkPipelineShaderStageCreateInfo* stages,
+		VkPipelineVertexInputStateCreateInfo& vertexInput, 
+		const VkExtent2D swapChainExtents)
+	{
+		// Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Graphics_pipeline_basics/Fixed_functions
+
+		// -------- Input assembly --------
+		// The VkPipelineInputAssemblyStateCreateInfo struct describes two things: what kind of geometry will be drawn 
+		// from the vertices and if primitive restart should be enabled.
+
+		VkPipelineInputAssemblyStateCreateInfo inputAssembly =
+			VulkanPipelineStructures::inputAssemblyStateCreationInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_FALSE);
+
+		// -------- Tesselation State ---------
+		// Set up Tesselation state here
+
+		// -------- Viewport State ---------
+		// Viewports and Scissors (rectangles that define in which regions pixels are stored)
+		const float viewportWidth = static_cast<float>(swapChainExtents.width);
+		const float viewportHeight = static_cast<float>(swapChainExtents.height);
+		VkViewport viewport = Util::createViewport(viewportWidth, viewportHeight);
+
+		// While viewports define the transformation from the image to the framebuffer, 
+		// scissor rectangles define in which regions pixels will actually be stored.
+		// we simply want to draw to the entire framebuffer, so we'll specify a scissor rectangle that covers the framebuffer entirely
+		VkRect2D scissor = Util::createRectangle(swapChainExtents);
+
+		// Now this viewport and scissor rectangle need to be combined into a viewport state. It is possible to use 
+		// multiple viewports and scissor rectangles. Using multiple requires enabling a GPU feature.
+		VkPipelineViewportStateCreateInfo viewportState =
+			VulkanPipelineStructures::viewportStateCreationInfo(1, &viewport, 1, &scissor);
+
+		// -------- Rasterize --------
+		// -- The rasterizer takes the geometry that is shaped by the vertices from the vertex shader and turns
+		// it into fragments to be colored by the fragment shader.
+		// -- It also performs depth testing, face culling and the scissor test, and it can be configured to output 
+		// fragments that fill entire polygons or just the edges (wireframe rendering).
+		// -- If rasterizerDiscardEnable is set to VK_TRUE, then geometry never passes through the rasterizer stage. 
+		// This basically disables any output to the framebuffer.
+		// -- depthBiasEnable: The rasterizer can alter the depth values by adding a constant value or biasing 
+		// them based on a fragment's slope. This is sometimes used for shadow mapping.
+		VkPipelineRasterizationStateCreateInfo rasterizer =
+			VulkanPipelineStructures::rasterizerCreationInfo(VK_FALSE, VK_FALSE, VK_POLYGON_MODE_FILL, 1.0f,
+				VK_CULL_MODE_BACK_BIT, VK_FRONT_FACE_CLOCKWISE, VK_FALSE, 0.0f, 0.0f, 0.0f);
+
+		// -------- Multisampling --------
+		// (turned off here)
+		VkPipelineMultisampleStateCreateInfo multisampling =
+			VulkanPipelineStructures::multiSampleStateCreationInfo(VK_SAMPLE_COUNT_1_BIT, VK_FALSE, 1.0f, nullptr, VK_FALSE, VK_FALSE);
+
+		// -------- Depth and Stencil Testing --------
+		VkPipelineDepthStencilStateCreateInfo depthAndStencil =
+			VulkanPipelineStructures::depthStencilStateCreationInfo(VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS, VK_FALSE, 0.0f, 1.0f, VK_FALSE, {}, {});
+
+		// -------- Color Blending ---------
+		VkPipelineColorBlendAttachmentState colorBlendAttachment =
+			VulkanPipelineStructures::colorBlendAttachmentStateInfo(
+				VK_FALSE, VK_BLEND_OP_ADD, VK_BLEND_OP_ADD,
+				VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+				VK_BLEND_FACTOR_SRC_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+				VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ZERO);
+
+		// Global color blending settings 
+		// --> set using colorBlendAttachment (add multiple attachments for multiple framebuffers with different blend settings)
+		VkPipelineColorBlendStateCreateInfo colorBlending =
+			VulkanPipelineStructures::colorBlendStateCreationInfo(VK_FALSE, VK_LOGIC_OP_COPY, 1, &colorBlendAttachment, 0.0f, 0.0f, 0.0f, 0.0f);
+
+		// -------- Dynamic States ---------
+		// Set up dynamic states here
+
+		// ----------------------------------------------------------------------------------------------------
+		// -------- Actually create the graphics pipeline below ---------
+		// ----------------------------------------------------------------------------------------------------
+
+		// -------- Create Pipeline Info Struct ---------
+		VkGraphicsPipelineCreateInfo pipelineInfo =
+			VulkanPipelineStructures::graphicsPipelineCreationInfo(
+				stageCount, stages, // each pipeline will add it's own shaders
+				&vertexInput,
+				&inputAssembly,
+				nullptr, // tessellation
+				&viewportState,
+				&rasterizer,
+				&multisampling,
+				&depthAndStencil,
+				&colorBlending,
+				nullptr, // dynamicState
+				pipelineLayout, // pipeline Layout
+				renderPass, subpass, // renderpass and subpass
+				VK_NULL_HANDLE, -1); // basePipelineHandle  and basePipelineIndex
+
+		// -------- Create Pipeline ---------
+		return VulkanPipelineCreation::createGraphicsPipelines(logicalDevice, VK_NULL_HANDLE, 1, &pipelineInfo, &pipeline);
+	}
+
+	inline VkPipeline createPostProcessPipeline(
+		VkDevice& logicalDevice,
+		VkPipelineLayout& pipelineLayout,
+		VkRenderPass& renderPass, const uint32_t subpass,
+		const uint32_t stageCount, const VkPipelineShaderStageCreateInfo* stages,
+		const VkExtent2D swapChainExtents)
+	{
+		// Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Graphics_pipeline_basics/Fixed_functions
+
+		// -------- Empty Vertex Input --------
+		VkPipelineVertexInputStateCreateInfo vertexInput = VulkanPipelineStructures::vertexInputInfo(0, nullptr, 0, nullptr);
+
+		// -------- Create Pipeline ---------
+		VkPipeline pipeline;
+		createGraphicsPipeline( logicalDevice,
+			pipeline, pipelineLayout,
+			renderPass, subpass,
+			stageCount, stages, vertexInput, swapChainExtents);
+
+		return pipeline;
 	}
 };

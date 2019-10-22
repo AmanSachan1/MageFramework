@@ -14,14 +14,14 @@ namespace VulkanCommandUtil
 		vkCmdCopyBuffer(cmdBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
 	}
 
-	inline void createCommandPool(VkDevice& logicalDevice, VkCommandPool& cmdPool, uint32_t queueFamilyIndex)
+	inline void createCommandPool(VkDevice& logicalDevice, VkCommandPool& cmdPool, uint32_t queueFamilyIndex, VkCommandPoolCreateFlags flags = 0)
 	{
 		// Command pools manage the memory that is used to store the buffers and command buffers are allocated from them.
 
 		VkCommandPoolCreateInfo cmdPoolCreateInfo = {};
 		cmdPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 		cmdPoolCreateInfo.queueFamilyIndex = queueFamilyIndex;
-		cmdPoolCreateInfo.flags = 0; // Optional
+		cmdPoolCreateInfo.flags = flags; // Optional
 
 		if (vkCreateCommandPool(logicalDevice, &cmdPoolCreateInfo, nullptr, &cmdPool) != VK_SUCCESS)
 		{
@@ -29,7 +29,7 @@ namespace VulkanCommandUtil
 		}
 	}
 
-	inline void allocateCommandBuffers(VkDevice& logicalDevice, VkCommandPool& cmdPool, std::vector<VkCommandBuffer>& cmdBuffers)
+	inline void allocateCommandBuffers(VkDevice& logicalDevice, VkCommandPool& cmdPool, uint32_t cmdBufferCount, VkCommandBuffer* cmdBufferPointer)
 	{
 		// Specify the command pool and number of buffers to allocate
 
@@ -41,12 +41,17 @@ namespace VulkanCommandUtil
 		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 		allocInfo.commandPool = cmdPool;
 		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-		allocInfo.commandBufferCount = (uint32_t)cmdBuffers.size();
+		allocInfo.commandBufferCount = cmdBufferCount;
 
-		if (vkAllocateCommandBuffers(logicalDevice, &allocInfo, cmdBuffers.data()) != VK_SUCCESS)
+		if (vkAllocateCommandBuffers(logicalDevice, &allocInfo, cmdBufferPointer) != VK_SUCCESS)
 		{
 			throw std::runtime_error("failed to allocate command buffers!");
 		}
+	}
+
+	inline void allocateCommandBuffers(VkDevice& logicalDevice, VkCommandPool& cmdPool, std::vector<VkCommandBuffer>& cmdBuffers)
+	{
+		allocateCommandBuffers(logicalDevice, cmdPool, (uint32_t)cmdBuffers.size(), cmdBuffers.data());
 	}
 
 	inline void beginCommandBuffer(VkCommandBuffer& cmdBuffer)

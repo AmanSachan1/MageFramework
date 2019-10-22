@@ -1,5 +1,5 @@
 #pragma once
-#include <Utilities/loadingUtility.h>
+#include <Utilities\loadingUtility.h>
 
 // These defines below can only be defined once
 #define STB_IMAGE_IMPLEMENTATION

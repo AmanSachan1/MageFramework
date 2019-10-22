@@ -25,9 +25,10 @@ add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 
 # all single header libraries
 include_directories(external)
-
 # glm
-include_directories(external/glm)
+include_directories(external/glm) 
+# imgui
+include_directories(external/imgui)
 
 ##############################################
 

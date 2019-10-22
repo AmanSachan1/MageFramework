@@ -1,8 +1,8 @@
 ﻿#include "Texture.h"
 #include <Utilities/loadingUtility.h>
 
-Texture::Texture(VulkanDevices* devices, VkQueue& queue, VkCommandPool& cmdPool, VkFormat format = VK_FORMAT_R8G8B8A8_UNORM)
-	: m_logicalDevice(devices->getLogicalDevice()), m_physicalDevice(devices->getPhysicalDevice()), 
+Texture::Texture(VulkanManager* vulkanObj, VkQueue& queue, VkCommandPool& cmdPool, VkFormat format = VK_FORMAT_R8G8B8A8_UNORM)
+	: m_logicalDevice(vulkanObj->getLogicalDevice()), m_physicalDevice(vulkanObj->getPhysicalDevice()),
 	m_graphicsQueue(queue), m_cmdPool(cmdPool), m_format(format),
 	m_image(VK_NULL_HANDLE), m_imageMemory(VK_NULL_HANDLE), m_imageView(VK_NULL_HANDLE), m_sampler(VK_NULL_HANDLE)
 {}
@@ -39,7 +39,7 @@ void Texture::create2DTexture(std::string texturePath, bool isMipMapped, VkImage
 			m_mipLevels = 1;
 		}
 
-		BufferUtil::createStagingBuffer(m_physicalDevice, m_logicalDevice, pixels, stagingBuffer, stagingBufferMemory, imageSize);
+		BufferUtil::createStagingBuffer(m_logicalDevice, m_physicalDevice, pixels, stagingBuffer, stagingBufferMemory, imageSize);
 		loadingUtil::freeImage(pixels);
 	}
 

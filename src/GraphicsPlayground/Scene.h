@@ -4,8 +4,9 @@
 #include <string>
 
 #include <global.h>
-#include "VulkanSetup/vulkanDevices.h"
+#include "Vulkan/vulkanManager.h"
 #include <Utilities/bufferUtility.h>
+#include <Utilities/descriptorUtility.h>
 #include "SceneElements/model.h"
 
 struct TimeUBO
@@ -23,13 +24,13 @@ class Scene
 {
 public:
 	Scene() = delete;
-	Scene(VulkanDevices* devices, uint32_t numSwapChainImages, VkExtent2D windowExtents,
+	Scene(VulkanManager* vulkanObj, uint32_t numSwapChainImages, VkExtent2D windowExtents,
 		VkQueue& graphicsQueue, VkCommandPool& graphicsCommandPool,	VkQueue& computeQueue, VkCommandPool& computeCommandPool);
 	~Scene();
 
-	void cleanup(); //specifically clean up resources that are recreated on frame resizing
+	void cleanup() {} //specifically clean up resources that are recreated on frame resizing
 	void createScene();
-	void updateSceneInfrequent(VkExtent2D windowExtents);
+	void updateSceneInfrequent() {}
 	void updateUniforms(uint32_t currentImageIndex);
 
 	// Time
@@ -38,8 +39,8 @@ public:
 
 	// Descriptor Sets
 	void expandDescriptorPool(std::vector<VkDescriptorPoolSize>& poolSizes);
-	void createDescriptorSetLayouts();
-	void createAndWriteDescriptorSets(VkDescriptorPool descriptorPool);
+	void createDescriptors(VkDescriptorPool descriptorPool);
+	void writeToAndUpdateDescriptorSets();
 
 	// Getters
 	Model* getModel(std::string key);
@@ -53,14 +54,13 @@ public:
 	VkDescriptorSetLayout getDescriptorSetLayout(DSL_TYPE key);
 
 private:
-	VulkanDevices* m_devices;
+	VulkanManager* m_vulkanObj;
 	VkDevice m_logicalDevice;
 	VkPhysicalDevice m_physicalDevice;
 	VkQueue	m_graphicsQueue;
 	VkQueue	m_computeQueue;
 	VkCommandPool m_graphicsCommandPool;
 	VkCommandPool m_computeCommandPool;
-	VkExtent2D m_windowExtents;
 	uint32_t m_numSwapChainImages;
 	
 	std::unordered_map<std::string, Model*> m_modelMap;

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "VulkanSetup/vulkanDevices.h"
+#include "Vulkan/vulkanManager.h"
 #include <Utilities/bufferUtility.h>
 #include <Utilities/imageUtility.h>
 
@@ -8,7 +8,7 @@ class Texture
 {
 public:
 	Texture() = delete;
-	Texture(VulkanDevices* devices, VkQueue& queue, VkCommandPool& cmdPool, VkFormat format);
+	Texture(VulkanManager* vulkanObj, VkQueue& queue, VkCommandPool& cmdPool, VkFormat format);
 	~Texture();
 
 	void create2DTexture(

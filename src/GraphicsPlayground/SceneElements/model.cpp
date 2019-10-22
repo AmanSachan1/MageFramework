@@ -1,9 +1,9 @@
 #include "model.h"
 #include <Utilities/loadingUtility.h>
 
-Model::Model(VulkanDevices* devices, VkQueue& graphicsQueue, VkCommandPool& commandPool, unsigned int numSwapChainImages,
+Model::Model(VulkanManager* vulkanObj, VkQueue& graphicsQueue, VkCommandPool& commandPool, unsigned int numSwapChainImages,
 	std::vector<Vertex> &vertices, std::vector<uint32_t> &indices, bool isMipMapped, bool yAxisIsUp)
-	: m_devices(devices), m_logicalDevice(devices->getLogicalDevice()), m_physicalDevice(devices->getPhysicalDevice()),
+	: m_logicalDevice(vulkanObj->getLogicalDevice()), m_physicalDevice(vulkanObj->getPhysicalDevice()),
 	m_vertices(vertices), m_indices(indices), m_numSwapChainImages(numSwapChainImages), m_yAxisIsUp(yAxisIsUp)
 {
 	m_vertexBufferSize = vertices.size() * sizeof(vertices[0]);
@@ -15,13 +15,13 @@ Model::Model(VulkanDevices* devices, VkQueue& graphicsQueue, VkCommandPool& comm
 	m_modelUBOs.resize(m_numSwapChainImages);
 	m_mappedDataUniformBuffers.resize(m_numSwapChainImages);
 
-	BufferUtil::createVertexBuffer(m_physicalDevice, m_logicalDevice, graphicsQueue, commandPool,
+	BufferUtil::createVertexBuffer(m_logicalDevice, m_physicalDevice, graphicsQueue, commandPool,
 		m_vertexBuffer, m_vertexBufferMemory, m_vertexBufferSize, m_mappedDataVertexBuffer, vertices.data());
 
-	BufferUtil::createIndexBuffer(m_physicalDevice, m_logicalDevice, graphicsQueue, commandPool,
+	BufferUtil::createIndexBuffer(m_logicalDevice, m_physicalDevice, graphicsQueue, commandPool,
 		m_indexBuffer, m_indexBufferMemory, m_indexBufferSize, m_mappedDataIndexBuffer, indices.data());
 
-	BufferUtil::createUniformBuffers(m_physicalDevice, m_logicalDevice, m_numSwapChainImages,
+	BufferUtil::createUniformBuffers(m_logicalDevice, m_physicalDevice, m_numSwapChainImages,
 		m_uniformBuffers, m_uniformBufferMemories, m_uniformBufferSize);
 
 	for (unsigned int i = 0; i < numSwapChainImages; i++)
@@ -30,13 +30,13 @@ Model::Model(VulkanDevices* devices, VkQueue& graphicsQueue, VkCommandPool& comm
 		memcpy(m_mappedDataUniformBuffers[i], &m_modelUBOs[i], (size_t)m_uniformBufferSize);
 	}
 }
-Model::Model(VulkanDevices* devices, VkQueue& graphicsQueue, VkCommandPool& commandPool, unsigned int numSwapChainImages,
-	const std::string model_path, const std::string texture_path, bool isMipMapped, bool yAxisIsUp) :
-	m_devices(devices), m_logicalDevice(devices->getLogicalDevice()), m_physicalDevice(devices->getPhysicalDevice()),
+Model::Model(VulkanManager* vulkanObj, VkQueue& graphicsQueue, VkCommandPool& commandPool, unsigned int numSwapChainImages,
+	const std::string model_path, const std::string texture_path, bool isMipMapped, bool yAxisIsUp) 
+	: m_logicalDevice(vulkanObj->getLogicalDevice()), m_physicalDevice(vulkanObj->getPhysicalDevice()),
 	m_numSwapChainImages(numSwapChainImages), m_yAxisIsUp(yAxisIsUp)
 {
 	loadingUtil::loadObj(m_vertices, m_indices, model_path);
-	m_texture = new Texture(m_devices, graphicsQueue, commandPool, VK_FORMAT_R8G8B8A8_UNORM);
+	m_texture = new Texture(vulkanObj, graphicsQueue, commandPool, VK_FORMAT_R8G8B8A8_UNORM);
 	m_texture->create2DTexture(texture_path, isMipMapped);
 
 	m_vertexBufferSize = m_vertices.size() * sizeof(m_vertices[0]);
@@ -48,13 +48,13 @@ Model::Model(VulkanDevices* devices, VkQueue& graphicsQueue, VkCommandPool& comm
 	m_modelUBOs.resize(m_numSwapChainImages);
 	m_mappedDataUniformBuffers.resize(m_numSwapChainImages);
 
-	BufferUtil::createVertexBuffer(m_physicalDevice, m_logicalDevice, graphicsQueue, commandPool,
+	BufferUtil::createVertexBuffer(m_logicalDevice, m_physicalDevice, graphicsQueue, commandPool,
 		m_vertexBuffer, m_vertexBufferMemory, m_vertexBufferSize, m_mappedDataVertexBuffer, m_vertices.data());
 
-	BufferUtil::createIndexBuffer(m_physicalDevice, m_logicalDevice, graphicsQueue, commandPool,
+	BufferUtil::createIndexBuffer(m_logicalDevice, m_physicalDevice, graphicsQueue, commandPool,
 		m_indexBuffer, m_indexBufferMemory, m_indexBufferSize, m_mappedDataIndexBuffer, m_indices.data());
 
-	BufferUtil::createUniformBuffers(m_physicalDevice, m_logicalDevice, m_numSwapChainImages,
+	BufferUtil::createUniformBuffers(m_logicalDevice, m_physicalDevice, m_numSwapChainImages,
 		m_uniformBuffers, m_uniformBufferMemories, m_uniformBufferSize);
 
 	for (unsigned int i = 0; i < numSwapChainImages; i++)
@@ -117,10 +117,12 @@ void Model::createDescriptorSetLayout(VkDescriptorSetLayout& DSL_model)
 
 	DescriptorUtil::createDescriptorSetLayout(m_logicalDevice, DSL_model, static_cast<uint32_t>(graphicsBindings.size()), graphicsBindings.data());
 }
-void Model::createAndWriteDescriptorSets(VkDescriptorPool descriptorPool, VkDescriptorSetLayout& DSL_model, Texture* computeTexture, uint32_t index)
+void Model::createDescriptorSets(VkDescriptorPool descriptorPool, VkDescriptorSetLayout& DSL_model, uint32_t index)
 {
 	DescriptorUtil::createDescriptorSets(m_logicalDevice, descriptorPool, 1, &DSL_model, &m_DS_model[index]);
-
+}
+void Model::writeToAndUpdateDescriptorSets(Texture* computeTexture, uint32_t index)
+{
 	std::array<VkWriteDescriptorSet, 2> writeGraphicsSetInfo = {};
 	VkDescriptorBufferInfo modelBufferSetInfo;
 	VkDescriptorImageInfo samplerImageSetInfo;// , readComputeSamplerImageSetInfo;

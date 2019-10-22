@@ -1,5 +1,7 @@
 build
 *.spv
+
+# This is for files in the build folder
 *.exe
 *.ilk
 *.pdb

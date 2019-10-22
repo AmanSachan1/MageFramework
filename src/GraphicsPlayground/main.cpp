@@ -1,26 +1,24 @@
 #pragma once
 #include <global.h>
 #include <forward.h>
-#include "VulkanSetup/vulkanInstance.h"
-#include "VulkanSetup/vulkanDevices.h"
-#include "VulkanSetup/vulkanPresentation.h"
+#include "Vulkan/vulkanManager.h"
 
+#include "UIManager.h"
 #include "camera.h"
 #include "renderer.h"
 
 int window_height = 720;
 int window_width = 1284;
 
-VulkanDevices* devices;
-VulkanPresentation* presentation;
 Renderer* renderer;
 Camera* camera;
+VulkanManager* vulkanObject;
 
 namespace InputUtil
 {
 	void resizeCallback(GLFWwindow* window, int width, int height)
 	{
-		renderer->setResizeFlag(true);
+		renderer->recreate();
 	}
 
 	static bool leftMouseDown = false;
@@ -80,8 +78,8 @@ namespace InputUtil
 			camera->rotateAboutUp(-deltaForRotation);
 		}
 
-		camera->updateUniformBuffer(presentation->getIndex());
-		camera->copyToGPUMemory(presentation->getIndex());
+		camera->updateUniformBuffer(vulkanObject->getIndex());
+		camera->copyToGPUMemory(vulkanObject->getIndex());
 	}
 
 	void mouseDownCallback(GLFWwindow* window, int button, int action, int mods)
@@ -133,13 +131,10 @@ public:
 	void run();
 
 private:
-	GLFWwindow * window;
-	VulkanInstance* instance;
-	VkSurfaceKHR vkSurface;
+	GLFWwindow* window;
 
 	void initialize();
 	void initWindow(int width, int height, const char* name);
-	void initVulkan(const char* applicationName);
 
 	void mainLoop();
 	void cleanup();
@@ -171,40 +166,20 @@ void GraphicsPlaygroundApplication::initWindow(int width, int height, const char
 	}
 }
 
-void GraphicsPlaygroundApplication::initVulkan(const char* applicationName)
-{
-	unsigned int glfwExtensionCount = 0;
-	const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-
-	// Vulkan Instance
-	instance = new VulkanInstance(applicationName, glfwExtensionCount, glfwExtensions);
-
-	// Create Drawing Surface, i.e. window where things are rendered to
-	if (glfwCreateWindowSurface(instance->getVkInstance(), window, nullptr, &vkSurface) != VK_SUCCESS)
-	{
-		throw std::runtime_error("failed to create window surface!");
-	}
-
-	// Create The physical and logical devices required by vulkan
-	QueueFlagBits desiredQueues = QueueFlagBit::GraphicsBit | QueueFlagBit::ComputeBit | QueueFlagBit::TransferBit | QueueFlagBit::PresentBit;
-	devices = new VulkanDevices(instance, { VK_KHR_SWAPCHAIN_EXTENSION_NAME }, desiredQueues, vkSurface);
-
-	presentation = new VulkanPresentation(devices, vkSurface, window);
-}
-
 void GraphicsPlaygroundApplication::initialize()
 {
-	static constexpr char* applicationName = "Shader Playground";
+	static constexpr char* applicationName = "Graphics Playground";
 	initWindow(window_width, window_height, applicationName);
-	initVulkan(applicationName);
+	vulkanObject = new VulkanManager(window, applicationName);
+
 	TimerUtil::initTimer();
 
-	camera = new Camera(devices, glm::vec3(0.0f, 3.0f, -8.0f), glm::vec3(0.0f, 0.0f, 0.0f),
+	camera = new Camera(vulkanObject, glm::vec3(0.0f, 3.0f, -8.0f), glm::vec3(0.0f, 0.0f, 0.0f),
 		window_width, window_height, 45.0f, float(window_width) / float(window_height), 0.1f, 1000.0f,
-		presentation->getCount(), CameraMode::ORBIT);
+		vulkanObject->getSwapChainImageCount(), CameraMode::ORBIT);
 
 	RendererOptions rendererOptions = { RenderAPI::VULKAN, true };
-	renderer = new Renderer(window, rendererOptions, devices, presentation, camera, window_width, window_height);
+	renderer = new Renderer(window, vulkanObject, camera, rendererOptions, window_width, window_height);
 
 	glfwSetWindowSizeCallback(window, InputUtil::resizeCallback);
 	glfwSetFramebufferSizeCallback(window, InputUtil::resizeCallback);
@@ -231,14 +206,11 @@ void GraphicsPlaygroundApplication::mainLoop()
 void GraphicsPlaygroundApplication::cleanup()
 {
 	// Wait for the device to finish executing before cleanup
-	vkDeviceWaitIdle(devices->getLogicalDevice());
+	vkDeviceWaitIdle(vulkanObject->getLogicalDevice());
 
 	delete renderer;
-	delete camera;	
-	delete presentation;
-	delete devices;
- 	vkDestroySurfaceKHR(instance->getVkInstance(), vkSurface, nullptr);
-	delete instance;
+	delete camera;
+	delete vulkanObject;
 
 	glfwDestroyWindow(window);
 	glfwTerminate();

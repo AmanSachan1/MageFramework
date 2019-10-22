@@ -4,10 +4,10 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/glm.hpp>
 
+#include "Vulkan/vulkanManager.h"
 #include <Utilities/bufferUtility.h>
 #include <Utilities/renderUtility.h>
-#include "VulkanSetup/vulkanDevices.h"
-
+#include <Utilities/descriptorUtility.h>
 
 #define PI 3.14159
 
@@ -25,10 +25,10 @@ class Camera
 {
 public:
 	Camera() = delete;	// https://stackoverflow.com/questions/5513881/meaning-of-delete-after-function-declaration
-	Camera(VulkanDevices* devices, glm::vec3 eyePos, glm::vec3 lookAtPoint, int width, int height,
+	Camera(VulkanManager* vulkanObject, glm::vec3 eyePos, glm::vec3 lookAtPoint, int width, int height,
 		float foV_vertical, float aspectRatio, float nearClip, float farClip, int numSwapChainImages, CameraMode mode = CameraMode::FLY);
 	~Camera();
-	void cleanup(); //specifically clean up resources that are recreated on frame resizing
+	void cleanup() {} //specifically clean up resources that are recreated on frame resizing
 
 	VkBuffer getUniformBuffer(unsigned int bufferIndex) const;
 	uint32_t getUniformBufferSize() const;
@@ -54,14 +54,14 @@ public:
 
 	// Descriptor Sets
 	void expandDescriptorPool(std::vector<VkDescriptorPoolSize>& poolSizes);
-	void createDescriptorSetLayouts();
-	void createAndWriteDescriptorSets(VkDescriptorPool descriptorPool);
-	
+	void createDescriptors(VkDescriptorPool descriptorPool);
+	void writeToAndUpdateDescriptorSets();
+
 	VkDescriptorSet getDescriptorSet(DSL_TYPE type, int index);
 	VkDescriptorSetLayout getDescriptorSetLayout(DSL_TYPE type);
 
 private:
-	VulkanDevices * m_devices; //member variable because it is needed for the destructor
+	VulkanManager* m_vulkanObj; //member variable because it is needed for the destructor
 	VkDevice m_logicalDevice;
 	VkPhysicalDevice m_physicalDevice;
 	unsigned int m_numSwapChainImages;

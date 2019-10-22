@@ -1,8 +1,8 @@
 #pragma once
 #include <global.h>
-#include <Utilities/bufferUtility.h>
-#include <Utilities/generalUtility.h>
-#include <Utilities/commandUtility.h>
+#include <Utilities\bufferUtility.h>
+#include <Utilities\generalUtility.h>
+#include <Utilities\commandUtility.h>
 
 namespace ImageUtil
 {

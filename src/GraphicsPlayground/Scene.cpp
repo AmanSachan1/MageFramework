@@ -1,9 +1,9 @@
 #include "Scene.h"
 
-Scene::Scene(VulkanDevices* devices, uint32_t numSwapChainImages, VkExtent2D windowExtents,
+Scene::Scene(VulkanManager* vulkanObj, uint32_t numSwapChainImages, VkExtent2D windowExtents,
 	VkQueue& graphicsQueue, VkCommandPool& graphicsCommandPool,	VkQueue& computeQueue, VkCommandPool& computeCommandPool )
-	: m_devices(devices), m_logicalDevice(devices->getLogicalDevice()), m_physicalDevice(devices->getPhysicalDevice()),
-	m_numSwapChainImages(numSwapChainImages), m_windowExtents(windowExtents),
+	:  m_vulkanObj(vulkanObj), m_logicalDevice(vulkanObj->getLogicalDevice()), m_physicalDevice(vulkanObj->getPhysicalDevice()),
+	m_numSwapChainImages(numSwapChainImages),
 	m_graphicsQueue(graphicsQueue),	m_graphicsCommandPool(graphicsCommandPool),
 	m_computeQueue(computeQueue), m_computeCommandPool(computeCommandPool)
 {
@@ -15,8 +15,7 @@ Scene::Scene(VulkanDevices* devices, uint32_t numSwapChainImages, VkExtent2D win
 	m_timeUBOs.resize(m_numSwapChainImages);
 	m_mappedDataTimeBuffers.resize(m_numSwapChainImages);
 
-	BufferUtil::createUniformBuffers(
-		m_physicalDevice, m_logicalDevice, m_numSwapChainImages,
+	BufferUtil::createUniformBuffers( m_logicalDevice, m_physicalDevice, m_numSwapChainImages,
 		m_timeBuffers, m_timeBufferMemories, m_timeBufferSize);
 
 	for (uint32_t i = 0; i < numSwapChainImages; i++)
@@ -28,6 +27,10 @@ Scene::Scene(VulkanDevices* devices, uint32_t numSwapChainImages, VkExtent2D win
 }
 Scene::~Scene()
 {
+	vkDestroyDescriptorSetLayout(m_logicalDevice, m_DSL_model, nullptr);
+	vkDestroyDescriptorSetLayout(m_logicalDevice, m_DSL_compute, nullptr);
+	vkDestroyDescriptorSetLayout(m_logicalDevice, m_DSL_time, nullptr);
+
 	for (uint32_t i = 0; i < m_numSwapChainImages; i++)
 	{
 		vkUnmapMemory(m_logicalDevice, m_timeBufferMemories[i]);
@@ -42,38 +45,30 @@ Scene::~Scene()
 	m_textureMap.clear();
 }
 
-void Scene::cleanup()
-{
-	vkDestroyDescriptorSetLayout(m_logicalDevice, m_DSL_model, nullptr);
-	vkDestroyDescriptorSetLayout(m_logicalDevice, m_DSL_compute, nullptr);
-	vkDestroyDescriptorSetLayout(m_logicalDevice, m_DSL_time, nullptr);
-}
-
 void Scene::createScene()
 {
 	Model* model = nullptr;
 #ifdef DEBUG
-	model = new Model(m_devices, m_graphicsQueue, m_graphicsCommandPool, m_numSwapChainImages, "thinCube.obj", "statue.jpg", false, true);
+	model = new Model(m_vulkanObj, m_graphicsQueue, m_graphicsCommandPool, m_numSwapChainImages, "thinCube.obj", "statue.jpg", false, true);
 #else
-	model = new Model(m_devices, m_graphicsQueue, m_graphicsCommandPool, m_numSwapChainImages, "chalet.obj", "chalet.jpg", true, true);
+	model = new Model(m_vulkanObj, m_graphicsQueue, m_graphicsCommandPool, m_numSwapChainImages, "chalet.obj", "chalet.jpg", true, true);
 #endif
 	m_modelMap.insert({ "house", model });
 	
+	VkExtent2D windowExtents = m_vulkanObj->getSwapChainVkExtent();
+
 	for (uint32_t i = 0; i < m_numSwapChainImages; i++)
 	{
 		std::string name = "compute" + std::to_string(i);
-		Texture* texture = new Texture(m_devices, m_graphicsQueue, m_graphicsCommandPool, VK_FORMAT_R8G8B8A8_UNORM);
-		texture->createEmpty2DTexture(m_windowExtents.width, m_windowExtents.height, 1, false,
+		Texture* texture = new Texture(m_vulkanObj, m_graphicsQueue, m_graphicsCommandPool, VK_FORMAT_R8G8B8A8_UNORM);
+		texture->createEmpty2DTexture(windowExtents.width, windowExtents.height, 1, false,
 			VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, 
 			VK_IMAGE_TILING_OPTIMAL, 
 			VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT);
 		m_textureMap.insert({ name, texture });
 	}
 }
-void Scene::updateSceneInfrequent(VkExtent2D windowExtents)
-{
-	m_windowExtents = windowExtents;
-}
+
 void Scene::updateUniforms(uint32_t currentImageIndex)
 {
 	updateTimeUBO(currentImageIndex);
@@ -139,52 +134,77 @@ void Scene::expandDescriptorPool(std::vector<VkDescriptorPoolSize>& poolSizes)
 
 	// Compute
 	poolSizes.push_back({ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, m_numSwapChainImages });
-
 	// Time
 	poolSizes.push_back({ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, m_numSwapChainImages });
 }
-void Scene::createDescriptorSetLayouts()
+void Scene::createDescriptors(VkDescriptorPool descriptorPool)
 {
-	// COMPUTE
-	VkDescriptorSetLayoutBinding computeLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
-	DescriptorUtil::createDescriptorSetLayout(m_logicalDevice, m_DSL_compute, 1, &computeLayoutBinding);
+	// Descriptor Set Layouts
+	{
+		// Descriptor set layouts are specified in the pipeline layout object., i.e. during pipeline creation to tell Vulkan 
+		// which descriptors the shaders will be using.
+		// The numbers are bindingCount, binding, and descriptorCount respectively
 
-	// MODEL
-	// One Descriptor Set Layout for all the models we create
-	m_modelMap.begin()->second->createDescriptorSetLayout(m_DSL_model);
-	
-	// TIME
-	VkDescriptorSetLayoutBinding timeSetLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_ALL, nullptr };
-	DescriptorUtil::createDescriptorSetLayout(m_logicalDevice, m_DSL_time, 1, &timeSetLayoutBinding);
+		// MODEL
+		// One Descriptor Set Layout for all the models we create
+		m_modelMap.begin()->second->createDescriptorSetLayout(m_DSL_model);
+
+		// COMPUTE
+		VkDescriptorSetLayoutBinding computeLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
+		DescriptorUtil::createDescriptorSetLayout(m_logicalDevice, m_DSL_compute, 1, &computeLayoutBinding);
+		
+		// TIME
+		VkDescriptorSetLayoutBinding timeSetLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_ALL, nullptr };
+		DescriptorUtil::createDescriptorSetLayout(m_logicalDevice, m_DSL_time, 1, &timeSetLayoutBinding);
+	}
+
+	// Descriptor Sets
+	{
+		// Model
+		for (auto& model : m_modelMap)
+		{
+			model.second->m_DS_model.resize(m_numSwapChainImages);
+
+			for (uint32_t i = 0; i < static_cast<uint32_t>(m_numSwapChainImages); i++)
+			{
+				model.second->createDescriptorSets(descriptorPool, m_DSL_model, i);
+			}
+		}
+
+		m_DS_time.resize(m_numSwapChainImages);
+		m_DS_compute.resize(m_numSwapChainImages);
+
+		for (uint32_t i = 0; i < m_numSwapChainImages; i++)
+		{
+			// Compute
+			DescriptorUtil::createDescriptorSets(m_logicalDevice, descriptorPool, 1, &m_DSL_compute, &m_DS_compute[i]);
+
+			// Time
+			DescriptorUtil::createDescriptorSets(m_logicalDevice, descriptorPool, 1, &m_DSL_time, &m_DS_time[i]);
+		}
+	}
 }
-void Scene::createAndWriteDescriptorSets(VkDescriptorPool descriptorPool)
+void Scene::writeToAndUpdateDescriptorSets()
 {
 	// Model
 	for (auto& model : m_modelMap)
 	{
-		model.second->m_DS_model.resize(m_numSwapChainImages);
-
 		for (uint32_t i = 0; i < static_cast<uint32_t>(m_numSwapChainImages); i++)
 		{
 			std::string name = "compute" + std::to_string(i);
 			Texture* computeTexture = getTexture(name);
-			model.second->createAndWriteDescriptorSets(descriptorPool, m_DSL_model, computeTexture, i);
+			model.second->writeToAndUpdateDescriptorSets(computeTexture, i);
 		}
 	}
-
-	m_DS_time.resize(m_numSwapChainImages);
-	m_DS_compute.resize(m_numSwapChainImages);
 
 	for (uint32_t i = 0; i < m_numSwapChainImages; i++)
 	{
 		// Compute
 		{
 			Texture* computeTex = getTexture("compute", i);
-			DescriptorUtil::createDescriptorSets(m_logicalDevice, descriptorPool, 1, &m_DSL_compute, &m_DS_compute[i]);
-						
-			VkDescriptorImageInfo computeSetInfo = 
+			VkDescriptorImageInfo computeSetInfo =
 				DescriptorUtil::createDescriptorImageInfo(computeTex->getSampler(), computeTex->getImageView(), computeTex->getImageLayout());
-			VkWriteDescriptorSet writeComputeSetInfo = 
+			VkWriteDescriptorSet writeComputeSetInfo =
 				DescriptorUtil::writeDescriptorSet(m_DS_compute[i], 0, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &computeSetInfo);
 
 			vkUpdateDescriptorSets(m_logicalDevice, 1, &writeComputeSetInfo, 0, nullptr);
@@ -192,8 +212,6 @@ void Scene::createAndWriteDescriptorSets(VkDescriptorPool descriptorPool)
 
 		// Time
 		{
-			DescriptorUtil::createDescriptorSets(m_logicalDevice, descriptorPool, 1, &m_DSL_time, &m_DS_time[i]);
-
 			VkDescriptorBufferInfo timeBufferSetInfo = DescriptorUtil::createDescriptorBufferInfo(getTimeBuffer(i), 0, getTimeBufferSize());
 			VkWriteDescriptorSet writeTimeSetInfo =
 				DescriptorUtil::writeDescriptorSet(m_DS_time[i], 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &timeBufferSetInfo);

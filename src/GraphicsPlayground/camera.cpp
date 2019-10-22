@@ -1,8 +1,8 @@
 #include "camera.h"
 
-Camera::Camera(VulkanDevices* devices, glm::vec3 eyePos, glm::vec3 lookAtPoint, int width, int height,
+Camera::Camera(VulkanManager* vulkanObject, glm::vec3 eyePos, glm::vec3 lookAtPoint, int width, int height,
 	float foV_vertical, float aspectRatio, float nearClip, float farClip, int numSwapChainImages, CameraMode mode)
-	: m_devices(devices), m_logicalDevice(devices->getLogicalDevice()), m_physicalDevice(devices->getPhysicalDevice()),
+	: m_vulkanObj(vulkanObject), m_logicalDevice(m_vulkanObj->getLogicalDevice()), m_physicalDevice(m_vulkanObj->getPhysicalDevice()),
 	m_numSwapChainImages(numSwapChainImages), m_mode(mode),
 	m_eyePos(eyePos), m_ref(lookAtPoint), m_width(width), m_height(height),
 	m_fovy(foV_vertical), m_aspect(aspectRatio), m_near_clip(nearClip), m_far_clip(farClip)
@@ -16,7 +16,7 @@ Camera::Camera(VulkanDevices* devices, glm::vec3 eyePos, glm::vec3 lookAtPoint, 
 	m_cameraUBOs.resize(m_numSwapChainImages);
 	m_mappedDataUniformBuffers.resize(m_numSwapChainImages);
 
-	BufferUtil::createUniformBuffers(m_physicalDevice, m_logicalDevice, m_numSwapChainImages,
+	BufferUtil::createUniformBuffers(m_logicalDevice, m_physicalDevice, m_numSwapChainImages,
 		m_uniformBuffers, m_uniformBufferMemories, m_uniformBufferSize);
 
 	for (int i = 0; i < numSwapChainImages; i++)
@@ -29,16 +29,14 @@ Camera::Camera(VulkanDevices* devices, glm::vec3 eyePos, glm::vec3 lookAtPoint, 
 
 Camera::~Camera()
 {
+	vkDestroyDescriptorSetLayout(m_logicalDevice, m_DSL_camera, nullptr);
+
 	for (unsigned int i = 0; i < m_numSwapChainImages; i++)
 	{
 		vkUnmapMemory(m_logicalDevice, m_uniformBufferMemories[i]);
 		vkDestroyBuffer(m_logicalDevice, m_uniformBuffers[i], nullptr);
 		vkFreeMemory(m_logicalDevice, m_uniformBufferMemories[i], nullptr);
 	}
-}
-void Camera::cleanup()
-{
-	vkDestroyDescriptorSetLayout(m_logicalDevice, m_DSL_camera, nullptr);
 }
 
 VkBuffer Camera::getUniformBuffer(unsigned int bufferIndex) const
@@ -208,21 +206,32 @@ void Camera::expandDescriptorPool(std::vector<VkDescriptorPoolSize>& poolSizes)
 {
 	poolSizes.push_back({ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, m_numSwapChainImages });	// Current Camera State
 }
-void Camera::createDescriptorSetLayouts()
+void Camera::createDescriptors(VkDescriptorPool descriptorPool)
 {
-	VkDescriptorSetLayoutBinding cameraSetBinding = { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_ALL, nullptr };
-	DescriptorUtil::createDescriptorSetLayout(m_logicalDevice, m_DSL_camera, 1, &cameraSetBinding);
-}
-void Camera::createAndWriteDescriptorSets(VkDescriptorPool descriptorPool)
-{
+	// Descriptor Set Layouts
+	{
+		// Descriptor set layouts are specified in the pipeline layout object., i.e. during pipeline creation to tell Vulkan 
+		// which descriptors the shaders will be using.
+		// The numbers are bindingCount, binding, and descriptorCount respectively
+		VkDescriptorSetLayoutBinding cameraSetBinding = { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_ALL, nullptr };
+		DescriptorUtil::createDescriptorSetLayout(m_logicalDevice, m_DSL_camera, 1, &cameraSetBinding);
+	}
+
+	// Descriptor Sets
 	m_DS_camera.resize(m_numSwapChainImages);
+	for (uint32_t i = 0; i < m_numSwapChainImages; i++)
+	{
+		DescriptorUtil::createDescriptorSets(m_logicalDevice, descriptorPool, 1, &m_DSL_camera, &m_DS_camera[i]);
+	}
+}
+
+void Camera::writeToAndUpdateDescriptorSets()
+{
 	uint32_t cameraUniformBufferSize = static_cast<uint32_t>(sizeof(CameraUBO));
 	for (uint32_t i = 0; i < m_numSwapChainImages; i++)
 	{
 		{
-			DescriptorUtil::createDescriptorSets(m_logicalDevice, descriptorPool, 1, &m_DSL_camera, &m_DS_camera[i]);
-
-			VkDescriptorBufferInfo cameraBufferSetInfo = 
+			VkDescriptorBufferInfo cameraBufferSetInfo =
 				DescriptorUtil::createDescriptorBufferInfo(getUniformBuffer(i), 0, cameraUniformBufferSize);
 			VkWriteDescriptorSet writecameraSetInfo =
 				DescriptorUtil::writeDescriptorSet(m_DS_camera[i], 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &cameraBufferSetInfo);

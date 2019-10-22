@@ -1,7 +1,7 @@
 #pragma once
 #include <global.h>
-#include <Utilities/commandUtility.h>
-#include "VulkanSetup/vulkanDevices.h"
+#include <forward.h>
+#include <Utilities\commandUtility.h>
 
 namespace BufferUtil
 {
@@ -63,7 +63,7 @@ namespace BufferUtil
 		return l_bufferCreationInfo;
 	}
 
-	inline void createBuffer(VkPhysicalDevice& pDevice, VkDevice& logicalDevice,
+	inline void createBuffer(VkDevice& logicalDevice, VkPhysicalDevice& pDevice,
 		VkBuffer& buffer, VkDeviceMemory& bufferMemory, VkDeviceSize bufferSize,
 		VkBufferUsageFlags allowedUsage, VkSharingMode sharingMode, VkMemoryPropertyFlags properties)
 	{
@@ -97,10 +97,10 @@ namespace BufferUtil
 		VulkanCommandUtil::endAndSubmitSingleTimeCommand(logicalDevice, queue, cmdPool, commandBuffer);
 	}
 
-	inline void createStagingBuffer(VkPhysicalDevice& pDevice, VkDevice& logicalDevice, const void* src,
+	inline void createStagingBuffer(VkDevice& logicalDevice, VkPhysicalDevice& pDevice, const void* src,
 		VkBuffer& stagingBuffer, VkDeviceMemory& stagingBufferMemory, VkDeviceSize stagingBufferSize)
 	{
-		BufferUtil::createBuffer(pDevice, logicalDevice, stagingBuffer, stagingBufferMemory, stagingBufferSize,
+		BufferUtil::createBuffer(logicalDevice, pDevice, stagingBuffer, stagingBufferMemory, stagingBufferSize,
 			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 			VK_SHARING_MODE_EXCLUSIVE,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
@@ -111,7 +111,7 @@ namespace BufferUtil
 		vkUnmapMemory(logicalDevice, stagingBufferMemory);
 	}
 
-	inline void createVertexBuffer(VkPhysicalDevice& pDevice, VkDevice& logicalDevice, VkQueue& graphicsQueue, VkCommandPool& cmdPool,
+	inline void createVertexBuffer(VkDevice& logicalDevice, VkPhysicalDevice& pDevice, VkQueue& graphicsQueue, VkCommandPool& cmdPool,
 		VkBuffer& vertexBuffer, VkDeviceMemory& vertexBufferMemory, VkDeviceSize vertexBufferSize, void* mappedData, Vertex* sourceVertexData)
 	{
 		// ----- Create Staging Buffer -----
@@ -124,7 +124,7 @@ namespace BufferUtil
 		// VK_BUFFER_USAGE_TRANSFER_SRC_BIT: Buffer can be used as source in a memory transfer operation.
 		// VK_BUFFER_USAGE_TRANSFER_DST_BIT: Buffer can be used as destination in a memory transfer operation.
 
-		createBuffer(pDevice, logicalDevice, stagingBuffer, stagingBufferMemory, vertexBufferSize,
+		createBuffer(logicalDevice, pDevice, stagingBuffer, stagingBufferMemory, vertexBufferSize,
 			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 			VK_SHARING_MODE_EXCLUSIVE,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
@@ -140,7 +140,7 @@ namespace BufferUtil
 
 		// ----- Create Vertex Buffer -----
 
-		createBuffer(pDevice, logicalDevice, vertexBuffer, vertexBufferMemory, vertexBufferSize,
+		createBuffer(logicalDevice, pDevice, vertexBuffer, vertexBufferMemory, vertexBufferSize,
 			VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
 			VK_SHARING_MODE_EXCLUSIVE,
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
@@ -153,7 +153,7 @@ namespace BufferUtil
 		vkFreeMemory(logicalDevice, stagingBufferMemory, nullptr);
 	}
 
-	inline void createIndexBuffer(VkPhysicalDevice& pDevice, VkDevice& logicalDevice, VkQueue& graphicsQueue, VkCommandPool& cmdPool,
+	inline void createIndexBuffer(VkDevice& logicalDevice, VkPhysicalDevice& pDevice, VkQueue& graphicsQueue, VkCommandPool& cmdPool,
 		VkBuffer& indexBuffer, VkDeviceMemory& indexBufferMemory, VkDeviceSize indexBufferSize, void* mappedData, uint32_t* sourceIndexData)
 	{
 		// Very similar to createVertexBuffer Function above
@@ -161,7 +161,7 @@ namespace BufferUtil
 		VkBuffer stagingBuffer;
 		VkDeviceMemory stagingBufferMemory;
 
-		createBuffer(pDevice, logicalDevice, stagingBuffer, stagingBufferMemory, indexBufferSize,
+		createBuffer(logicalDevice, pDevice, stagingBuffer, stagingBufferMemory, indexBufferSize,
 			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 			VK_SHARING_MODE_EXCLUSIVE,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
@@ -172,7 +172,7 @@ namespace BufferUtil
 
 		// ----- Create Index Buffer -----
 
-		createBuffer(pDevice, logicalDevice, indexBuffer, indexBufferMemory, indexBufferSize,
+		createBuffer(logicalDevice, pDevice, indexBuffer, indexBufferMemory, indexBufferSize,
 			VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
 			VK_SHARING_MODE_EXCLUSIVE,
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
@@ -185,7 +185,7 @@ namespace BufferUtil
 		vkFreeMemory(logicalDevice, stagingBufferMemory, nullptr);
 	}
 
-	inline void createUniformBuffers(VkPhysicalDevice& pDevice, VkDevice& logicalDevice, unsigned int numSwapChainImages,
+	inline void createUniformBuffers(VkDevice& logicalDevice, VkPhysicalDevice& pDevice, unsigned int numSwapChainImages,
 		std::vector<VkBuffer>& uniformBuffers, std::vector<VkDeviceMemory>& uniformBufferMemories, VkDeviceSize uniformBufferSize)
 	{
 		// Because this buffer can change every frame, the overhead of creating and pushing data to a staging buffer outweigh the performance gain 
@@ -196,20 +196,20 @@ namespace BufferUtil
 
 		for (unsigned int i = 0; i < numSwapChainImages; i++)
 		{
-			createBuffer(pDevice, logicalDevice, uniformBuffers[i], uniformBufferMemories[i], uniformBufferSize,
+			createBuffer(logicalDevice, pDevice, uniformBuffers[i], uniformBufferMemories[i], uniformBufferSize,
 				VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 				VK_SHARING_MODE_EXCLUSIVE,
 				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 		}
 	}
 
-	inline void createUniformBuffer(VkPhysicalDevice& pDevice, VkDevice& logicalDevice,
+	inline void createUniformBuffer(VkDevice& logicalDevice, VkPhysicalDevice& pDevice,
 		VkBuffer& uniformBuffers, VkDeviceMemory& uniformBufferMemories, VkDeviceSize uniformBufferSize)
 	{
 		// Because this buffer can change every frame, the overhead of creating and pushing data to a staging buffer outweigh the performance gain 
 		// obtained by moving things to more optimal memory
 
-		createBuffer(pDevice, logicalDevice, uniformBuffers, uniformBufferMemories, uniformBufferSize,
+		createBuffer(logicalDevice, pDevice, uniformBuffers, uniformBufferMemories, uniformBufferSize,
 			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 			VK_SHARING_MODE_EXCLUSIVE,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);

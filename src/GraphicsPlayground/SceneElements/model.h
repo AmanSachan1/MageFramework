@@ -2,10 +2,11 @@
 
 #include <unordered_map>
 #include <global.h>
+#include "Vulkan/vulkanManager.h"
 #include <Utilities/bufferUtility.h>
 #include <Utilities/renderUtility.h>
+#include <Utilities/descriptorUtility.h>
 
-#include "VulkanSetup/vulkanDevices.h"
 #include "texture.h"
 
 struct ModelUBO
@@ -17,8 +18,8 @@ class Model
 {
 public:
 	Model() = delete;
-	Model(VulkanDevices* devices, VkQueue& graphicsQueue, VkCommandPool& commandPool, unsigned int numSwapChainImages, std::vector<Vertex> &vertices, std::vector<uint32_t> &indices, bool isMipMapped = false, bool yAxisIsUp = true);
-	Model(VulkanDevices* devices, VkQueue& graphicsQueue, VkCommandPool& commandPool, unsigned int numSwapChainImages, const std::string model_path, const std::string texture_path, bool isMipMapped = false, bool yAxisIsUp = true);
+	Model(VulkanManager* vulkanObj, VkQueue& graphicsQueue, VkCommandPool& commandPool, unsigned int numSwapChainImages, std::vector<Vertex> &vertices, std::vector<uint32_t> &indices, bool isMipMapped = false, bool yAxisIsUp = true);
+	Model(VulkanManager* vulkanObj, VkQueue& graphicsQueue, VkCommandPool& commandPool, unsigned int numSwapChainImages, const std::string model_path, const std::string texture_path, bool isMipMapped = false, bool yAxisIsUp = true);
 	~Model();
 
 	void updateUniformBuffer(uint32_t currentImageIndex);
@@ -26,7 +27,8 @@ public:
 	// Descriptor Sets
 	void addToDescriptorPoolSize(std::vector<VkDescriptorPoolSize>& poolSizes);
 	void createDescriptorSetLayout(VkDescriptorSetLayout& DSL_model);
-	void createAndWriteDescriptorSets(VkDescriptorPool descriptorPool, VkDescriptorSetLayout& DSL_model, Texture* computeTexture, uint32_t index);
+	void createDescriptorSets(VkDescriptorPool descriptorPool, VkDescriptorSetLayout& DSL_model, uint32_t index);
+	void writeToAndUpdateDescriptorSets(Texture* computeTexture, uint32_t index);
 
 	//Getters
 	const std::vector<Vertex>& getVertices() const;
@@ -44,7 +46,6 @@ public:
 	uint32_t getUniformBufferSize() const;
 
 private:
-	VulkanDevices* m_devices;
 	VkDevice m_logicalDevice;
 	VkPhysicalDevice m_physicalDevice;
 	uint32_t m_numSwapChainImages;
