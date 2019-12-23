@@ -8,10 +8,11 @@
 #include <imgui_impl_glfw.cpp>
 #include <imgui_impl_vulkan.cpp>
 
-UIManager::UIManager(GLFWwindow* window, VulkanManager* vulkanObj)
+UIManager::UIManager(GLFWwindow* window, VulkanManager* vulkanObj, RendererOptions rendererOptions)
 	: m_vulkanObj(vulkanObj), 
 	m_logicalDevice(vulkanObj->getLogicalDevice()), 
-	m_queue(m_vulkanObj->getQueue(QueueFlags::Graphics))
+	m_queue(m_vulkanObj->getQueue(QueueFlags::Graphics)),
+	m_rendererOptions(rendererOptions)
 {
 	setupVulkanObjectsForImgui();
 
@@ -25,11 +26,20 @@ UIManager::UIManager(GLFWwindow* window, VulkanManager* vulkanObj)
 	uploadFonts();
 
 	const VkExtent2D extents = m_vulkanObj->getSwapChainVkExtent();
-	windowWidth = extents.width;
-	windowHeight = extents.height;
+	m_windowWidth = extents.width;
+	m_windowHeight = extents.height;
+	m_stateChangeed = true;
 
-	m_showOptionsWindow = true;
-	m_showStatisticsWindow = true;
+	// Set options
+	{
+		m_options.framerateInFPS = false;
+		m_options.transparentWindows = true;
+		m_options.showStatisticsWindow = true;
+		// Re-enable when the option to actually toggle this stuff exists in the renderer
+		m_options.showOptionsWindow = false;
+
+		m_options.boundaryPadding = 5;
+	}
 
 #if IMGUI_REFERENCE_DEMO
 	show_demo_window = true;
@@ -78,8 +88,9 @@ void UIManager::recreate(GLFWwindow* window)
 	uploadFonts();
 
 	const VkExtent2D extents = m_vulkanObj->getSwapChainVkExtent();
-	windowWidth = extents.width;
-	windowHeight = extents.height;
+	m_windowWidth = extents.width;
+	m_windowHeight = extents.height;
+	m_stateChangeed = true;
 }
 
 void UIManager::update()
@@ -123,46 +134,92 @@ void UIManager::updateState()
 #if IMGUI_REFERENCE_DEMO
 	createImguiDefaultDemo();
 #endif
+	
+	// The ordering here is important, window positioning depends on previous window position and size
+	if(m_options.showStatisticsWindow) statisticsWindow();
+	if(m_options.showOptionsWindow) optionsWindow();
 
-	//optionsWindow();
-	//statisticsWindow();
-}
-void UIManager::optionsWindow()
-{
-	ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBackground;
-
-	ImGui::SetNextWindowPos(ImVec2(650, 20), ImGuiCond_FirstUseEver);
-	ImGui::SetNextWindowSize(ImVec2(550, 680), ImGuiCond_FirstUseEver);
-
-	// Main body of the Demo window starts here.
-	if (!ImGui::Begin("Renderer Options", &m_showOptionsWindow, window_flags))
-	{
-		// Early out if the window is collapsed, as an optimization.
-		ImGui::End();
-		return;
-	}
-
-	ImGui::End();
+	m_stateChangeed = false;
 }
 void UIManager::statisticsWindow()
 {
-	ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBackground;
+	if (m_stateChangeed)
+	{
+		m_options.statisticsWindowSize.x = 200; // width
+		m_options.statisticsWindowSize.y = 50; // height
+		const float& width = m_options.statisticsWindowSize.x;
+		const float& height = m_options.statisticsWindowSize.y;
+		const float xPos = m_options.boundaryPadding;
+		const float yPos = m_options.boundaryPadding;
 
-	ImGui::SetNextWindowPos(ImVec2(650, 20), ImGuiCond_FirstUseEver);
-	ImGui::SetNextWindowSize(ImVec2(550, 680), ImGuiCond_FirstUseEver);
+		ImGui::SetNextWindowPos(ImVec2(xPos, yPos), ImGuiCond_Always); // handles resizing if ImGuiCond_Always is set
+		ImGui::SetNextWindowSize(ImVec2(width, height), ImGuiCond_Appearing);
+	}
+
+	ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize;
+	if (m_options.transparentWindows) window_flags |= ImGuiWindowFlags_NoBackground;
 
 	// Main body of the Demo window starts here.
-	if (!ImGui::Begin("Statistics", &m_showStatisticsWindow, window_flags))
+	if (!ImGui::Begin("Statistics", &m_options.showStatisticsWindow, window_flags))
 	{
 		// Early out if the window is collapsed, as an optimization.
 		ImGui::End();
 		return;
 	}
 
-	ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+	// This is the average framerate if the Application
+	if (m_options.framerateInFPS)
+	{
+		ImGui::Text("Framerate: %.1f FPS", ImGui::GetIO().Framerate);
+	}
+	else
+	{
+		ImGui::Text("Framerate: %.3f ms/frame", 1000.0f / ImGui::GetIO().Framerate);
+	}
+	
 	ImGui::End();
 }
+void UIManager::optionsWindow()
+{
+	if (m_stateChangeed)
+	{
+		m_options.optionsWindowSize.x = 300; // width
+		m_options.optionsWindowSize.y = 150; // height
+		const float& width = m_options.optionsWindowSize.x;
+		const float& height = m_options.optionsWindowSize.y;
+		const float xPos = m_windowWidth - m_options.optionsWindowSize.x - m_options.boundaryPadding;
+		const float yPos = m_options.boundaryPadding;
 
+		ImGui::SetNextWindowPos(ImVec2(xPos, yPos), ImGuiCond_Always); // handles resizing if ImGuiCond_Always is set
+		ImGui::SetNextWindowSize(ImVec2(width, height), ImGuiCond_Appearing);
+
+		// Make the window start off in a collapsed state
+		ImGui::SetWindowCollapsed(true, ImGuiCond_Once);
+	}
+
+	ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize;
+	if (m_options.transparentWindows) window_flags |= ImGuiWindowFlags_NoBackground;
+
+	// Main body of the Demo window starts here.
+	if (!ImGui::Begin("Renderer Options", &m_options.showOptionsWindow, window_flags))
+	{
+		// Early out if the window is collapsed, as an optimization.
+		ImGui::End();
+		return;
+	}
+
+	int rendererAnisotrpy = m_rendererOptions.anisotropy;
+	ImGui::Checkbox("MSAA", &m_rendererOptions.MSAA);
+	ImGui::Checkbox("FXAA", &m_rendererOptions.FXAA);
+	ImGui::Checkbox("TXAA", &m_rendererOptions.TXAA);
+	ImGui::PushItemWidth(-150); // slider will fill the space and leave 100 pixels for the label
+	ImGui::SliderInt("Anisotropy", &rendererAnisotrpy, 0, 16);
+	ImGui::SliderFloat("Variable Rate Shading", &m_rendererOptions.minSampleShading, 0.0f, 1.0f);
+
+	m_rendererOptions.anisotropy = rendererAnisotrpy;
+
+	ImGui::End();
+}
 
 
 // Helpers
@@ -318,7 +375,7 @@ void UIManager::createImguiDefaultDemo()
 	// 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
 	if (show_demo_window)
 		ImGui::ShowDemoWindow(&show_demo_window);
-
+	
 	// 2. Show a simple window that we create ourselves. We use a Begin/End pair to created a named window.
 	{
 		static float f = 0.0f;

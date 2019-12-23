@@ -178,8 +178,7 @@ void GraphicsPlaygroundApplication::initialize()
 		window_width, window_height, 45.0f, float(window_width) / float(window_height), 0.1f, 1000.0f,
 		vulkanObject->getSwapChainImageCount(), CameraMode::ORBIT);
 
-	RendererOptions rendererOptions = { RenderAPI::VULKAN, true };
-	renderer = new Renderer(window, vulkanObject, camera, rendererOptions, window_width, window_height);
+	renderer = new Renderer(window, vulkanObject, camera, window_width, window_height);
 
 	glfwSetWindowSizeCallback(window, InputUtil::resizeCallback);
 	glfwSetFramebufferSizeCallback(window, InputUtil::resizeCallback);

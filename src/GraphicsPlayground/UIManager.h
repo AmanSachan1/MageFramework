@@ -22,11 +22,40 @@ static void check_vk_result(VkResult err)
 		abort();
 }
 
+// If these change we need to inform the renderer and recreate everything.
+struct RendererOptions
+{
+	RenderAPI renderAPI;
+	bool MSAA;  // Geometry Anti-Aliasing
+	bool FXAA;  // Fast-Approximate Anti-Aliasing
+	bool TXAA;	// Temporal Anti-Aliasing
+	bool enableSampleRateShading; // Shading Anti-Aliasing (enables processing more than one sample per fragment)
+	float minSampleShading; // value between 0.0f and 1.0f --> closer to one is smoother
+	bool enableAnisotropy; // Anisotropic filtering -- image sampling will use anisotropic filter
+	float anisotropy; //controls level of anisotropic filtering
+};
+
+// Display options for various UI objects and their data
+struct UIOptions
+{
+	bool framerateInFPS;
+	bool transparentWindows;
+
+	// Display Windows
+	bool showStatisticsWindow;
+	bool showOptionsWindow;
+
+	// Positioning
+	float boundaryPadding;
+	glm::vec2 statisticsWindowSize;
+	glm::vec2 optionsWindowSize;
+};
+
 class UIManager
 {
 public:
 	UIManager() = delete;
-	UIManager(GLFWwindow* window, VulkanManager* vulkanObj);
+	UIManager(GLFWwindow* window, VulkanManager* vulkanObj, RendererOptions rendererOptions);
 	~UIManager();
 	
 	void clean();
@@ -40,6 +69,10 @@ private:
 	VulkanManager* m_vulkanObj;
 	VkDevice m_logicalDevice;
 	VkQueue m_queue;
+	UIOptions m_options;
+	RendererOptions m_rendererOptions;
+	unsigned int m_windowWidth, m_windowHeight;
+	bool m_stateChangeed;
 
 	//-------------------------------------------
 	// UI Specific vulkan objects for rendering
@@ -55,11 +88,6 @@ private:
 
 	VkRenderPass m_UIRenderPass;
 	std::vector<VkFramebuffer> m_UIFrameBuffers;
-
-	unsigned int windowWidth, windowHeight;
-
-	bool m_showOptionsWindow;
-	bool m_showStatisticsWindow;
 
 #ifdef IMGUI_REFERENCE_DEMO
 	bool show_demo_window;

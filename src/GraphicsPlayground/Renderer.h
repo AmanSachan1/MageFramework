@@ -19,26 +19,11 @@
 
 static constexpr unsigned int WORKGROUP_SIZE = 32;
 
-enum class RenderAPI { VULKAN, DX12 };
-
-struct RendererOptions 
-{
-	RenderAPI renderAPI;
-	bool MSAA;  // Geometry Anti-Aliasing
-	bool TXAA;	// Temporal Anti-Aliasing
-	bool FXAA;  // Fast-Approximate Anti-Aliasing
-	bool enableSampleRateShading; // Shading Anti-Aliasing (enables processing more than one sample per fragment)
-	float minSampleShading; // value between 0.0f and 1.0f --> closer to one is smoother
-	bool enableAnisotropy; // Anisotropic filtering -- image sampling will use anisotropic filter
-	float anisotropy; //controls level of anisotropic filtering
-};
-
 class Renderer 
 {
 public:
 	Renderer() = delete; // To enforce the creation of a the type of renderer we want without leaving the vulkan device, vulkan swapchain, etc as assumptions or nullptrs
-	Renderer(GLFWwindow* window, VulkanManager* vulkanObject, Camera* camera,
-		RendererOptions rendererOptions, uint32_t width, uint32_t height);
+	Renderer(GLFWwindow* window, VulkanManager* vulkanObject, Camera* camera, uint32_t width, uint32_t height);
 	~Renderer();
 
 	void recreate();

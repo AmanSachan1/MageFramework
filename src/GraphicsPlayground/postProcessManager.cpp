@@ -153,11 +153,14 @@ void PostProcessManager::expandDescriptorPool(std::vector<VkDescriptorPoolSize>&
 void PostProcessManager::createDescriptors(VkDescriptorPool descriptorPool)
 {
 	int serialCount = 0;
+
 	// Tonemap
 	VkDescriptorSetLayoutBinding inputImageLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
 	VkDescriptorSetLayoutBinding outputImageBinding = { 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
 	std::array<VkDescriptorSetLayoutBinding, 2> toneMapBindings = { inputImageLayoutBinding, outputImageBinding };
 	createDescriptors(descriptorPool, serialCount, "Tonemap", 2, toneMapBindings.data());
+
+	// TXAA and other Post Process effects
 }
 void PostProcessManager::createDescriptors(VkDescriptorPool descriptorPool, int& index, const std::string name,
 	uint32_t bindingCount, VkDescriptorSetLayoutBinding* bindings)
@@ -179,7 +182,38 @@ void PostProcessManager::createDescriptors(VkDescriptorPool descriptorPool, int&
 }
 void PostProcessManager::writeToAndUpdateDescriptorSets()
 {
+	for (uint32_t i = 0; i < m_numSwapChainImages; i++)
+	{
+		// Tone Map
+		// TODO: change to something that searches for the particular string name later
+		int index = 0; // controls which descriptor is being accessed
+		{
+			// The input image for the tonemap is the last renderpass in the 32 bit passes.
+			// TODO: The inputImages data is probably not needed and can be removed at a later point
+			// We should simply be able to use the data from the last renderpass if things are in the correct order.
+			// We are already doing this with the image layout.
+			VkDescriptorImageInfo inputImageInfo = DescriptorUtil::createDescriptorImageInfo(
+				m_32bitSampler,
+				m_toneMapRPI.inputImages[i].view,
+				m_32bitPasses.back().imageSetInfo[i].imageLayout);
+			VkDescriptorImageInfo outputImageInfo = DescriptorUtil::createDescriptorImageInfo(
+				m_toneMapSampler,
+				m_toneMapRPI.imageSetInfo[i].imageView,
+				m_toneMapRPI.imageSetInfo[i].imageLayout);
 
+			const int descriptorCount = 2;
+			std::array<VkWriteDescriptorSet, descriptorCount> writeToneMapSetInfo = {};
+			writeToneMapSetInfo[0] = DescriptorUtil::writeDescriptorSet(
+				m_descriptors[index].postProcess_DSs[i], 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &inputImageInfo);
+			writeToneMapSetInfo[1] = DescriptorUtil::writeDescriptorSet(
+				m_descriptors[index].postProcess_DSs[i], 1, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &outputImageInfo);
+
+			vkUpdateDescriptorSets(m_logicalDevice, descriptorCount, writeToneMapSetInfo.data(), 0, nullptr);
+		}
+		
+		// Another Postprocess pass
+		index++;
+	}
 }
 
 

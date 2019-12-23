@@ -30,7 +30,7 @@ struct PostProcessRPI
 	VkRenderPass renderPass;
 	std::vector<VkFramebuffer> frameBuffers;  // write to
 	std::vector<FrameBufferAttachment> inputImages; // read from
-	std::vector<VkDescriptorImageInfo> imageSetInfo; // [optional] for use later in a descriptor set
+	std::vector<VkDescriptorImageInfo> imageSetInfo; // [optional] for use later in a descriptor set, stores output data
 };
 
 struct PostProcessDescriptors

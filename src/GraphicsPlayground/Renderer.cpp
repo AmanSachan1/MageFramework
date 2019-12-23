@@ -1,7 +1,6 @@
 #include "Renderer.h"
 
-Renderer::Renderer(GLFWwindow* window, VulkanManager* vulkanObject, Camera* camera,
-		RendererOptions rendererOptions, uint32_t width, uint32_t height)
+Renderer::Renderer(GLFWwindow* window, VulkanManager* vulkanObject, Camera* camera, uint32_t width, uint32_t height)
 	: m_window(window), m_vulkanObj(vulkanObject), m_camera(camera)
 {
 	initialize();
@@ -30,7 +29,13 @@ void Renderer::initialize()
 	createAllPipelines();
 	recordAllCommandBuffers();
 
-	m_UI = new UIManager(m_window, m_vulkanObj);
+	RendererOptions rendererOptions = { 
+		RenderAPI::VULKAN, // API
+		false, false, false, // Anti-Aliasing 
+		false, 1.0f, // Sample Rate Shading
+		true, 16.0f	}; // Anisotropy
+
+	m_UI = new UIManager(m_window, m_vulkanObj, rendererOptions);
 }
 void Renderer::recreate()
 {

@@ -50,5 +50,6 @@ using QueueFlagBits = std::bitset<sizeof(QueueFlags)>;
 using QueueFamilyIndices = std::array<uint32_t, sizeof(QueueFlags)>;
 using Queues = std::array<VkQueue, sizeof(QueueFlags)>;
 
+enum class RenderAPI { VULKAN, DX12 };
 enum class PIPELINE_TYPE { RASTER, FINAL_COMPOSITE, COMPUTE, POST_PROCESS };
 enum class DSL_TYPE { COMPUTE, MODEL, CURRENT_FRAME_CAMERA, PREV_FRAME_CAMERA, TIME, FINAL32BITIMAGE, TONEMAP, TXAA, FINAL_COMPOSITE };
