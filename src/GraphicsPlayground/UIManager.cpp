@@ -93,7 +93,7 @@ void UIManager::recreate(GLFWwindow* window)
 	m_stateChangeed = true;
 }
 
-void UIManager::update()
+void UIManager::update(float frameTime)
 {
 	// New Frame
 	ImGui_ImplVulkan_NewFrame(); // empty
@@ -101,7 +101,7 @@ void UIManager::update()
 	ImGui::NewFrame();
 
 	// Update UI
-	updateState();
+	updateState(frameTime);
 
 	// Record new state into command buffers
 	ImGui::Render();
@@ -129,19 +129,19 @@ void UIManager::submitDrawCommands()
 
 // Update Imgui State
 // Any and all UI options that one would need to create are done through this function
-void UIManager::updateState()
+void UIManager::updateState(float frameTime)
 {
 #if IMGUI_REFERENCE_DEMO
 	createImguiDefaultDemo();
 #endif
 	
 	// The ordering here is important, window positioning depends on previous window position and size
-	if(m_options.showStatisticsWindow) statisticsWindow();
+	if(m_options.showStatisticsWindow) statisticsWindow(frameTime);
 	if(m_options.showOptionsWindow) optionsWindow();
 
 	m_stateChangeed = false;
 }
-void UIManager::statisticsWindow()
+void UIManager::statisticsWindow(float frameTime)
 {
 	if (m_stateChangeed)
 	{
@@ -167,13 +167,15 @@ void UIManager::statisticsWindow()
 		return;
 	}
 
-	// This is the average framerate if the Application
+	// This is the average framerate of the Application
 	if (m_options.framerateInFPS)
 	{
 		ImGui::Text("Framerate: %.1f FPS", ImGui::GetIO().Framerate);
 	}
 	else
 	{
+		// Use commented out portion when using your own timer system
+		//ImGui::Text("Framerate: %.3f ms/frame", frameTime);
 		ImGui::Text("Framerate: %.3f ms/frame", 1000.0f / ImGui::GetIO().Framerate);
 	}
 	
@@ -208,7 +210,7 @@ void UIManager::optionsWindow()
 		return;
 	}
 
-	int rendererAnisotrpy = m_rendererOptions.anisotropy;
+	int rendererAnisotrpy = static_cast<int>(m_rendererOptions.anisotropy);
 	ImGui::Checkbox("MSAA", &m_rendererOptions.MSAA);
 	ImGui::Checkbox("FXAA", &m_rendererOptions.FXAA);
 	ImGui::Checkbox("TXAA", &m_rendererOptions.TXAA);
@@ -216,7 +218,7 @@ void UIManager::optionsWindow()
 	ImGui::SliderInt("Anisotropy", &rendererAnisotrpy, 0, 16);
 	ImGui::SliderFloat("Variable Rate Shading", &m_rendererOptions.minSampleShading, 0.0f, 1.0f);
 
-	m_rendererOptions.anisotropy = rendererAnisotrpy;
+	m_rendererOptions.anisotropy = static_cast<float>(rendererAnisotrpy);
 
 	ImGui::End();
 }

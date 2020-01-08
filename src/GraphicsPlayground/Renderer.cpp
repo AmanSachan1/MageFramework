@@ -27,6 +27,8 @@ void Renderer::initialize()
 
 	setupDescriptorSets();
 	createAllPipelines();
+	m_rendererBackend->createAllPostProcessEffects();
+	writeToAndUpdateDescriptorSets();
 	recordAllCommandBuffers();
 
 	RendererOptions rendererOptions = { 
@@ -55,8 +57,9 @@ void Renderer::recreate()
 	m_rendererBackend->setWindowExtents(m_vulkanObj->getSwapChainVkExtent());
 	m_rendererBackend->createRenderPassesAndFrameResources();
 
-	writeToAndUpdateDescriptorSets();
 	createAllPipelines();
+	m_rendererBackend->createAllPostProcessEffects();
+	writeToAndUpdateDescriptorSets();
 
 	m_rendererBackend->recreateCommandBuffers();
 	recordAllCommandBuffers();
@@ -70,12 +73,12 @@ void Renderer::cleanup()
 }
 
 
-void Renderer::renderLoop()
+void Renderer::renderLoop(float prevFrameTime)
 {
 	updateRenderState();
 	acquireNextSwapChainImage();
 
-	m_UI->update();
+	m_UI->update(prevFrameTime);
 
 	m_rendererBackend->submitCommandBuffers();
 	m_UI->submitDrawCommands();
@@ -230,6 +233,28 @@ void Renderer::recordGraphicsCommandBuffer(VkCommandBuffer& graphicsCmdBuffer, u
 			vkCmdEndRenderPass(graphicsCmdBuffer);
 		}
 	}
+
+	// Post Process Pipelines -- for now only tonemap
+	{
+		const VkPipeline l_toneMapP = m_rendererBackend->getPipeline(PIPELINE_TYPE::POST_PROCESS, 0);
+		const VkPipelineLayout l_toneMapPL = m_rendererBackend->getPipelineLayout(PIPELINE_TYPE::POST_PROCESS, 0);
+		PostProcessRPI l_toneMapRPI = m_rendererBackend->m_toneMapRPI;
+
+		const VkDescriptorSet DS_tonemap = m_rendererBackend->getDescriptorSet(DSL_TYPE::POST_PROCESS, frameIndex);
+
+		// Actual commands for the renderPass
+		{
+			VulkanCommandUtil::beginRenderPass(graphicsCmdBuffer,
+				l_toneMapRPI.renderPass, l_toneMapRPI.frameBuffers[frameIndex],
+				renderArea, numClearValues, clearValues.data());
+
+			vkCmdBindDescriptorSets(graphicsCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, l_toneMapPL, 0, 1, &DS_tonemap, 0, nullptr);
+			vkCmdBindPipeline(graphicsCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, l_toneMapP);
+			vkCmdDraw(graphicsCmdBuffer, 3, 1, 0, 0);
+
+			vkCmdEndRenderPass(graphicsCmdBuffer);
+		}
+	}
 }
 
 void Renderer::setupDescriptorSets()
@@ -253,7 +278,7 @@ void Renderer::setupDescriptorSets()
 	}
 
 	// --- Write to Descriptor Sets ---
-	writeToAndUpdateDescriptorSets();
+	//writeToAndUpdateDescriptorSets();
 }
 void Renderer::writeToAndUpdateDescriptorSets()
 {	

@@ -1,8 +1,8 @@
 #pragma once
 
-#include "Vulkan/vulkanManager.h"
-#include <Utilities/bufferUtility.h>
-#include <Utilities/imageUtility.h>
+#include <Vulkan\vulkanManager.h>
+#include <Vulkan\Utilities\vBufferUtil.h>
+#include <Vulkan\Utilities\vImageUtil.h>
 
 class Texture
 {

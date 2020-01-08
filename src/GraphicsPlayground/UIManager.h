@@ -1,9 +1,9 @@
 #pragma once
 #include <global.h>
 #include <stdlib.h>
-#include <Utilities/commandUtility.h>
-#include <Utilities/renderUtility.h>
-#include <Vulkan/vulkanManager.h>
+#include <Vulkan\Utilities\vCommandUtil.h>
+#include <Vulkan\Utilities\vRenderUtil.h>
+#include <Vulkan\vulkanManager.h>
 
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -62,7 +62,7 @@ public:
 	void resize();
 	void recreate(GLFWwindow* window);
 	
-	void update();
+	void update(float frameTime);
 	void submitDrawCommands();
 
 private:
@@ -98,9 +98,9 @@ private:
 private:
 	void setupPlatformAndRendererBindings(GLFWwindow* window);
 
-	void updateState();
+	void updateState(float frameTime);
 	void optionsWindow();
-	void statisticsWindow();
+	void statisticsWindow(float frameTime);
 
 
 	// Helpers

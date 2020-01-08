@@ -1,7 +1,7 @@
 #pragma once
 #include <global.h>
 #include <forward.h>
-#include <Utilities\commandUtility.h>
+#include <Vulkan\Utilities\vCommandUtil.h>
 
 namespace BufferUtil
 {

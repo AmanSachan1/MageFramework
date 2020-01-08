@@ -1,12 +1,11 @@
 #pragma once
-
+#include <global.h>
 #include <unordered_map>
 #include <string>
+#include <Vulkan\Utilities\vBufferUtil.h>
+#include <Vulkan\Utilities\vDescriptorUtil.h>
+#include <Vulkan/vulkanManager.h>
 
-#include <global.h>
-#include "Vulkan/vulkanManager.h"
-#include <Utilities/bufferUtility.h>
-#include <Utilities/descriptorUtility.h>
 #include "SceneElements/model.h"
 
 struct TimeUBO

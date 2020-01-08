@@ -1,6 +1,6 @@
 #pragma once
 #include <global.h>
-#include <Utilities\imageUtility.h>
+#include <Vulkan\Utilities\vImageUtil.h>
 
 struct FrameBufferAttachment
 {

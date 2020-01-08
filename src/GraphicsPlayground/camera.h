@@ -4,10 +4,10 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/glm.hpp>
 
-#include "Vulkan/vulkanManager.h"
-#include <Utilities/bufferUtility.h>
-#include <Utilities/renderUtility.h>
-#include <Utilities/descriptorUtility.h>
+#include <Vulkan\vulkanManager.h>
+#include <Vulkan\Utilities\vBufferUtil.h>
+#include <Vulkan\Utilities\vRenderUtil.h>
+#include <Vulkan\Utilities\vDescriptorUtil.h>
 
 #define PI 3.14159
 

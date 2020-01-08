@@ -3,9 +3,9 @@
 #include <unordered_map>
 #include <global.h>
 #include "Vulkan/vulkanManager.h"
-#include <Utilities/bufferUtility.h>
-#include <Utilities/renderUtility.h>
-#include <Utilities/descriptorUtility.h>
+#include <Vulkan\Utilities\vBufferUtil.h>
+#include <Vulkan\Utilities\vRenderUtil.h>
+#include <Vulkan\Utilities\vDescriptorUtil.h>
 
 #include "texture.h"
 

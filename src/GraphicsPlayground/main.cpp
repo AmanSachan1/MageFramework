@@ -1,7 +1,7 @@
 #pragma once
 #include <global.h>
 #include <forward.h>
-#include "Vulkan/vulkanManager.h"
+#include <Vulkan/vulkanManager.h>
 
 #include "UIManager.h"
 #include "camera.h"
@@ -191,14 +191,20 @@ void GraphicsPlaygroundApplication::initialize()
 
 void GraphicsPlaygroundApplication::mainLoop()
 {
+	TIME_POINT frameStartTime = std::chrono::high_resolution_clock::now();
+	float prevFrameTime = 0.0f;
+
 	// Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Drawing/Rendering_and_presentation
 	while (!glfwWindowShouldClose(window))
 	{
+		frameStartTime = std::chrono::high_resolution_clock::now();
 		//Mouse inputs, window resize callbacks, and certain key press events
 		glfwPollEvents();
 		InputUtil::keyboardInputs(window);
 
-		renderer->renderLoop();
+		renderer->renderLoop(prevFrameTime);
+
+		prevFrameTime = TimerUtil::getTimeElapsedSinceStart(frameStartTime);
 	}
 }
 

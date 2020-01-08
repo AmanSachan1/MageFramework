@@ -409,9 +409,9 @@ namespace VulkanPipelineCreation
 		return VulkanPipelineCreation::createGraphicsPipelines(logicalDevice, VK_NULL_HANDLE, 1, &pipelineInfo, &pipeline);
 	}
 
-	inline VkPipeline createPostProcessPipeline(
+	inline bool createPostProcessPipeline(
 		VkDevice& logicalDevice,
-		VkPipelineLayout& pipelineLayout,
+		VkPipeline& pipeline, VkPipelineLayout& pipelineLayout,
 		VkRenderPass& renderPass, const uint32_t subpass,
 		const uint32_t stageCount, const VkPipelineShaderStageCreateInfo* stages,
 		const VkExtent2D swapChainExtents)
@@ -422,12 +422,9 @@ namespace VulkanPipelineCreation
 		VkPipelineVertexInputStateCreateInfo vertexInput = VulkanPipelineStructures::vertexInputInfo(0, nullptr, 0, nullptr);
 
 		// -------- Create Pipeline ---------
-		VkPipeline pipeline;
-		createGraphicsPipeline( logicalDevice,
+		return createGraphicsPipeline( logicalDevice,
 			pipeline, pipelineLayout,
 			renderPass, subpass,
 			stageCount, stages, vertexInput, swapChainExtents);
-
-		return pipeline;
 	}
 };

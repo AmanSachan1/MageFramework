@@ -3,18 +3,11 @@ function(buildSource SAMPLE_NAME)
 		${SAMPLE_NAME}/*.cpp 
 		${SAMPLE_NAME}/*.h 
 		${SAMPLE_NAME}/*.inl)
-	file(GLOB UTILITY_SOURCES 
-		${SAMPLE_NAME}/Utilities/*.cpp 
-		${SAMPLE_NAME}/Utilities/*.h 
-		${SAMPLE_NAME}/Utilities/*.inl)
-	file(GLOB VULKAN_SOURCES 
-		${SAMPLE_NAME}/Vulkan/*.cpp 
-		${SAMPLE_NAME}/Vulkan/*.h 
-		${SAMPLE_NAME}/Vulkan/*.inl)
 	file(GLOB SCENE_ELEMENTS_SOURCES 
 		${SAMPLE_NAME}/SceneElements/*.cpp 
 		${SAMPLE_NAME}/SceneElements/*.h 
 		${SAMPLE_NAME}/SceneElements/*.inl)
+
 	file(GLOB_RECURSE SHADER_SOURCES
 		${SAMPLE_NAME}/*.vert
 		${SAMPLE_NAME}/*.frag
@@ -22,28 +15,56 @@ function(buildSource SAMPLE_NAME)
 		${SAMPLE_NAME}/*.comp
 		${SAMPLE_NAME}/*.tese
 		${SAMPLE_NAME}/*.tesc )
+
+	file(GLOB UTILITY_SOURCES 
+		${SAMPLE_NAME}/Utilities/*.cpp 
+		${SAMPLE_NAME}/Utilities/*.h 
+		${SAMPLE_NAME}/Utilities/*.inl)
+
+	file(GLOB VULKAN_SOURCES 
+		${SAMPLE_NAME}/Vulkan/*.cpp 
+		${SAMPLE_NAME}/Vulkan/*.h 
+		${SAMPLE_NAME}/Vulkan/*.inl)
+	file(GLOB VULKAN_RENDERER_BACKEND_SOURCES 
+		${SAMPLE_NAME}/Vulkan/RendererBackend/*.cpp 
+		${SAMPLE_NAME}/Vulkan/RendererBackend/*.h 
+		${SAMPLE_NAME}/Vulkan/RendererBackend/*.inl)
+	file(GLOB VULKAN_UTILITY_SOURCES 
+		${SAMPLE_NAME}/Vulkan/Utilities/*.cpp 
+		${SAMPLE_NAME}/Vulkan/Utilities/*.h 
+		${SAMPLE_NAME}/Vulkan/Utilities/*.inl)
+
 	
 	SET(MAIN_CPP ${SAMPLE_NAME}/main.cpp)
-	source_group("Vulkan" FILES ${VULKAN_SOURCES})
-	source_group("Utilities" FILES ${UTILITY_SOURCES})
-	source_group("SceneElements" FILES ${SCENE_ELEMENTS_SOURCES})
-	source_group("Shaders" FILES ${SHADER_SOURCES})
+	source_group("Source" FILES ${SAMPLE_SOURCES})
+	source_group("Source\\Shaders" FILES ${SHADER_SOURCES})
+	source_group("Source\\SceneElements" FILES ${SCENE_ELEMENTS_SOURCES})
+	
+	source_group("Source\\Utilities" FILES ${UTILITY_SOURCES})
+
+	source_group("Source\\Vulkan" FILES ${VULKAN_SOURCES})
+	source_group("Source\\Vulkan\\Utilities" FILES ${VULKAN_UTILITY_SOURCES})
+	source_group("Source\\Vulkan\\RendererBackend" FILES ${VULKAN_RENDERER_BACKEND_SOURCES})
 
 	if(WIN32)
 		add_executable(${SAMPLE_NAME} ${MAIN_CPP} 
-			${SAMPLE_SOURCES} 
-			${UTILITY_SOURCES} 
+			${SAMPLE_SOURCES}
+			${SCENE_ELEMENTS_SOURCES}
 			${SHADER_SOURCES} 
+			${UTILITY_SOURCES} 			
 			${VULKAN_SOURCES} 
-			${SCENE_ELEMENTS_SOURCES})
+			${VULKAN_RENDERER_BACKEND_SOURCES} 
+			${VULKAN_UTILITY_SOURCES})
 		target_link_libraries(${SAMPLE_NAME} ${WINLIBS})
 	else(WIN32)
 		add_executable(${SAMPLE_NAME} ${MAIN_CPP} 
-			${SAMPLE_SOURCES} 
-			${UTILITY_SOURCES}
+			${SAMPLE_SOURCES}
+			${SCENE_ELEMENTS_SOURCES}
 			${SHADER_SOURCES} 
+			${UTILITY_SOURCES} 			
 			${VULKAN_SOURCES} 
-			${SCENE_ELEMENTS_SOURCES})
+			${VULKAN_RENDERER_BACKEND_SOURCES} 
+			${VULKAN_UTILITY_SOURCES})
 		target_link_libraries(${SAMPLE_NAME} ${CMAKE_THREAD_LIBS_INIT})
 	endif(WIN32)
 
@@ -66,7 +87,7 @@ function(buildSource SAMPLE_NAME)
 								${CMAKE_CURRENT_SOURCE_DIR}/${SAMPLE_NAME}
 								${GLM_INCLUDE_DIR} )
 			
-	ExternalTarget("src" ${SAMPLE_NAME})
+	ExternalTarget("" ${SAMPLE_NAME})
 endfunction(buildSource)
 
 buildSource(GraphicsPlayground)

@@ -2,14 +2,14 @@
 
 #include <global.h>
 #include <forward.h>
-#include <Utilities\pipelineUtility.h>
-#include <Utilities\commandUtility.h>
-#include <Utilities\shaderUtility.h>
-#include <Utilities\renderUtility.h>
 #include <Utilities\generalUtility.h>
+#include <Vulkan\Utilities\vPipelineUtil.h>
+#include <Vulkan\Utilities\vCommandUtil.h>
+#include <Vulkan\Utilities\vShaderUtil.h>
+#include <Vulkan\Utilities\vRenderUtil.h>
+#include <Vulkan\RendererBackend\vRendererBackend.h>
+#include <Vulkan\vulkanManager.h>
 
-#include "Vulkan\vulkanManager.h"
-#include "Vulkan\vulkanRendererBackend.h"
 #include "UIManager.h"
 
 #include "Camera.h"
@@ -27,7 +27,7 @@ public:
 	~Renderer();
 
 	void recreate();
-	void renderLoop();
+	void renderLoop(float frameStartTime);
 		
 private:
 	void initialize();	

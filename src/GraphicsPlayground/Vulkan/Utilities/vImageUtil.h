@@ -1,8 +1,8 @@
 #pragma once
 #include <global.h>
-#include <Utilities\bufferUtility.h>
+#include <Vulkan/Utilities/vBufferUtil.h>
+#include <Vulkan/Utilities/vCommandUtil.h>
 #include <Utilities\generalUtility.h>
-#include <Utilities\commandUtility.h>
 
 namespace ImageUtil
 {

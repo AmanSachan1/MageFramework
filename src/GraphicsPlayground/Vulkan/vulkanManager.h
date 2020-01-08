@@ -1,9 +1,9 @@
 #pragma once
 #include <global.h>
 #include <forward.h>
-#include <Utilities/swapChainUtility.h>
-#include <Utilities/imageUtility.h>
-#include <Utilities/deviceUtility.h>
+#include <Vulkan/Utilities/vSwapChainUtil.h>
+#include <Vulkan/Utilities/vImageUtil.h>
+#include <Vulkan/Utilities/vDeviceUtil.h>
 
 #ifdef DEBUG_GRAPHICS_PLAYGROUND
 static const bool ENABLE_VALIDATION = true;
