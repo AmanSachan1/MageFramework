@@ -186,7 +186,7 @@ inline void VulkanRendererBackend::addPostProcessPass(std::string effectName,
 		const VkFormat colorFormat = VK_FORMAT_B8G8R8A8_UNORM;
 		m_8bitPasses[m_numPostEffects].serialIndex = m_numPostEffects;
 		addRenderPass_PostProcess(m_32bitPasses[m_numPostEffects].renderPass, colorFormat, m_depth.format);
-		addFrameBuffers_PostProcess(m_32bitPasses[m_numPostEffects], colorFormat, POST_PROCESS_GROUP::PASS_32BIT);
+		addFrameBuffers_PostProcess(m_32bitPasses[m_numPostEffects], colorFormat, POST_PROCESS_GROUP::PASS_8BIT);
 		addPipeline_PostProcess(effectName, effectDSL, m_32bitPasses[m_numPostEffects].renderPass);
 	}
 	else if (postType == POST_PROCESS_GROUP::PASS_TONEMAP)
@@ -237,7 +237,7 @@ inline void VulkanRendererBackend::addFrameBuffers_PostProcess(
 
 	for (uint32_t i = 0; i < m_numSwapChainImages; i++)
 	{
-		std::array<VkImageView, 2> attachments = { passRPI.inputImages[i].view, m_depth.view };
+		std::array<VkImageView, 1> attachments = { passRPI.inputImages[i].view };// , m_depth.view
 
 		FrameResourcesUtil::createFrameBuffer(m_logicalDevice, passRPI.frameBuffers[i], passRPI.renderPass,
 			m_windowExtents, static_cast<uint32_t>(attachments.size()), attachments.data());

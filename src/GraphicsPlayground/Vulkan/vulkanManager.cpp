@@ -173,10 +173,15 @@ void VulkanManager::createLogicalDevice(QueueFlagBits requiredQueues)
 
 	// Specify the set of device features used
 	VkPhysicalDeviceFeatures deviceFeatures = {};
+	deviceFeatures.geometryShader = VK_TRUE;
+	deviceFeatures.tessellationShader = VK_TRUE;
 	// enable anisotropic filtering -- HIGH Performance Cost
 	deviceFeatures.samplerAnisotropy = VK_TRUE;
 	// enable sample shading feature for the device -- HIGH Performance Cost
 	deviceFeatures.sampleRateShading = VK_TRUE;
+	// Needed otherwise compiler complains, possibly related to https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/327
+	deviceFeatures.fragmentStoresAndAtomics = VK_TRUE;
+
 
 	// Actually create logical device
 	if (ENABLE_VALIDATION)
@@ -406,7 +411,8 @@ bool VulkanManager::isPhysicalDeviceSuitable(VkPhysicalDevice pDevice, std::vect
 		== VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU &&
 		deviceFeatures.geometryShader &&
 		deviceFeatures.tessellationShader &&
-		deviceFeatures.samplerAnisotropy);
+		deviceFeatures.samplerAnisotropy &&
+		deviceFeatures.fragmentStoresAndAtomics);
 
 	bool queueSupport = true;
 	m_queueFamilyIndices = VulkanDevicesUtil::checkDeviceQueueSupport(pDevice, requiredQueues, vkSurface);
