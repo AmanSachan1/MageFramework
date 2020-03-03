@@ -6,9 +6,9 @@ inline void VulkanRendererBackend::cleanupPipelines()
 	// Compute Pipeline
 	vkDestroyPipeline(m_logicalDevice, m_compute_P, nullptr);
 	vkDestroyPipelineLayout(m_logicalDevice, m_compute_PL, nullptr);
-	// Final Composite Pipeline
-	vkDestroyPipeline(m_logicalDevice, m_finalComposite_P, nullptr);
-	vkDestroyPipelineLayout(m_logicalDevice, m_finalComposite_PL, nullptr);
+	// Composite Compute Onto Raster Pipeline
+	vkDestroyPipeline(m_logicalDevice, m_compositeComputeOntoRaster_P, nullptr);
+	vkDestroyPipelineLayout(m_logicalDevice, m_compositeComputeOntoRaster_PL, nullptr);
 	// Rasterization Pipeline
 	vkDestroyPipeline(m_logicalDevice, m_rasterization_P, nullptr);
 	vkDestroyPipelineLayout(m_logicalDevice, m_rasterization_PL, nullptr);
@@ -25,10 +25,10 @@ inline void VulkanRendererBackend::createComputePipeline(VkPipeline& computePipe
 	// No need for the shader modules anymore, so we destory them!
 	vkDestroyShaderModule(m_logicalDevice, compShaderModule, nullptr);
 }
-inline void VulkanRendererBackend::createFinalCompositePipeline(std::vector<VkDescriptorSetLayout>& compositeDSL)
+inline void VulkanRendererBackend::createCompositeComputeOntoRasterPipeline(std::vector<VkDescriptorSetLayout>& compositeDSL)
 {
 	// -------- Create Pipeline Layout -------------
-	m_finalComposite_PL = VulkanPipelineCreation::createPipelineLayout(m_logicalDevice, compositeDSL, 0, nullptr);
+	m_compositeComputeOntoRaster_PL = VulkanPipelineCreation::createPipelineLayout(m_logicalDevice, compositeDSL, 0, nullptr);
 
 	// -------- Empty Vertex Input --------
 	VkPipelineVertexInputStateCreateInfo vertexInput = VulkanPipelineStructures::vertexInputInfo(0, nullptr, 0, nullptr);
@@ -38,12 +38,12 @@ inline void VulkanRendererBackend::createFinalCompositePipeline(std::vector<VkDe
 	VkShaderModule vertShaderModule, fragShaderModule;
 	std::vector<VkPipelineShaderStageCreateInfo> shaderStages; shaderStages.resize(2);
 
-	ShaderUtil::createShaderStageInfos_RenderToQuad(shaderStages, "finalComposite", vertShaderModule, fragShaderModule, m_logicalDevice);
+	ShaderUtil::createShaderStageInfos_RenderToQuad(shaderStages, "compositeComputeOntoRaster", vertShaderModule, fragShaderModule, m_logicalDevice);
 
 	// -------- Create graphics pipeline ---------	
 	VulkanPipelineCreation::createGraphicsPipeline(m_logicalDevice,
-		m_finalComposite_P, m_finalComposite_PL,
-		m_toDisplayRPI.renderPass, 0,
+		m_compositeComputeOntoRaster_P, m_compositeComputeOntoRaster_PL,
+		m_compositeComputeOntoRasterRPI.renderPass, 0,
 		stageCount, shaderStages.data(), vertexInput, m_vulkanObj->getSwapChainVkExtent());
 
 	// No need for the shader modules anymore, so we destory them!

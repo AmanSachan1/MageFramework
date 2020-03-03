@@ -43,6 +43,15 @@ public:
 	// Fences
 	void waitForAndResetInFlightFence();
 
+	// Image Transitions
+	void transitionSwapChainImageLayout(uint32_t index, VkImageLayout oldLayout, VkImageLayout newLayout, VkCommandBuffer& graphicsCmdBuffer, VkCommandPool& graphicsCmdPool);
+	void transitionSwapChainImageLayout_SingleTimeCommand(uint32_t index, VkImageLayout oldLayout, VkImageLayout newLayout, VkCommandPool& graphicsCmdPool);
+
+	// Copy srcImage to swapchain image
+	// The source image has to be inVK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
+	// The swapchain image has to be in VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+	void copyImageToSwapChainImage(uint32_t index, VkImage& srcImage, VkCommandBuffer& graphicsCmdBuffer, VkCommandPool& graphicsCmdPool, VkExtent2D imgExtents);
+
 	//---------
 	// Getters
 	//---------

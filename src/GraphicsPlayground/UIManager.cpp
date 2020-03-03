@@ -1,6 +1,9 @@
 #pragma once
 #include "UIManager.h"
 
+// Disable Warning C26451: Arithmetic overflow; Because of imgui_draw.cpp
+#pragma warning( disable : 26451 )
+
 #include <imgui.cpp>
 #include <imgui_demo.cpp>
 #include <imgui_draw.cpp>
@@ -28,7 +31,7 @@ UIManager::UIManager(GLFWwindow* window, VulkanManager* vulkanObj, RendererOptio
 	const VkExtent2D extents = m_vulkanObj->getSwapChainVkExtent();
 	m_windowWidth = extents.width;
 	m_windowHeight = extents.height;
-	m_stateChangeed = true;
+	m_stateChanged = true;
 
 	// Set options
 	{
@@ -50,6 +53,8 @@ UIManager::UIManager(GLFWwindow* window, VulkanManager* vulkanObj, RendererOptio
 UIManager::~UIManager()
 {
 	clean();
+	vkDestroyDescriptorPool(m_vulkanObj->getLogicalDevice(), m_UIDescriptorPool, nullptr);
+	vkDestroyCommandPool(m_logicalDevice, m_UICommandPool, nullptr);
 
 	ImGui_ImplVulkan_Shutdown();
 	ImGui_ImplGlfw_Shutdown();
@@ -62,36 +67,30 @@ void UIManager::clean()
 	{
 		vkDestroyFramebuffer(m_logicalDevice, framebuffer, nullptr);
 	}
-
 	vkDestroyRenderPass(m_logicalDevice, m_UIRenderPass, nullptr);
-
-	vkDestroyDescriptorPool(m_vulkanObj->getLogicalDevice(), m_UIDescriptorPool, nullptr);
-
+	
 	vkFreeCommandBuffers(m_logicalDevice, m_UICommandPool, static_cast<uint32_t>(m_UICommandBuffers.size()), m_UICommandBuffers.data());
-	vkDestroyCommandPool(m_logicalDevice, m_UICommandPool, nullptr);
 }
-void UIManager::resize()
+void UIManager::resize(GLFWwindow* window)
 {
-	// TODO
-	// Note: Function not used right now.
-	// Resizing of the window is handled through recreate(). 
-	// It is likely that all of the things being done in recreate() are not necessary for a resize operation.
-	// Want to concentrate on other features
-
-	ImGui_ImplVulkan_SetMinImageCount(m_vulkanObj->getSwapChainImageCount());
-}
-void UIManager::recreate(GLFWwindow* window)
-{
-	clean();
-	setupVulkanObjectsForImgui();
-	setupPlatformAndRendererBindings(window);
-	uploadFonts();
-
 	const VkExtent2D extents = m_vulkanObj->getSwapChainVkExtent();
 	m_windowWidth = extents.width;
 	m_windowHeight = extents.height;
-	m_stateChangeed = true;
+	m_stateChanged = true;
+
+	// Destroys CommandBuffers, Framebuffers, and Renderpasses
+	clean();
+
+	// Recreate CommandBuffers
+	const int numSWImages = m_vulkanObj->getSwapChainImageCount();
+	m_UICommandBuffers.resize(numSWImages);
+	VulkanCommandUtil::allocateCommandBuffers(m_logicalDevice, m_UICommandPool, m_UICommandBuffers);
+
+	// Recreate FrameBuffers and Renderpasses again
+	createRenderPass();
+	createFrameBuffers();
 }
+
 
 void UIManager::update(float frameTime)
 {
@@ -139,11 +138,11 @@ void UIManager::updateState(float frameTime)
 	if(m_options.showStatisticsWindow) statisticsWindow(frameTime);
 	if(m_options.showOptionsWindow) optionsWindow();
 
-	m_stateChangeed = false;
+	m_stateChanged = false;
 }
 void UIManager::statisticsWindow(float frameTime)
 {
-	if (m_stateChangeed)
+	if (m_stateChanged)
 	{
 		m_options.statisticsWindowSize.x = 200; // width
 		m_options.statisticsWindowSize.y = 50; // height
@@ -183,7 +182,7 @@ void UIManager::statisticsWindow(float frameTime)
 }
 void UIManager::optionsWindow()
 {
-	if (m_stateChangeed)
+	if (m_stateChanged)
 	{
 		m_options.optionsWindowSize.x = 300; // width
 		m_options.optionsWindowSize.y = 150; // height

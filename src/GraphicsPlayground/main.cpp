@@ -242,5 +242,6 @@ int main()
 		return EXIT_FAILURE;
 	}
 
+	std::cout << "Mage Engine Successfull Exit" << std::endl;
 	return EXIT_SUCCESS;
 }

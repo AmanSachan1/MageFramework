@@ -19,7 +19,7 @@ VulkanRendererBackend::~VulkanRendererBackend()
 	// Descriptor Pool
 	vkDestroyDescriptorPool(m_logicalDevice, m_descriptorPool, nullptr);
 	// Descriptor Set Layouts
-	vkDestroyDescriptorSetLayout(m_logicalDevice, m_DSL_finalComposite, nullptr);
+	vkDestroyDescriptorSetLayout(m_logicalDevice, m_DSL_compositeComputeOntoRaster, nullptr);
 	//vkDestroyDescriptorSetLayout(m_logicalDevice, m_DSL_compute, nullptr);
 	for (int i = 0; i < m_postProcessDescriptors.size(); i++)
 	{
@@ -37,29 +37,32 @@ void VulkanRendererBackend::cleanup()
 	cleanupPostProcess();
 }
 
+
 void VulkanRendererBackend::createPipelines(DescriptorSetLayouts& pipelineDescriptorSetLayouts)
 {
 	std::vector<VkDescriptorSetLayout>& compute_DSL = pipelineDescriptorSetLayouts.computeDSL;
-	std::vector<VkDescriptorSetLayout>& finalComposite_DSL = pipelineDescriptorSetLayouts.finalCompositeDSL;
+	std::vector<VkDescriptorSetLayout>& compositeComputeOntoRaster_DSL = pipelineDescriptorSetLayouts.compositeComputeOntoRasterDSL;
 	std::vector<VkDescriptorSetLayout>& rasterization_DSL = pipelineDescriptorSetLayouts.geomDSL;
 
 	m_compute_PL = VulkanPipelineCreation::createPipelineLayout(m_logicalDevice, compute_DSL, 0, nullptr);
 	createComputePipeline(m_compute_P, m_compute_PL, "testComputeShader");
 
-	createFinalCompositePipeline(finalComposite_DSL);
+	createCompositeComputeOntoRasterPipeline(compositeComputeOntoRaster_DSL);
 	createRasterizationRenderPipeline(rasterization_DSL);
 }
 void VulkanRendererBackend::createRenderPassesAndFrameResources()
 {
-	createRenderPasses();
+	const VkImageLayout layoutBeforeImageCreation = VK_IMAGE_LAYOUT_UNDEFINED; // can be VK_IMAGE_LAYOUT_UNDEFINED or VK_IMAGE_LAYOUT_PREINITIALIZED
+	const VkImageLayout layoutToTransitionImageToAfterCreation = VK_IMAGE_LAYOUT_UNDEFINED; // No transition if same as layoutBeforeImageCreation
+	const VkImageLayout layoutAfterRenderPassExecuted = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	createRenderPasses(layoutToTransitionImageToAfterCreation, layoutAfterRenderPassExecuted);
 	createDepthResources();
-	createFrameBuffers();
+	createFrameBuffers(layoutBeforeImageCreation, layoutToTransitionImageToAfterCreation, layoutAfterRenderPassExecuted);
 }
-void VulkanRendererBackend::createAllPostProcessEffects()
+void VulkanRendererBackend::createAllPostProcessEffects(Scene* scene)
 {
 	prePostProcess();
 	
-
 	// Add 32 bit passes
 	//addPostProcessPass("32bit", std::vector<VkDescriptorSetLayout>& effectDSL, POST_PROCESS_GROUP::PASS_32BIT);
 
@@ -67,6 +70,7 @@ void VulkanRendererBackend::createAllPostProcessEffects()
 	{
 		std::vector<VkDescriptorSetLayout> effectDSL;
 		effectDSL.push_back(m_postProcessDescriptors[0].postProcess_DSL);
+		effectDSL.push_back(scene->getDescriptorSetLayout(DSL_TYPE::TIME));
 		addPostProcessPass("tonemap", effectDSL, POST_PROCESS_GROUP::PASS_TONEMAP);
 	}
 
@@ -83,10 +87,10 @@ void VulkanRendererBackend::createAllPostProcessEffects()
 // Descriptor Sets
 void VulkanRendererBackend::expandDescriptorPool(std::vector<VkDescriptorPoolSize>& poolSizes)
 {
-	// Final Composite pass writes to the swapchain image(s) so doesnt need a separate desciptor for that
+	// Composite Compute Onto Raster pass writes to the swapchain image(s) so doesnt need a separate desciptor for that
 	// It does need descriptors for any images it reads in
 
-	// FINAL COMPOSITE
+	// COMPOSITE COMPUTE ONTO RASTER
 	poolSizes.push_back({ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, m_numSwapChainImages }); // compute image
 	poolSizes.push_back({ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, m_numSwapChainImages }); // geomRenderPass image
 
@@ -110,22 +114,22 @@ void VulkanRendererBackend::createDescriptors(VkDescriptorPool descriptorPool)
 		// which descriptors the shaders will be using.
 		// The numbers are bindingCount, binding, and descriptorCount respectively
 
-		// FINAL COMPOSITE
+		// RASTER + COMPUTE COMPOSITE
 		const uint32_t numImagesComposited = 2;
 		VkDescriptorSetLayoutBinding computePassImageLB = { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
 		VkDescriptorSetLayoutBinding geomRenderedImageLB = { 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
 
-		std::array<VkDescriptorSetLayoutBinding, numImagesComposited> finalCompositeLBs = { computePassImageLB, geomRenderedImageLB };
-		DescriptorUtil::createDescriptorSetLayout(m_logicalDevice, m_DSL_finalComposite, numImagesComposited, finalCompositeLBs.data());
+		std::array<VkDescriptorSetLayoutBinding, numImagesComposited> compositeComputeOntoRasterLBs = { computePassImageLB, geomRenderedImageLB };
+		DescriptorUtil::createDescriptorSetLayout(m_logicalDevice, m_DSL_compositeComputeOntoRaster, numImagesComposited, compositeComputeOntoRasterLBs.data());
 	}
 
 	// Descriptor Sets
 	{
-		m_DS_finalComposite.resize(m_numSwapChainImages);
+		m_DS_compositeComputeOntoRaster.resize(m_numSwapChainImages);
 		for (uint32_t i = 0; i < m_numSwapChainImages; i++)
 		{
-			// Final Composite
-			DescriptorUtil::createDescriptorSets(m_logicalDevice, descriptorPool, 1, &m_DSL_finalComposite, &m_DS_finalComposite[i]);
+			// Composite Compute Onto Raster
+			DescriptorUtil::createDescriptorSets(m_logicalDevice, descriptorPool, 1, &m_DSL_compositeComputeOntoRaster, &m_DS_compositeComputeOntoRaster[i]);
 		}
 	}
 
@@ -137,7 +141,7 @@ void VulkanRendererBackend::writeToAndUpdateDescriptorSets(DescriptorSetDependen
 
 	for (uint32_t i = 0; i < m_numSwapChainImages; i++)
 	{
-		// Final Composite
+		// Composite Compute onto Raster
 		{
 			VkDescriptorImageInfo computePassImageSetInfo = DescriptorUtil::createDescriptorImageInfo(
 				descSetDependencies.computeImages[i]->getSampler(),
@@ -148,13 +152,13 @@ void VulkanRendererBackend::writeToAndUpdateDescriptorSets(DescriptorSetDependen
 				descSetDependencies.geomRenderPassImageSet[i].imageView,
 				descSetDependencies.geomRenderPassImageSet[i].imageLayout);
 
-			std::array<VkWriteDescriptorSet, numImagesComposited> writeFinalCompositeSetInfo = {};
-			writeFinalCompositeSetInfo[0] = DescriptorUtil::writeDescriptorSet(
-				m_DS_finalComposite[i], 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &computePassImageSetInfo);
-			writeFinalCompositeSetInfo[1] = DescriptorUtil::writeDescriptorSet(
-				m_DS_finalComposite[i], 1, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &geomRenderedImageSetInfo);
+			std::array<VkWriteDescriptorSet, numImagesComposited> writeCompositeComputeOntoRasterSetInfo = {};
+			writeCompositeComputeOntoRasterSetInfo[0] = DescriptorUtil::writeDescriptorSet(
+				m_DS_compositeComputeOntoRaster[i], 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &computePassImageSetInfo);
+			writeCompositeComputeOntoRasterSetInfo[1] = DescriptorUtil::writeDescriptorSet(
+				m_DS_compositeComputeOntoRaster[i], 1, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &geomRenderedImageSetInfo);
 
-			vkUpdateDescriptorSets(m_logicalDevice, numImagesComposited, writeFinalCompositeSetInfo.data(), 0, nullptr);
+			vkUpdateDescriptorSets(m_logicalDevice, numImagesComposited, writeCompositeComputeOntoRasterSetInfo.data(), 0, nullptr);
 		}
 	}
 
@@ -171,8 +175,8 @@ VkPipeline VulkanRendererBackend::getPipeline(PIPELINE_TYPE type, int postProces
 	case PIPELINE_TYPE::RASTER:
 		return m_rasterization_P;
 		break;
-	case PIPELINE_TYPE::FINAL_COMPOSITE:
-		return m_finalComposite_P;
+	case PIPELINE_TYPE::COMPOSITE_COMPUTE_ONTO_RASTER:
+		return m_compositeComputeOntoRaster_P;
 		break;
 	case PIPELINE_TYPE::COMPUTE:
 		return m_compute_P;
@@ -193,8 +197,8 @@ VkPipelineLayout VulkanRendererBackend::getPipelineLayout(PIPELINE_TYPE type, in
 	case PIPELINE_TYPE::RASTER:
 		return m_rasterization_PL;
 		break;
-	case PIPELINE_TYPE::FINAL_COMPOSITE:
-		return m_finalComposite_PL;
+	case PIPELINE_TYPE::COMPOSITE_COMPUTE_ONTO_RASTER:
+		return m_compositeComputeOntoRaster_PL;
 		break;
 	case PIPELINE_TYPE::COMPUTE:
 		return m_compute_PL;
@@ -212,12 +216,12 @@ VkDescriptorSet VulkanRendererBackend::getDescriptorSet(DSL_TYPE type, int frame
 {
 	switch (type)
 	{
-	case DSL_TYPE::FINAL_COMPOSITE:
-		return m_DS_finalComposite[frameIndex];
+	case DSL_TYPE::COMPOSITE_COMPUTE_ONTO_RASTER:
+		return m_DS_compositeComputeOntoRaster[frameIndex];
 		break;
 	case DSL_TYPE::POST_PROCESS:
 		return m_postProcessDescriptors[postProcessIndex].postProcess_DSs[frameIndex];
-		break;		
+		break;
 	default:
 		throw std::runtime_error("no such Descriptor Set Layout Type (DSL_TYPE) exists");
 	}
@@ -228,8 +232,8 @@ VkDescriptorSetLayout VulkanRendererBackend::getDescriptorSetLayout(DSL_TYPE typ
 {
 	switch (type)
 	{
-	case DSL_TYPE::FINAL_COMPOSITE:
-		return m_DSL_finalComposite;
+	case DSL_TYPE::COMPOSITE_COMPUTE_ONTO_RASTER:
+		return m_DSL_compositeComputeOntoRaster;
 		break;
 	case DSL_TYPE::POST_PROCESS:
 		return m_postProcessDescriptors[postProcessIndex].postProcess_DSL;

@@ -8,12 +8,15 @@
 #include <Utilities/generalUtility.h>
 #include <Vulkan/vulkanManager.h>
 
+#include "Camera.h"
+#include "Scene.h"
 #include "SceneElements/texture.h"
+
 
 struct DescriptorSetLayouts
 {
 	std::vector<VkDescriptorSetLayout> computeDSL;
-	std::vector<VkDescriptorSetLayout> finalCompositeDSL;
+	std::vector<VkDescriptorSetLayout> compositeComputeOntoRasterDSL;
 	std::vector<VkDescriptorSetLayout> geomDSL;
 };
 
@@ -45,7 +48,7 @@ public:
 
 	void createPipelines(DescriptorSetLayouts& pipelineDescriptorSetLayouts);
 	void createRenderPassesAndFrameResources();
-	void createAllPostProcessEffects();
+	void createAllPostProcessEffects(Scene* scene);
 	
 	// Descriptor Sets
 	void expandDescriptorPool(std::vector<VkDescriptorPoolSize>& poolSizes);
@@ -57,11 +60,18 @@ public:
 	void recreateCommandBuffers();
 	void submitCommandBuffers();
 
+	void recordCommandBuffer_ComputeCmds(unsigned int frameIndex, VkCommandBuffer& ComputeCmdBuffer, Scene* scene);
+	void recordCommandBuffer_GraphicsCmds(unsigned int frameIndex, VkCommandBuffer& graphicsCmdBuffer, Scene* scene, Camera* camera);
+	void recordCommandBuffer_PostProcessCmds(unsigned int frameIndex, VkCommandBuffer& graphicsCmdBuffer,
+		Scene* scene, VkRect2D renderArea, uint32_t clearValueCount, const VkClearValue* clearValue);
+	void recordCommandBuffer_FinalCmds(unsigned int frameIndex, VkCommandBuffer& graphicsCmdBuffer);
+
+
 	// Getters
 	VkPipeline getPipeline(PIPELINE_TYPE type, int postProcessIndex = 0);
 	VkPipelineLayout getPipelineLayout(PIPELINE_TYPE type, int postProcessIndex = 0);
 	VkDescriptorSet getDescriptorSet(DSL_TYPE type, int frameIndex, int postProcessIndex = 0);
-		VkDescriptorSetLayout getDescriptorSetLayout(DSL_TYPE type, int postProcessIndex = 0);
+	VkDescriptorSetLayout getDescriptorSetLayout(DSL_TYPE type, int postProcessIndex = 0);
 	const VkDescriptorPool getDescriptorPool() const { return m_descriptorPool; }
 	const VkCommandBuffer getComputeCommandBuffer(uint32_t index) const { return m_computeCommandBuffers[index]; }
 	const VkCommandBuffer getGraphicsCommandBuffer(uint32_t index) const { return m_graphicsCommandBuffers[index]; }
@@ -74,9 +84,9 @@ public:
 public:
 	// --- Render Passes --- 
 	// RPI stands for Render Pass Info
-	RenderPassInfo m_toDisplayRPI; // Renders to actual swapChain Images -- Composite pass
-	RenderPassInfo m_rasterRPI; // Renders to an offscreen framebuffer
-	RenderPassInfo m_lastPostProcessRPI; // Renders to actual swapChain Images
+	// RenderPasses render to their own framebuffers unless otherwise specified
+	RenderPassInfo m_compositeComputeOntoRasterRPI; // Composites compute work (if that compute work was meant to be composited directly) onto the results of the raster render pass below 
+	RenderPassInfo m_rasterRPI; // Typical Forward render pass
 
 private:
 	void cleanupPipelines();
@@ -84,15 +94,18 @@ private:
 	void cleanupPostProcess();
 
 	// Render Passes
-	void createRenderPasses();
+	void createRenderPasses(const VkImageLayout& beforeRenderPassExecuted, const VkImageLayout& afterRenderPassExecuted);
 	// Frame Buffer Attachments -- Used in conjunction with RenderPasses but not needed for their creation
 	void createDepthResources();
-	void createFrameBuffers();
+	void createFrameBuffers(
+		const VkImageLayout& layoutBeforeImageCreation,
+		const VkImageLayout& layoutToTransitionImageToAfterCreation,
+		const VkImageLayout& layoutAfterRenderPassExecuted );
 	
 	// Pipelines
 	void createComputePipeline(VkPipeline& computePipeline, VkPipelineLayout computePipelineLayout, const std::string &pathToShader);
 	void createRasterizationRenderPipeline(std::vector<VkDescriptorSetLayout>& rasterizationDSL);
-	void createFinalCompositePipeline(std::vector<VkDescriptorSetLayout>&  compositeDSL);
+	void createCompositeComputeOntoRasterPipeline(std::vector<VkDescriptorSetLayout>&  compositeDSL);
 
 	// Command Buffers
 	void createCommandPoolsAndBuffers();
@@ -101,16 +114,19 @@ private:
 	// Post Process
 	void expandDescriptorPool_PostProcess(std::vector<VkDescriptorPoolSize>& poolSizes);
 	void createDescriptors_PostProcess(VkDescriptorPool descriptorPool);
-	void createDescriptors_PostProcess(VkDescriptorPool descriptorPool, int& index, const std::string name,
-		uint32_t bindingCount, VkDescriptorSetLayoutBinding* bindings);
 	void writeToAndUpdateDescriptorSets_PostProcess();
 	
 	void prePostProcess();
 	void createAllPostProcessSamplers();
 	void addPostProcessPass(std::string effectName, std::vector<VkDescriptorSetLayout>& effectDSL, POST_PROCESS_GROUP postType);
+
+	// A image that is rendered to in one pass will be read from in the next pass. For this reason we treat the images as storage images,
+	// which helps us avoid constantly transitioning the images from a color attachment optimal state to a read only optimal state.
+	// Load and store operations on storage images can only be done on images in VK_IMAGE_LAYOUT_GENERAL layout.
 	void addRenderPass_PostProcess(VkRenderPass& l_renderPass, const VkFormat colorFormat, const VkFormat depthFormat,
-		const VkImageLayout finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-	void addFrameBuffers_PostProcess(PostProcessRPI& passRPI, VkFormat colorFormat, POST_PROCESS_GROUP postType);
+		const VkImageLayout initialLayout, const VkImageLayout finalLayout);
+	void addFrameBuffers_PostProcess(PostProcessRPI& passRPI, VkFormat colorFormat, POST_PROCESS_GROUP postType, const VkImageUsageFlags usage,
+		const VkImageLayout beforeCreation, const VkImageLayout afterCreation, const VkImageLayout afterRenderPassExecuted);
 	void addPipeline_PostProcess(const std::string &shaderName, std::vector<VkDescriptorSetLayout>& l_postProcessDSL,
 		VkRenderPass& l_renderPass, const uint32_t subpass = 0, VkExtent2D extents = { 0,0 });
 
@@ -124,19 +140,19 @@ private:
 
 	VkDescriptorPool m_descriptorPool;
 	// --- Descriptor Sets ---
-	VkDescriptorSetLayout m_DSL_finalComposite;
-	std::vector<VkDescriptorSet> m_DS_finalComposite;
+	VkDescriptorSetLayout m_DSL_compositeComputeOntoRaster;
+	std::vector<VkDescriptorSet> m_DS_compositeComputeOntoRaster;
 	VkDescriptorSetLayout m_DSL_compute;
 	std::vector<VkDescriptorSet> m_DS_compute;
 	
 	// --- Pipelines ---
 	// Pipelines -- P
 	VkPipeline m_rasterization_P;
-	VkPipeline m_finalComposite_P;
+	VkPipeline m_compositeComputeOntoRaster_P;
 	VkPipeline m_compute_P;
 	// Pipeline Layouts -- PLs
 	VkPipelineLayout m_rasterization_PL;
-	VkPipelineLayout m_finalComposite_PL;
+	VkPipelineLayout m_compositeComputeOntoRaster_PL;
 	VkPipelineLayout m_compute_PL;	
 
 	// --- Frame Buffer Attachments --- 
@@ -157,7 +173,6 @@ private:
 
 public:
 	// --- PostProcess ---
-	// The last post process pass should write to the set of framebuffers in m_lastPostProcessRPI. 
 	// This set can then be referenced by the UI pass easily.
 	std::vector<VkDescriptorImageInfo> m_prePostProcessInput; // result of render passes that occur before post process work.
 
@@ -165,7 +180,6 @@ public:
 	std::vector<PostProcessRPI> m_32bitPasses;
 	std::vector<PostProcessRPI> m_8bitPasses;
 	PostProcessRPI m_toneMapRPI;
-
 
 	// Should be able to use a single sampler for all the images as long as they are the same format and size
 	VkSampler m_32bitSampler;

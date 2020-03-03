@@ -59,8 +59,7 @@ public:
 	~UIManager();
 	
 	void clean();
-	void resize();
-	void recreate(GLFWwindow* window);
+	void resize(GLFWwindow* window);
 	
 	void update(float frameTime);
 	void submitDrawCommands();
@@ -72,7 +71,7 @@ private:
 	UIOptions m_options;
 	RendererOptions m_rendererOptions;
 	unsigned int m_windowWidth, m_windowHeight;
-	bool m_stateChangeed;
+	bool m_stateChanged;
 
 	//-------------------------------------------
 	// UI Specific vulkan objects for rendering

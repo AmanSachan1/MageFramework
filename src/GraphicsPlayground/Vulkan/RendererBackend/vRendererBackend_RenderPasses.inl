@@ -14,27 +14,32 @@ inline void VulkanRendererBackend::cleanupRenderPassesAndFrameResources()
 	for (uint32_t i = 0; i < m_numSwapChainImages; i++)
 	{
 		// Destroy Framebuffers
-		vkDestroyFramebuffer(m_logicalDevice, m_toDisplayRPI.frameBuffers[i], nullptr);
+		vkDestroyFramebuffer(m_logicalDevice, m_compositeComputeOntoRasterRPI.frameBuffers[i], nullptr);
 		vkDestroyFramebuffer(m_logicalDevice, m_rasterRPI.frameBuffers[i], nullptr);
 
 		// Destroy the color attachments
 		{
-			// Don't need to do this for m_toDisplayRPI
 			// m_rasterRPI.color
 			vkDestroyImage(m_logicalDevice, m_rasterRPI.color[i].image, nullptr);
 			vkDestroyImageView(m_logicalDevice, m_rasterRPI.color[i].view, nullptr);
 			vkFreeMemory(m_logicalDevice, m_rasterRPI.color[i].memory, nullptr);
+
+			// m_compositeComputeOntoRasterRPI.color
+			vkDestroyImage(m_logicalDevice, m_compositeComputeOntoRasterRPI.color[i].image, nullptr);
+			vkDestroyImageView(m_logicalDevice, m_compositeComputeOntoRasterRPI.color[i].view, nullptr);
+			vkFreeMemory(m_logicalDevice, m_compositeComputeOntoRasterRPI.color[i].memory, nullptr);
 		}
 	}
 
 	// Destroy Samplers
 	vkDestroySampler(m_logicalDevice, m_rasterRPI.sampler, nullptr);
+	vkDestroySampler(m_logicalDevice, m_compositeComputeOntoRasterRPI.sampler, nullptr);
 
 	// Destroy Renderpasses
-	vkDestroyRenderPass(m_logicalDevice, m_toDisplayRPI.renderPass, nullptr);
+	vkDestroyRenderPass(m_logicalDevice, m_compositeComputeOntoRasterRPI.renderPass, nullptr);
 	vkDestroyRenderPass(m_logicalDevice, m_rasterRPI.renderPass, nullptr);
 }
-inline void VulkanRendererBackend::createRenderPasses()
+inline void VulkanRendererBackend::createRenderPasses(const VkImageLayout& beforeRenderPassExecuted, const VkImageLayout& afterRenderPassExecuted)
 {
 	// https://vulkan-tutorial.com/Drawing_a_triangle/Graphics_pipeline_basics/Render_passes
 	// A VkRenderPass object tells us the following things:
@@ -59,7 +64,6 @@ inline void VulkanRendererBackend::createRenderPasses()
 	// --- Raster Render Pass --- 
 	// Renders Geometry to an offscreen buffer
 	{
-		const VkImageLayout finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 		std::vector<VkSubpassDependency> subpassDependencies;
 		{
 			// Transition from tasks before this render pass (including runs through other pipelines before it, hence fragment shader bit)
@@ -75,15 +79,14 @@ inline void VulkanRendererBackend::createRenderPasses()
 					VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT));
 		}
 		RenderPassUtil::renderPassCreationHelper(m_logicalDevice, m_rasterRPI.renderPass,
-			swapChainImageFormat, m_depthFormat, finalLayout, subpassDependencies);
+			swapChainImageFormat, m_depthFormat, beforeRenderPassExecuted, afterRenderPassExecuted, subpassDependencies);
 	}
 
-	// --- To Display Render Pass --- 
+	// --- Raster + Compute Composite Render Pass --- 
 	// Composites previous Passes and renders result onto swapchain. 
 	// It is the last pass before the UI render pass, which also renders to the swapchain image.
 	// Has to exist, other passes are optional
 	{
-		const VkImageLayout finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		std::vector<VkSubpassDependency> subpassDependencies;
 		{
 			// Transition from tasks before this render pass (including runs through other pipelines before it, hence bottom of pipe)
@@ -98,8 +101,8 @@ inline void VulkanRendererBackend::createRenderPasses()
 					VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
 					VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_ACCESS_MEMORY_READ_BIT));
 		}
-		RenderPassUtil::renderPassCreationHelper(m_logicalDevice, m_toDisplayRPI.renderPass,
-			swapChainImageFormat, m_depthFormat, finalLayout, subpassDependencies);
+		RenderPassUtil::renderPassCreationHelper(m_logicalDevice, m_compositeComputeOntoRasterRPI.renderPass,
+			swapChainImageFormat, m_depthFormat, beforeRenderPassExecuted, afterRenderPassExecuted, subpassDependencies);
 	}
 }
 inline void VulkanRendererBackend::createDepthResources()
@@ -111,7 +114,10 @@ inline void VulkanRendererBackend::createDepthResources()
 	FrameResourcesUtil::createDepthAttachment(m_logicalDevice, m_physicalDevice,
 		m_graphicsQueue, m_graphicsCommandPool, m_depth, m_depthFormat, m_windowExtents);
 }
-inline void VulkanRendererBackend::createFrameBuffers()
+inline void VulkanRendererBackend::createFrameBuffers(
+	const VkImageLayout& layoutBeforeImageCreation, 
+	const VkImageLayout& layoutToTransitionImageToAfterCreation,
+	const VkImageLayout& layoutAfterRenderPassExecuted )
 {
 	// Framebuffers are essentially ImageView objects with more meta data. 
 	// Framebuffers are not limited to use by the swapchain, and can also represent intermediate stages that store the results of renderpasses.
@@ -120,33 +126,9 @@ inline void VulkanRendererBackend::createFrameBuffers()
 	// A framebuffer object references all of the VkImageView objects that represent the attachments. 
 	// Think color attachment and depth attachment 
 
-	VkFormat swapChainImageFormat = m_vulkanObj->getSwapChainImageFormat();
+	const VkFormat swapChainImageFormat = m_vulkanObj->getSwapChainImageFormat();
+	const VkImageUsageFlags frameBufferUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 
-	// To Display
-	{
-		// The framebuffers used for presentation are special and will be managed by the VulkanPresentation class, we just reference them here.
-		m_toDisplayRPI.frameBuffers.resize(m_numSwapChainImages);
-		m_toDisplayRPI.imageSetInfo.resize(m_numSwapChainImages);
-		m_toDisplayRPI.extents = m_windowExtents;
-
-		const uint32_t numAttachments = 2;
-		for (uint32_t i = 0; i < m_numSwapChainImages; i++)
-		{
-			// This one is different from the other render passes because it presents to the swap chain which has already created the
-			// image, imageview, image memory, format, and sampler as part of the swapchain which we just reference here.
-
-			std::array<VkImageView, numAttachments> attachments = { m_vulkanObj->getSwapChainImageView(i), m_depth.view };
-
-			FrameResourcesUtil::createFrameBuffer(m_logicalDevice,
-				m_toDisplayRPI.frameBuffers[i], m_toDisplayRPI.renderPass,
-				m_windowExtents, numAttachments, attachments.data());
-
-			// Fill a descriptor for later use in a descriptor set 
-			m_toDisplayRPI.imageSetInfo[i].imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-			m_toDisplayRPI.imageSetInfo[i].imageView = m_vulkanObj->getSwapChainImageView(i);
-			//m_toDisplayRPI.imageSetInfo[i].sampler = m_toDisplayRPI.sampler;
-		}
-	}
 	// Render Geometry
 	{
 		m_rasterRPI.frameBuffers.resize(m_numSwapChainImages);
@@ -154,20 +136,51 @@ inline void VulkanRendererBackend::createFrameBuffers()
 		m_rasterRPI.imageSetInfo.resize(m_numSwapChainImages);
 		m_rasterRPI.extents = m_windowExtents;
 
-		FrameResourcesUtil::createFrameBufferAttachments(m_logicalDevice, m_physicalDevice,
-			m_numSwapChainImages, m_rasterRPI.color, m_rasterRPI.sampler, swapChainImageFormat, m_windowExtents);
+		FrameResourcesUtil::createFrameBufferAttachments(m_logicalDevice, m_physicalDevice, m_graphicsQueue, m_graphicsCommandPool,
+			m_numSwapChainImages, m_rasterRPI.color, m_rasterRPI.sampler, swapChainImageFormat, 
+			layoutBeforeImageCreation, layoutToTransitionImageToAfterCreation, m_windowExtents, frameBufferUsage);
 
+		const uint32_t numAttachments = 2;
 		for (uint32_t i = 0; i < m_numSwapChainImages; i++)
 		{
-			std::array<VkImageView, 2> attachments = { m_rasterRPI.color[i].view, m_depth.view };
+			std::array<VkImageView, numAttachments> attachments = { m_rasterRPI.color[i].view, m_depth.view };
 
-			FrameResourcesUtil::createFrameBuffer(m_logicalDevice, m_rasterRPI.frameBuffers[i], m_rasterRPI.renderPass,
-				m_windowExtents, static_cast<uint32_t>(attachments.size()), attachments.data());
+			FrameResourcesUtil::createFrameBuffer(m_logicalDevice, 
+				m_rasterRPI.frameBuffers[i], m_rasterRPI.renderPass,
+				m_windowExtents, numAttachments, attachments.data());
 
 			// Fill a descriptor for later use in a descriptor set 
-			m_rasterRPI.imageSetInfo[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			m_rasterRPI.imageSetInfo[i].imageLayout = layoutAfterRenderPassExecuted;
 			m_rasterRPI.imageSetInfo[i].imageView = m_rasterRPI.color[i].view;
 			m_rasterRPI.imageSetInfo[i].sampler = m_rasterRPI.sampler;
+		}
+	}
+
+	// Composite Raster pass with Compute passes
+	{
+		// The framebuffers used for presentation are special and will be managed by the VulkanPresentation class, we just reference them here.
+		m_compositeComputeOntoRasterRPI.frameBuffers.resize(m_numSwapChainImages);
+		m_compositeComputeOntoRasterRPI.color.resize(m_numSwapChainImages);
+		m_compositeComputeOntoRasterRPI.imageSetInfo.resize(m_numSwapChainImages);
+		m_compositeComputeOntoRasterRPI.extents = m_windowExtents;
+
+		FrameResourcesUtil::createFrameBufferAttachments(m_logicalDevice, m_physicalDevice, m_graphicsQueue, m_graphicsCommandPool,
+			m_numSwapChainImages, m_compositeComputeOntoRasterRPI.color, m_compositeComputeOntoRasterRPI.sampler, swapChainImageFormat, 
+			layoutBeforeImageCreation, layoutToTransitionImageToAfterCreation, m_windowExtents, frameBufferUsage);
+
+		const uint32_t numAttachments = 2;
+		for (uint32_t i = 0; i < m_numSwapChainImages; i++)
+		{
+			std::array<VkImageView, numAttachments> attachments = { m_compositeComputeOntoRasterRPI.color[i].view, m_depth.view };
+
+			FrameResourcesUtil::createFrameBuffer(m_logicalDevice,
+				m_compositeComputeOntoRasterRPI.frameBuffers[i], m_compositeComputeOntoRasterRPI.renderPass,
+				m_windowExtents, numAttachments, attachments.data());
+
+			// Fill a descriptor for later use in a descriptor set 
+			m_compositeComputeOntoRasterRPI.imageSetInfo[i].imageLayout = layoutAfterRenderPassExecuted;
+			m_compositeComputeOntoRasterRPI.imageSetInfo[i].imageView = m_compositeComputeOntoRasterRPI.color[i].view;
+			m_compositeComputeOntoRasterRPI.imageSetInfo[i].sampler = m_compositeComputeOntoRasterRPI.sampler;
 		}
 	}
 }

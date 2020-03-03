@@ -1,8 +1,8 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 
-layout(set = 0, binding = 0) uniform sampler2D inputImageSampler;
-layout (set = 0, binding = 1, rgba8) uniform writeonly image2D currentFrameResultImage;
+layout (set = 0, binding = 0) uniform sampler2D inputImageSampler;
+//layout (set = 0, binding = 1, rgba8) uniform writeonly image2D currentFrameResultImage;
 
 layout (set = 1, binding = 0) uniform TimeUBO
 {
@@ -14,8 +14,8 @@ layout (set = 1, binding = 0) uniform TimeUBO
     int frameCountMod16;
 };
 
-layout(location = 0) in vec2 in_uv;
-layout(location = 0) out vec4 outColor;
+layout (location = 0) in vec2 in_uv;
+layout (location = 0) out vec4 outColor;
 
 //Reference: http://filmicworlds.com/blog/filmic-tonemapping-operators/
 //Also https://www.shadertoy.com/view/lslGzl
@@ -67,7 +67,8 @@ float WangHashNoise(uint u, uint v, uint s)
 
 void main() 
 {
-	ivec2 dim = imageSize(currentFrameResultImage);
+	//ivec2 dim = imageSize(currentFrameResultImage);
+	ivec2 dim = textureSize(inputImageSampler, 0);
 	ivec2 pixelPos = clamp(ivec2(round(float(dim.x) * in_uv.x), round(float(dim.y) * in_uv.y)), ivec2(0.0), ivec2(dim.x - 1, dim.y - 1));
 
 	vec3 in_color = texture(inputImageSampler, in_uv).rgb;
@@ -79,6 +80,7 @@ void main()
 	//Dithering to prevent banding
 	float noise = WangHashNoise(pixelPos.x, pixelPos.y, uint(time.y))*0.01;
 	toneMapped_color += vec3(noise);
-
-	imageStore( currentFrameResultImage, pixelPos, vec4(toneMapped_color, 1.0) );
+	
+	outColor = vec4(toneMapped_color, 1.0);
+	//imageStore( currentFrameResultImage, pixelPos, vec4(toneMapped_color, 1.0) );
 }

@@ -198,12 +198,9 @@ namespace ImageUtil
 		return l_imageBarrier;
 	}
 
-	inline void transitionImageLayout(VkDevice& logicalDevice, VkQueue& queue, VkCommandPool& cmdPool,
+	inline void transitionImageLayout(VkDevice& logicalDevice, VkQueue& queue, VkCommandPool& cmdPool, VkCommandBuffer& cmdBuffer,
 		VkImage& image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels)
 	{
-		VkCommandBuffer cmdBuffer;
-		VulkanCommandUtil::beginSingleTimeCommand(logicalDevice, cmdPool, cmdBuffer);
-
 		// Set VkAccessMasks and VkPipelineStageFlags based on the layouts used in the transition
 		VkAccessFlags srcAccessMask, dstAccessMask;
 		VkPipelineStageFlags srcStageMask, dstStageMask;
@@ -224,9 +221,23 @@ namespace ImageUtil
 			flag_ImageLayoutSupported = true;
 			break;
 
+		case VK_IMAGE_LAYOUT_GENERAL:
+			srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT; // Because general?
+			srcStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+
+			flag_ImageLayoutSupported = true;
+			break;
+
 		case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
 			srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 			srcStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
+
+			flag_ImageLayoutSupported = true;
+			break;
+
+		case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+			srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+			srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
 			flag_ImageLayoutSupported = true;
 			break;
@@ -234,6 +245,13 @@ namespace ImageUtil
 
 		switch (newLayout)
 		{
+		case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
+			dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+			dstStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
+
+			flag_ImageLayoutSupported = true;
+			break;
+
 		case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
 			dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 			dstStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
@@ -277,16 +295,24 @@ namespace ImageUtil
 		VkImageSubresourceRange imageSubresourceRange = createImageSubResourceRange(aspectMask, 0, mipLevels, 0, 1);
 		VkImageMemoryBarrier imageBarrier = createImageMemoryBarrier(image, oldLayout, newLayout, srcAccessMask, dstAccessMask, imageSubresourceRange);
 		VulkanCommandUtil::pipelineBarrier(cmdBuffer, srcStageMask, dstStageMask, 0, 0, nullptr, 0, nullptr, 1, &imageBarrier);
+	}
 
+	inline void transitionImageLayout_SingleTimeCommand(VkDevice& logicalDevice, VkQueue& queue, VkCommandPool& cmdPool,
+		VkImage& image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels)
+	{
+		VkCommandBuffer cmdBuffer;
+		VulkanCommandUtil::beginSingleTimeCommand(logicalDevice, cmdPool, cmdBuffer);
+		transitionImageLayout(logicalDevice, queue, cmdPool, cmdBuffer,	image, format, oldLayout, newLayout, mipLevels);
 		VulkanCommandUtil::endAndSubmitSingleTimeCommand(logicalDevice, queue, cmdPool, cmdBuffer);
 	}
 
-	inline void copyBufferToImage(VkDevice& logicalDevice, VkQueue& queue, VkCommandPool& cmdPool,
+	inline void copyBufferToImage_SingleTimeCommand(VkDevice& logicalDevice, VkQueue& queue, VkCommandPool& cmdPool,
 		VkBuffer& buffer, VkImage& image, VkImageLayout dstImageLayout, uint32_t width, uint32_t height)
 	{
 		VkCommandBuffer cmdBuffer;
 		VulkanCommandUtil::beginSingleTimeCommand(logicalDevice, cmdPool, cmdBuffer);
 
+		const uint32_t regionCount = 1;
 		// VkBufferImageCopy specifies which part of the buffer is going to be copied to which part of the image.
 		VkBufferImageCopy region = {};
 
@@ -309,9 +335,38 @@ namespace ImageUtil
 		region.imageExtent = { width, height, 1 };
 
 		// The fourth parameter indicates which layout the image is currently using
-		vkCmdCopyBufferToImage(cmdBuffer, buffer, image, dstImageLayout, 1, &region);
+		vkCmdCopyBufferToImage(cmdBuffer, buffer, image, dstImageLayout, regionCount, &region);
 
 		VulkanCommandUtil::endAndSubmitSingleTimeCommand(logicalDevice, queue, cmdPool, cmdBuffer);
+	}
+
+	inline void copyImageToImage(VkDevice& logicalDevice, VkQueue& queue, VkCommandPool& cmdPool, VkCommandBuffer cmdBuffer,
+		VkImage& srcImage, VkImageLayout srcImageLayout, VkImage& dstImage, VkImageLayout dstImageLayout,
+		uint32_t width, uint32_t height, uint32_t depth = 1)
+	{
+		const uint32_t regionCount = 1;
+		VkImageCopy region = {};
+
+		// imageSubresource, imageOffset and imageExtent fields indicate to which part of the image we want to copy the pixels.
+		region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		region.srcSubresource.mipLevel = 0;
+		region.srcSubresource.baseArrayLayer = 0;
+		region.srcSubresource.layerCount = 1;
+
+		region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		region.dstSubresource.mipLevel = 0;
+		region.dstSubresource.baseArrayLayer = 0;
+		region.dstSubresource.layerCount = 1;
+
+		// srcOffset and dstOffset select the initial x, y, and z offsets in texels of the sub - regions of the source and destination image data.
+		region.srcOffset = { 0, 0, 0 };
+		region.dstOffset = { 0, 0, 0 };
+
+		// extent is the size in texels of the image to copy 
+		region.extent = { width, height, depth };
+
+		// The fourth parameter indicates which layout the image is currently using
+		vkCmdCopyImage(cmdBuffer, srcImage, srcImageLayout, dstImage, dstImageLayout, regionCount, &region);
 	}
 
 	inline VkImageBlit imageBlit(int32_t mipWidth, int32_t mipHeight, int32_t mipDepth, uint32_t srcMipLevel, uint32_t dstMipLevel)

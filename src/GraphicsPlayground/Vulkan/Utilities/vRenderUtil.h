@@ -158,7 +158,8 @@ namespace RenderPassUtil
 
 	// If the colorFormat or the depthFormat is VK_FORMAT_UNDEFINED then that particular attachment is excluded
 	inline void setupAttachmentsAndSubpassDescription(
-		const VkFormat colorFormat, const VkFormat depthFormat, const VkImageLayout finalLayout,
+		const VkFormat colorFormat, const VkFormat depthFormat, 
+		const VkImageLayout initialLayout, const VkImageLayout finalLayout,
 		VkSubpassDescription &subpassDescriptions,
 		std::vector<VkAttachmentDescription> &attachments,
 		std::vector<VkAttachmentReference> &attachmentReferences)
@@ -178,12 +179,16 @@ namespace RenderPassUtil
 		// Color
 		if (addColorAttachment)
 		{
+			// The initialLayout and finalLayout passed in define thelayout the image will be in before and after the renderpass.
+			// The layout used by the VkAttachmentReference, i.e. VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 
+			// is the layout we want the image to be in during the subpass.
+
 			// Color Attachment 
 			attachments.push_back(
 				RenderPassUtil::attachmentDescription(colorFormat, VK_SAMPLE_COUNT_1_BIT,
 					VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE,			  //color data
 					VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE,    //stencil data
-					VK_IMAGE_LAYOUT_UNDEFINED, finalLayout)  //initial and final layout
+					initialLayout, finalLayout)  //initial and final layout
 			);
 			// Color Attachment Reference
 			int attachmentReferenceIndex = static_cast<int>(attachmentReferences.size());
@@ -213,7 +218,8 @@ namespace RenderPassUtil
 	}
 
 	inline void renderPassCreationHelper(VkDevice& logicalDevice, VkRenderPass& renderPass,
-		const VkFormat colorFormat, const VkFormat depthFormat, const VkImageLayout finalLayout,
+		const VkFormat colorFormat, const VkFormat depthFormat, 
+		const VkImageLayout beforeRenderPassExecuted, const VkImageLayout afterRenderPassExecuted,
 		std::vector<VkSubpassDependency> &subpassDependencies)
 	{
 		const uint32_t numSubpassDependencies = static_cast<uint32_t>(subpassDependencies.size());
@@ -227,7 +233,8 @@ namespace RenderPassUtil
 		std::vector<VkAttachmentReference> attachmentReferences; attachmentReferences.reserve(numAttachments);
 
 		//attachment references, and a subpass description
-		setupAttachmentsAndSubpassDescription(colorFormat, depthFormat, finalLayout, subpassDescriptions, attachments, attachmentReferences);
+		setupAttachmentsAndSubpassDescription(colorFormat, depthFormat, 
+			beforeRenderPassExecuted, afterRenderPassExecuted, subpassDescriptions, attachments, attachmentReferences);
 
 		RenderPassUtil::createRenderPass(logicalDevice, renderPass,
 			numAttachments, attachments.data(),
@@ -256,10 +263,10 @@ namespace FrameResourcesUtil
 		}
 	}
 
-	inline void createFrameBufferAttachments(VkDevice& logicalDevice, VkPhysicalDevice& pDevice,
-		const uint32_t numAttachments, std::vector<FrameBufferAttachment>& fbAttachments,
-		VkFormat& imgFormat, VkExtent2D& imageExtent,
-		const uint32_t mipLevels = 1, const uint32_t arrayLayers = 1, const float anisotropy = 16.0f)
+	inline void createFrameBufferAttachments(VkDevice& logicalDevice, VkPhysicalDevice& pDevice, VkQueue& graphicsQueue, VkCommandPool& cmdPool,
+		const uint32_t numAttachments, std::vector<FrameBufferAttachment>& fbAttachments, const VkFormat& imgFormat,
+		const VkImageLayout initialLayout, const VkImageLayout finalLayout, const VkExtent2D& imageExtent,
+		const VkImageUsageFlags frameBufferUsage, const uint32_t mipLevels = 1, const uint32_t arrayLayers = 1, const float anisotropy = 16.0f)
 	{
 		const VkExtent3D extents = { imageExtent.width, imageExtent.height , 1 };
 
@@ -269,26 +276,31 @@ namespace FrameResourcesUtil
 
 			// Create 2D Image
 			ImageUtil::createImage(logicalDevice, pDevice, fbAttachments[i].image, fbAttachments[i].memory,
-				VK_IMAGE_TYPE_2D, fbAttachments[i].format, extents,
-				VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+				VK_IMAGE_TYPE_2D, fbAttachments[i].format, extents, frameBufferUsage,
 				VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_TILING_OPTIMAL, mipLevels, arrayLayers,
-				VK_IMAGE_LAYOUT_UNDEFINED, VK_SHARING_MODE_EXCLUSIVE);
+				initialLayout, VK_SHARING_MODE_EXCLUSIVE);
 
 			// Create 2D image View
 			ImageUtil::createImageView(logicalDevice, fbAttachments[i].image, &fbAttachments[i].view, VK_IMAGE_VIEW_TYPE_2D,
 				fbAttachments[i].format, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels, nullptr);
+
+			if (initialLayout != finalLayout)
+			{
+				ImageUtil::transitionImageLayout_SingleTimeCommand(logicalDevice, graphicsQueue, cmdPool, 
+					fbAttachments[i].image, imgFormat, initialLayout, finalLayout, mipLevels);
+			}
 		}
 	}
 
-	inline void createFrameBufferAttachments(VkDevice& logicalDevice, VkPhysicalDevice& pDevice, 
-		const uint32_t numAttachments, std::vector<FrameBufferAttachment>& fbAttachments,
-		VkSampler& sampler, VkFormat& imgFormat, VkExtent2D& imageExtent, 
-		const VkSamplerAddressMode samplerAddressMode = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+	inline void createFrameBufferAttachments(VkDevice& logicalDevice, VkPhysicalDevice& pDevice, VkQueue& graphicsQueue, VkCommandPool& cmdPool,
+		const uint32_t numAttachments, std::vector<FrameBufferAttachment>& fbAttachments, VkSampler& sampler, const VkFormat& imgFormat, 
+		const VkImageLayout initialLayout, const VkImageLayout finalLayout, const VkExtent2D& imageExtent,
+		const VkImageUsageFlags frameBufferUsage, const VkSamplerAddressMode samplerAddressMode = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
 		const uint32_t mipLevels = 1, const uint32_t arrayLayers = 1, const float anisotropy = 16.0f)
 	{
 		// Create a set of Images and Image Views
-		FrameResourcesUtil::createFrameBufferAttachments(logicalDevice, pDevice, 
-			numAttachments, fbAttachments, imgFormat, imageExtent);
+		FrameResourcesUtil::createFrameBufferAttachments(logicalDevice, pDevice, graphicsQueue, cmdPool,
+			numAttachments, fbAttachments, imgFormat, initialLayout, finalLayout, imageExtent, frameBufferUsage);
 
 		// Create sampler
 		ImageUtil::createImageSampler(logicalDevice, sampler, VK_FILTER_LINEAR, VK_FILTER_LINEAR, samplerAddressMode,
@@ -312,7 +324,7 @@ namespace FrameResourcesUtil
 		ImageUtil::createImageView(logicalDevice, depthAttachment.image, &depthAttachment.view,
 			VK_IMAGE_VIEW_TYPE_2D, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, mipLevels, nullptr);
 
-		ImageUtil::transitionImageLayout(logicalDevice, graphicsQueue, cmdPool, depthAttachment.image, depthFormat,
+		ImageUtil::transitionImageLayout_SingleTimeCommand(logicalDevice, graphicsQueue, cmdPool, depthAttachment.image, depthFormat,
 			VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, mipLevels);
 	}
 }

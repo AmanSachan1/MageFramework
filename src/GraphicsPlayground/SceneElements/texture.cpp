@@ -50,8 +50,8 @@ void Texture::create2DTexture(std::string texturePath, bool isMipMapped, VkImage
 	// vkCmdCopyBufferToImage will be used to copy the stagingBuffer into the m_textureImage, 
 	// but this command requires the image to be in the right layout. So we perform an image Transition
 
-	ImageUtil::transitionImageLayout(m_logicalDevice, m_graphicsQueue, m_cmdPool, m_image, m_format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, m_mipLevels);
-	ImageUtil::copyBufferToImage(m_logicalDevice, m_graphicsQueue, m_cmdPool, stagingBuffer, m_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, m_width, m_height);
+	ImageUtil::transitionImageLayout_SingleTimeCommand(m_logicalDevice, m_graphicsQueue, m_cmdPool, m_image, m_format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, m_mipLevels);
+	ImageUtil::copyBufferToImage_SingleTimeCommand(m_logicalDevice, m_graphicsQueue, m_cmdPool, stagingBuffer, m_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, m_width, m_height);
 
 	m_imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	if (isMipMapped)
@@ -61,8 +61,8 @@ void Texture::create2DTexture(std::string texturePath, bool isMipMapped, VkImage
 	}
 	else
 	{
-		ImageUtil::transitionImageLayout(m_logicalDevice, m_graphicsQueue, m_cmdPool, m_image, m_format,
-			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, m_mipLevels);
+		ImageUtil::transitionImageLayout_SingleTimeCommand(m_logicalDevice, m_graphicsQueue, m_cmdPool, m_image, m_format,
+			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, m_imageLayout, m_mipLevels);
 	}
 
 	// Destroy Staging Buffer
@@ -104,7 +104,7 @@ void Texture::createEmpty2DTexture(uint32_t width, uint32_t height, uint32_t dep
 		VK_SAMPLE_COUNT_1_BIT, tiling, m_mipLevels, 1, VK_IMAGE_LAYOUT_UNDEFINED, VK_SHARING_MODE_EXCLUSIVE);
 
 	m_imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-	ImageUtil::transitionImageLayout(m_logicalDevice, m_graphicsQueue, m_cmdPool, m_image, m_format, 
+	ImageUtil::transitionImageLayout_SingleTimeCommand(m_logicalDevice, m_graphicsQueue, m_cmdPool, m_image, m_format, 
 		VK_IMAGE_LAYOUT_UNDEFINED, m_imageLayout, m_mipLevels);
 	
 	// Create 2D image View

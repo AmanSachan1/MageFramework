@@ -21,6 +21,9 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/hash.hpp>
 
+// Disable warning C26812: Prefer 'enum class' over 'enum' (Enum.3); Because of Vulkan
+#pragma warning( disable : 26812 )
+
 #include <Utilities/timerUtility.h>
 
 #ifdef _DEBUG
@@ -53,5 +56,5 @@ using QueueFamilyIndices = std::array<uint32_t, sizeof(QueueFlags)>;
 using Queues = std::array<VkQueue, sizeof(QueueFlags)>;
 
 enum class RenderAPI { VULKAN, DX12 };
-enum class PIPELINE_TYPE { RASTER, FINAL_COMPOSITE, COMPUTE, POST_PROCESS };
-enum class DSL_TYPE { COMPUTE, MODEL, CURRENT_FRAME_CAMERA, PREV_FRAME_CAMERA, TIME, FINAL32BITIMAGE, POST_PROCESS, FINAL_COMPOSITE };
+enum class PIPELINE_TYPE { RASTER, COMPOSITE_COMPUTE_ONTO_RASTER, COMPUTE, POST_PROCESS };
+enum class DSL_TYPE { COMPUTE, MODEL, CURRENT_FRAME_CAMERA, PREV_FRAME_CAMERA, TIME, FINAL32BITIMAGE, POST_PROCESS, COMPOSITE_COMPUTE_ONTO_RASTER };

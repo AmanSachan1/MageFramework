@@ -17,8 +17,6 @@
 #include "SceneElements\model.h"
 #include "SceneElements\texture.h"
 
-static constexpr unsigned int WORKGROUP_SIZE = 32;
-
 class Renderer 
 {
 public:
@@ -40,8 +38,6 @@ private:
 
 	// Commands
 	void recordAllCommandBuffers();
-	void recordGraphicsCommandBuffer(VkCommandBuffer& graphicsCmdBuffer, unsigned int frameIndex);
-	void recordComputeCommandBuffer(VkCommandBuffer& ComputeCmdBuffer, unsigned int frameIndex);
 		
 	// Descriptors
 	void setupDescriptorSets();

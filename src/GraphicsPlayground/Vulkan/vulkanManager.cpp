@@ -277,6 +277,28 @@ void VulkanManager::waitForAndResetInFlightFence()
 	vkResetFences(m_logicalDevice, 1, &inFlightFence);
 }
 
+void VulkanManager::transitionSwapChainImageLayout(uint32_t index, VkImageLayout oldLayout, VkImageLayout newLayout, VkCommandBuffer& graphicsCmdBuffer, VkCommandPool& graphicsCmdPool)
+{
+	const uint32_t mipLevels = 1;
+	VkQueue graphicsQueue = getQueue(QueueFlags::Graphics);
+	ImageUtil::transitionImageLayout(m_logicalDevice, graphicsQueue, graphicsCmdPool, graphicsCmdBuffer, m_swapChainImages[index], m_swapChainImageFormat, oldLayout, newLayout, mipLevels);
+}
+void VulkanManager::transitionSwapChainImageLayout_SingleTimeCommand(uint32_t index, VkImageLayout oldLayout, VkImageLayout newLayout, VkCommandPool& graphicsCmdPool)
+{
+	const uint32_t mipLevels = 1;
+	VkQueue graphicsQueue = getQueue(QueueFlags::Graphics);
+	ImageUtil::transitionImageLayout_SingleTimeCommand(m_logicalDevice, graphicsQueue, graphicsCmdPool, m_swapChainImages[index], m_swapChainImageFormat, oldLayout, newLayout, mipLevels);
+}
+
+
+void VulkanManager::copyImageToSwapChainImage(uint32_t index, VkImage& srcImage, VkCommandBuffer& graphicsCmdBuffer, VkCommandPool& graphicsCmdPool, VkExtent2D imgExtents)
+{
+	VkQueue graphicsQueue = getQueue(QueueFlags::Graphics);
+	ImageUtil::copyImageToImage(m_logicalDevice, graphicsQueue, graphicsCmdPool, graphicsCmdBuffer,
+		srcImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, m_swapChainImages[index], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, imgExtents.width, imgExtents.height, 1);
+}
+
+
 // -------------------------------------
 // Vulkan Presentation Helper Functions
 // -------------------------------------
@@ -298,10 +320,10 @@ void VulkanManager::createSwapChain(GLFWwindow* window)
 	{
 		imageCount = m_swapChainSupport.surfaceCapabilities.maxImageCount;
 	}
-
+	VkImageUsageFlags swapchainUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 	VkSwapchainCreateInfoKHR swapChainCreateInfo = SwapChainUtil::basicSwapChainCreateInfo(
 		m_surface, imageCount, m_surfaceFormat.format, m_surfaceFormat.colorSpace,
-		extent, 1, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+		extent, 1, swapchainUsage,
 		m_swapChainSupport.surfaceCapabilities.currentTransform,
 		VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
 		m_presentMode,

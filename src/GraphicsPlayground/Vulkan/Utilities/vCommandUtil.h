@@ -183,7 +183,7 @@ namespace VulkanCommandUtil
 		renderPassInfo.clearValueCount = clearValueCount;
 		renderPassInfo.pClearValues = clearValue;
 
-		// he final parameter of the vkCmdBeginRenderPass command controls how the drawing commands within the render pass will be provided.
+		// The final parameter of the vkCmdBeginRenderPass command controls how the drawing commands within the render pass will be provided.
 		// It can have one of two values:
 		// - VK_SUBPASS_CONTENTS_INLINE: The render pass commands will be embedded in the primary command buffer itself 
 		//								and no secondary command buffers will be executed.
