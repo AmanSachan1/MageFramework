@@ -25,7 +25,7 @@ class Camera
 {
 public:
 	Camera() = delete;	// https://stackoverflow.com/questions/5513881/meaning-of-delete-after-function-declaration
-	Camera(VulkanManager* vulkanObject, glm::vec3 eyePos, glm::vec3 lookAtPoint, int width, int height,
+	Camera(std::shared_ptr<VulkanManager> vulkanObject, glm::vec3 eyePos, glm::vec3 lookAtPoint, int width, int height,
 		float foV_vertical, float aspectRatio, float nearClip, float farClip, int numSwapChainImages, CameraMode mode = CameraMode::FLY);
 	~Camera();
 	void cleanup() {} //specifically clean up resources that are recreated on frame resizing
@@ -61,7 +61,7 @@ public:
 	VkDescriptorSetLayout getDescriptorSetLayout(DSL_TYPE type);
 
 private:
-	VulkanManager* m_vulkanObj; //member variable because it is needed for the destructor
+	std::shared_ptr<VulkanManager> m_vulkanObj; //member variable because it is needed for the destructor
 	VkDevice m_logicalDevice;
 	VkPhysicalDevice m_physicalDevice;
 	unsigned int m_numSwapChainImages;

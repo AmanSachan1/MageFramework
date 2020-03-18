@@ -1,29 +1,30 @@
 #include "Renderer.h"
 
-Renderer::Renderer(GLFWwindow* window, VulkanManager* vulkanObject, Camera* camera, uint32_t width, uint32_t height)
+Renderer::Renderer(GLFWwindow* window, 
+	std::shared_ptr<VulkanManager> vulkanObject, 
+	std::shared_ptr<Camera> camera,
+	uint32_t width, uint32_t height)
 	: m_window(window), m_vulkanObj(vulkanObject), m_camera(camera)
 {
 	initialize();
 }
 Renderer::~Renderer()
 {
+	vkDeviceWaitIdle(m_vulkanObj->getLogicalDevice());
 	cleanup();
-	delete m_scene;
-	delete m_rendererBackend;
-	delete m_UI;
 }
 
 void Renderer::initialize()
 {
 	const uint32_t numFrames = m_vulkanObj->getSwapChainImageCount();
 	const VkExtent2D windowsExtent = m_vulkanObj->getSwapChainVkExtent();
-	m_rendererBackend = new VulkanRendererBackend(m_vulkanObj, numFrames, windowsExtent);
+	m_rendererBackend = std::make_shared<VulkanRendererBackend>(m_vulkanObj, numFrames, windowsExtent);
 
 	VkQueue graphicsQueue = m_vulkanObj->getQueue(QueueFlags::Graphics);
 	VkQueue computeQueue = m_vulkanObj->getQueue(QueueFlags::Compute);
 	VkCommandPool computeCmdPool = m_rendererBackend->getComputeCommandPool();
 	VkCommandPool graphicsCmdPool = m_rendererBackend->getGraphicsCommandPool();
-	m_scene = new Scene(m_vulkanObj, numFrames, windowsExtent, graphicsQueue, graphicsCmdPool, computeQueue, computeCmdPool);
+	m_scene = std::make_shared<Scene>(m_vulkanObj, numFrames, windowsExtent, graphicsQueue, graphicsCmdPool, computeQueue, computeCmdPool);
 
 	setupDescriptorSets();
 	createAllPipelines();
@@ -37,7 +38,7 @@ void Renderer::initialize()
 		false, 1.0f, // Sample Rate Shading
 		true, 16.0f	}; // Anisotropy
 
-	m_UI = new UIManager(m_window, m_vulkanObj, rendererOptions);
+	m_UI = std::make_shared<UIManager>(m_window, m_vulkanObj, rendererOptions);
 }
 void Renderer::recreate()
 {

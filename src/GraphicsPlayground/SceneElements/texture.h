@@ -8,7 +8,7 @@ class Texture
 {
 public:
 	Texture() = delete;
-	Texture(VulkanManager* vulkanObj, VkQueue& queue, VkCommandPool& cmdPool, VkFormat format);
+	Texture(std::shared_ptr<VulkanManager> vulkanObj, VkQueue& queue, VkCommandPool& cmdPool, VkFormat format);
 	~Texture();
 
 	void create2DTexture(

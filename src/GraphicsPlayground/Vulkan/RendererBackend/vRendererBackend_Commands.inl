@@ -53,12 +53,13 @@ inline void VulkanRendererBackend::submitCommandBuffers()
 	}
 }
 
-inline void VulkanRendererBackend::recordCommandBuffer_ComputeCmds(unsigned int frameIndex, VkCommandBuffer& ComputeCmdBuffer, Scene* scene)
+inline void VulkanRendererBackend::recordCommandBuffer_ComputeCmds(
+	unsigned int frameIndex, VkCommandBuffer& ComputeCmdBuffer, std::shared_ptr<Scene> scene)
 {
 	// Test Compute Pass/Kernel
 	{
 		// Get compute texture
-		Texture* texture = scene->getTexture("compute", frameIndex);
+		std::shared_ptr<Texture> texture = scene->getTexture("compute", frameIndex);
 		
 		// Decide the size of the compute kernel
 		// Number of threads in the compute kernel =  numBlocksX * numBlocksY * numBlocksZ
@@ -75,7 +76,8 @@ inline void VulkanRendererBackend::recordCommandBuffer_ComputeCmds(unsigned int 
 		vkCmdDispatch(ComputeCmdBuffer, numBlocksX, numBlocksY, numBlocksZ); // Dispatch the Compute Kernel
 	}
 }
-inline void VulkanRendererBackend::recordCommandBuffer_GraphicsCmds(unsigned int frameIndex, VkCommandBuffer& graphicsCmdBuffer, Scene* scene, Camera* camera)
+inline void VulkanRendererBackend::recordCommandBuffer_GraphicsCmds(
+	unsigned int frameIndex, VkCommandBuffer& graphicsCmdBuffer, std::shared_ptr<Scene> scene, std::shared_ptr<Camera> camera)
 {
 	const uint32_t numClearValues = 2;
 	std::array<VkClearValue, numClearValues> clearValues = {};
@@ -87,7 +89,7 @@ inline void VulkanRendererBackend::recordCommandBuffer_GraphicsCmds(unsigned int
 	// Create a Image Memory Barrier between the compute pipeline that creates the image and the graphics pipeline that access the image
 	// Image barriers should come before render passes begin, unless you're working with subpasses
 	{
-		Texture* computeTexture = scene->getTexture("compute", frameIndex);
+		std::shared_ptr<Texture> computeTexture = scene->getTexture("compute", frameIndex);
 		VkImageSubresourceRange imageSubresourceRange = ImageUtil::createImageSubResourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1);
 		VkImageMemoryBarrier imageMemoryBarrier = ImageUtil::createImageMemoryBarrier(computeTexture->getImage(),
 			computeTexture->getImageLayout(), VK_IMAGE_LAYOUT_GENERAL,
@@ -104,7 +106,7 @@ inline void VulkanRendererBackend::recordCommandBuffer_GraphicsCmds(unsigned int
 		const VkPipeline l_rasterP = getPipeline(PIPELINE_TYPE::RASTER);
 		const VkPipelineLayout l_rasterPL = getPipelineLayout(PIPELINE_TYPE::RASTER);
 
-		Model* model = scene->getModel("house");
+		std::shared_ptr<Model> model = scene->getModel("house");
 		VkBuffer vertexBuffers[] = { model->getVertexBuffer() };
 		VkBuffer indexBuffer = model->getIndexBuffer();
 		VkDeviceSize offsets[] = { 0 };
@@ -154,8 +156,9 @@ inline void VulkanRendererBackend::recordCommandBuffer_GraphicsCmds(unsigned int
 	recordCommandBuffer_PostProcessCmds(frameIndex, graphicsCmdBuffer, scene, renderArea, numClearValues, clearValues.data());
 	recordCommandBuffer_FinalCmds(frameIndex, graphicsCmdBuffer);
 }
-inline void VulkanRendererBackend::recordCommandBuffer_PostProcessCmds(unsigned int frameIndex, VkCommandBuffer& graphicsCmdBuffer,
-	Scene* scene, VkRect2D renderArea, uint32_t clearValueCount, const VkClearValue* clearValue)
+inline void VulkanRendererBackend::recordCommandBuffer_PostProcessCmds(
+	unsigned int frameIndex, VkCommandBuffer& graphicsCmdBuffer, std::shared_ptr<Scene> scene,
+	VkRect2D renderArea, uint32_t clearValueCount, const VkClearValue* clearValue)
 {
 	// Tonemap Render Pass
 	{
@@ -181,7 +184,8 @@ inline void VulkanRendererBackend::recordCommandBuffer_PostProcessCmds(unsigned 
 		}
 	}
 }
-inline void VulkanRendererBackend::recordCommandBuffer_FinalCmds(unsigned int frameIndex, VkCommandBuffer& graphicsCmdBuffer)
+inline void VulkanRendererBackend::recordCommandBuffer_FinalCmds(
+	unsigned int frameIndex, VkCommandBuffer& graphicsCmdBuffer)
 {
 	//--- Decoupling Post Process Passes from the swapchain ---
 	// We are not going to be making the last post process effect write to the swapchain directly. 

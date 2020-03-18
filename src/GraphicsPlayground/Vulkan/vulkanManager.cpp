@@ -27,6 +27,8 @@ VulkanManager::VulkanManager(GLFWwindow* _window, const char* applicationName)
 }
 VulkanManager::~VulkanManager() 
 {
+	vkDeviceWaitIdle(getLogicalDevice());
+
 	if (ENABLE_VALIDATION)
 	{
 		destroyDebugUtilsMessengerEXT(m_instance, m_debugMessenger, nullptr);

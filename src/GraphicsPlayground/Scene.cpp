@@ -1,6 +1,6 @@
 #include "Scene.h"
 
-Scene::Scene(VulkanManager* vulkanObj, uint32_t numSwapChainImages, VkExtent2D windowExtents,
+Scene::Scene(std::shared_ptr<VulkanManager> vulkanObj, uint32_t numSwapChainImages, VkExtent2D windowExtents,
 	VkQueue& graphicsQueue, VkCommandPool& graphicsCommandPool,	VkQueue& computeQueue, VkCommandPool& computeCommandPool )
 	:  m_vulkanObj(vulkanObj), m_logicalDevice(vulkanObj->getLogicalDevice()), m_physicalDevice(vulkanObj->getPhysicalDevice()),
 	m_numSwapChainImages(numSwapChainImages),
@@ -27,6 +27,8 @@ Scene::Scene(VulkanManager* vulkanObj, uint32_t numSwapChainImages, VkExtent2D w
 }
 Scene::~Scene()
 {
+	vkDeviceWaitIdle(m_logicalDevice);
+
 	vkDestroyDescriptorSetLayout(m_logicalDevice, m_DSL_model, nullptr);
 	vkDestroyDescriptorSetLayout(m_logicalDevice, m_DSL_compute, nullptr);
 	vkDestroyDescriptorSetLayout(m_logicalDevice, m_DSL_time, nullptr);
@@ -38,20 +40,17 @@ Scene::~Scene()
 		vkFreeMemory(m_logicalDevice, m_timeBufferMemories[i], nullptr);
 	}
 
-	for (auto it : m_modelMap) { delete it.second; }
 	m_modelMap.clear();
-
-	for (auto it : m_textureMap) { delete it.second; }
 	m_textureMap.clear();
 }
 
 void Scene::createScene()
 {
-	Model* model = nullptr;
+	std::shared_ptr<Model> model = nullptr;
 #ifdef DEBUG
 	model = new Model(m_vulkanObj, m_graphicsQueue, m_graphicsCommandPool, m_numSwapChainImages, "thinCube.obj", "statue.jpg", false, true);
 #else
-	model = new Model(m_vulkanObj, m_graphicsQueue, m_graphicsCommandPool, m_numSwapChainImages, "chalet.obj", "chalet.jpg", true, true);
+	model = std::make_shared<Model>(m_vulkanObj, m_graphicsQueue, m_graphicsCommandPool, m_numSwapChainImages, "chalet.obj", "chalet.jpg", true, true);
 #endif
 	m_modelMap.insert({ "house", model });
 	
@@ -60,7 +59,7 @@ void Scene::createScene()
 	for (uint32_t i = 0; i < m_numSwapChainImages; i++)
 	{
 		std::string name = "compute" + std::to_string(i);
-		Texture* texture = new Texture(m_vulkanObj, m_graphicsQueue, m_graphicsCommandPool, VK_FORMAT_R8G8B8A8_UNORM);
+		std::shared_ptr<Texture> texture = std::make_shared<Texture>(m_vulkanObj, m_graphicsQueue, m_graphicsCommandPool, VK_FORMAT_R8G8B8A8_UNORM);
 		texture->createEmpty2DTexture(windowExtents.width, windowExtents.height, 1, false,
 			VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, 
 			VK_IMAGE_TILING_OPTIMAL, 
@@ -192,7 +191,7 @@ void Scene::writeToAndUpdateDescriptorSets()
 		for (uint32_t i = 0; i < static_cast<uint32_t>(m_numSwapChainImages); i++)
 		{
 			std::string name = "compute" + std::to_string(i);
-			Texture* computeTexture = getTexture(name);
+			std::shared_ptr<Texture> computeTexture = getTexture(name);
 			model.second->writeToAndUpdateDescriptorSets(computeTexture, i);
 		}
 	}
@@ -201,7 +200,7 @@ void Scene::writeToAndUpdateDescriptorSets()
 	{
 		// Compute
 		{
-			Texture* computeTex = getTexture("compute", i);
+			std::shared_ptr<Texture> computeTex = getTexture("compute", i);
 			VkDescriptorImageInfo computeSetInfo =
 				DescriptorUtil::createDescriptorImageInfo(computeTex->getSampler(), computeTex->getImageView(), computeTex->getImageLayout());
 			VkWriteDescriptorSet writeComputeSetInfo =
@@ -221,9 +220,9 @@ void Scene::writeToAndUpdateDescriptorSets()
 	}
 }
 
-Model* Scene::getModel(std::string key)
+std::shared_ptr<Model> Scene::getModel(std::string key)
 {
-	std::unordered_map<std::string, Model*>::const_iterator found = m_modelMap.find(key);
+	std::unordered_map<std::string, std::shared_ptr<Model>>::const_iterator found = m_modelMap.find(key);
 
 	if (found == m_modelMap.end())
 	{
@@ -233,9 +232,9 @@ Model* Scene::getModel(std::string key)
 	return found->second;
 }
 
-Texture* Scene::getTexture(std::string key)
+std::shared_ptr<Texture> Scene::getTexture(std::string key)
 {
-	std::unordered_map<std::string, Texture*>::const_iterator found = m_textureMap.find(key);
+	std::unordered_map<std::string, std::shared_ptr<Texture>>::const_iterator found = m_textureMap.find(key);
 
 	if (found == m_textureMap.end())
 	{
@@ -244,7 +243,7 @@ Texture* Scene::getTexture(std::string key)
 
 	return found->second;
 }
-Texture* Scene::getTexture(std::string name, unsigned int index)
+std::shared_ptr<Texture> Scene::getTexture(std::string name, unsigned int index)
 {
 	std::string key = name + std::to_string(index);
 	return getTexture(key);

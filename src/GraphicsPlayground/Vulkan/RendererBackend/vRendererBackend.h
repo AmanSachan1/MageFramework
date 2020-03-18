@@ -30,7 +30,7 @@ struct ComputePipelineLayouts
 
 struct DescriptorSetDependencies
 {
-	std::vector<Texture*> computeImages;
+	std::vector<std::shared_ptr<Texture>> computeImages;
 	std::vector<VkDescriptorImageInfo> geomRenderPassImageSet;
 };
 
@@ -42,13 +42,13 @@ class VulkanRendererBackend
 {
 public:
 	VulkanRendererBackend() = delete;
-	VulkanRendererBackend(VulkanManager* vulkanObject, int numSwapChainImages, VkExtent2D windowExtents);
+	VulkanRendererBackend(std::shared_ptr<VulkanManager> vulkanObject, int numSwapChainImages, VkExtent2D windowExtents);
 	~VulkanRendererBackend();
 	void cleanup();
 
 	void createPipelines(DescriptorSetLayouts& pipelineDescriptorSetLayouts);
 	void createRenderPassesAndFrameResources();
-	void createAllPostProcessEffects(Scene* scene);
+	void createAllPostProcessEffects(std::shared_ptr<Scene> scene);
 	
 	// Descriptor Sets
 	void expandDescriptorPool(std::vector<VkDescriptorPoolSize>& poolSizes);
@@ -60,11 +60,15 @@ public:
 	void recreateCommandBuffers();
 	void submitCommandBuffers();
 
-	void recordCommandBuffer_ComputeCmds(unsigned int frameIndex, VkCommandBuffer& ComputeCmdBuffer, Scene* scene);
-	void recordCommandBuffer_GraphicsCmds(unsigned int frameIndex, VkCommandBuffer& graphicsCmdBuffer, Scene* scene, Camera* camera);
-	void recordCommandBuffer_PostProcessCmds(unsigned int frameIndex, VkCommandBuffer& graphicsCmdBuffer,
-		Scene* scene, VkRect2D renderArea, uint32_t clearValueCount, const VkClearValue* clearValue);
-	void recordCommandBuffer_FinalCmds(unsigned int frameIndex, VkCommandBuffer& graphicsCmdBuffer);
+	void recordCommandBuffer_ComputeCmds(
+		unsigned int frameIndex, VkCommandBuffer& ComputeCmdBuffer, std::shared_ptr<Scene> scene);
+	void recordCommandBuffer_GraphicsCmds(
+		unsigned int frameIndex, VkCommandBuffer& graphicsCmdBuffer, std::shared_ptr<Scene> scene, std::shared_ptr<Camera> camera);
+	void recordCommandBuffer_PostProcessCmds(
+		unsigned int frameIndex, VkCommandBuffer& graphicsCmdBuffer, std::shared_ptr<Scene> scene,
+		VkRect2D renderArea, uint32_t clearValueCount, const VkClearValue* clearValue);
+	void recordCommandBuffer_FinalCmds(
+		unsigned int frameIndex, VkCommandBuffer& graphicsCmdBuffer);
 
 
 	// Getters
@@ -132,7 +136,7 @@ private:
 
 
 private:
-	VulkanManager* m_vulkanObj;
+	std::shared_ptr<VulkanManager> m_vulkanObj;
 	VkDevice m_logicalDevice;
 	VkPhysicalDevice m_physicalDevice;
 	uint32_t m_numSwapChainImages;

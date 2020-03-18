@@ -55,7 +55,7 @@ class UIManager
 {
 public:
 	UIManager() = delete;
-	UIManager(GLFWwindow* window, VulkanManager* vulkanObj, RendererOptions rendererOptions);
+	UIManager(GLFWwindow* window, std::shared_ptr<VulkanManager> vulkanObj, RendererOptions rendererOptions);
 	~UIManager();
 	
 	void clean();
@@ -65,7 +65,7 @@ public:
 	void submitDrawCommands();
 
 private:
-	VulkanManager* m_vulkanObj;
+	std::shared_ptr<VulkanManager> m_vulkanObj;
 	VkDevice m_logicalDevice;
 	VkQueue m_queue;
 	UIOptions m_options;

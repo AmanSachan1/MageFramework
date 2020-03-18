@@ -10,9 +10,9 @@
 int window_height = 720;
 int window_width = 1284;
 
-Renderer* renderer;
-Camera* camera;
-VulkanManager* vulkanObject;
+std::shared_ptr<VulkanManager> vulkanObject;
+std::shared_ptr<Renderer> renderer;
+std::shared_ptr<Camera> camera;
 
 namespace InputUtil
 {
@@ -170,15 +170,15 @@ void GraphicsPlaygroundApplication::initialize()
 {
 	static constexpr char* applicationName = "Graphics Playground";
 	initWindow(window_width, window_height, applicationName);
-	vulkanObject = new VulkanManager(window, applicationName);
+	vulkanObject = std::make_shared<VulkanManager>(window, applicationName);
 
 	TimerUtil::initTimer();
 
-	camera = new Camera(vulkanObject, glm::vec3(0.0f, 3.0f, -8.0f), glm::vec3(0.0f, 0.0f, 0.0f),
+	camera = std::make_shared<Camera>(vulkanObject, glm::vec3(0.0f, 3.0f, -8.0f), glm::vec3(0.0f, 0.0f, 0.0f),
 		window_width, window_height, 45.0f, float(window_width) / float(window_height), 0.1f, 1000.0f,
 		vulkanObject->getSwapChainImageCount(), CameraMode::ORBIT);
 
-	renderer = new Renderer(window, vulkanObject, camera, window_width, window_height);
+	renderer = std::make_shared<Renderer>(window, vulkanObject, camera, window_width, window_height);
 
 	glfwSetWindowSizeCallback(window, InputUtil::resizeCallback);
 	glfwSetFramebufferSizeCallback(window, InputUtil::resizeCallback);
@@ -212,11 +212,7 @@ void GraphicsPlaygroundApplication::cleanup()
 {
 	// Wait for the device to finish executing before cleanup
 	vkDeviceWaitIdle(vulkanObject->getLogicalDevice());
-
-	delete renderer;
-	delete camera;
-	delete vulkanObject;
-
+	
 	glfwDestroyWindow(window);
 	glfwTerminate();
 }

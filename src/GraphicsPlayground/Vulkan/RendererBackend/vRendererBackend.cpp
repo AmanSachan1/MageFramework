@@ -1,6 +1,6 @@
 #include "Vulkan/RendererBackend/vRendererBackend.h"
 
-VulkanRendererBackend::VulkanRendererBackend(VulkanManager* vulkanObject, int numSwapChainImages, VkExtent2D windowExtents) :
+VulkanRendererBackend::VulkanRendererBackend(std::shared_ptr<VulkanManager> vulkanObject, int numSwapChainImages, VkExtent2D windowExtents) :
 	m_vulkanObj(vulkanObject), m_logicalDevice(vulkanObject->getLogicalDevice()), m_physicalDevice(vulkanObject->getPhysicalDevice()),
 	m_graphicsQueue(vulkanObject->getQueue(QueueFlags::Graphics)), m_computeQueue(vulkanObject->getQueue(QueueFlags::Compute)),
 	m_numSwapChainImages(numSwapChainImages), m_windowExtents(windowExtents)
@@ -12,6 +12,8 @@ VulkanRendererBackend::VulkanRendererBackend(VulkanManager* vulkanObject, int nu
 }
 VulkanRendererBackend::~VulkanRendererBackend()
 {
+	vkDeviceWaitIdle(m_logicalDevice);
+
 	// Destroy Command Pools
 	vkDestroyCommandPool(m_logicalDevice, m_graphicsCommandPool, nullptr);
 	vkDestroyCommandPool(m_logicalDevice, m_computeCommandPool, nullptr);
@@ -59,7 +61,7 @@ void VulkanRendererBackend::createRenderPassesAndFrameResources()
 	createDepthResources();
 	createFrameBuffers(layoutBeforeImageCreation, layoutToTransitionImageToAfterCreation, layoutAfterRenderPassExecuted);
 }
-void VulkanRendererBackend::createAllPostProcessEffects(Scene* scene)
+void VulkanRendererBackend::createAllPostProcessEffects(std::shared_ptr<Scene> scene)
 {
 	prePostProcess();
 	

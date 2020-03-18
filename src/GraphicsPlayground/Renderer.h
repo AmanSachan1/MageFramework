@@ -21,7 +21,8 @@ class Renderer
 {
 public:
 	Renderer() = delete; // To enforce the creation of a the type of renderer we want without leaving the vulkan device, vulkan swapchain, etc as assumptions or nullptrs
-	Renderer(GLFWwindow* window, VulkanManager* vulkanObject, Camera* camera, uint32_t width, uint32_t height);
+	Renderer(GLFWwindow* window, std::shared_ptr<VulkanManager> vulkanObject, 
+		std::shared_ptr<Camera> camera, uint32_t width, uint32_t height);
 	~Renderer();
 
 	void recreate();
@@ -48,9 +49,9 @@ private:
 
 private:
 	GLFWwindow* m_window;
-	VulkanManager* m_vulkanObj;
-	VulkanRendererBackend* m_rendererBackend;
-	UIManager* m_UI;
-	Camera* m_camera;
-	Scene* m_scene;
+	std::shared_ptr<VulkanManager> m_vulkanObj;
+	std::shared_ptr<VulkanRendererBackend> m_rendererBackend;
+	std::shared_ptr<UIManager> m_UI;
+	std::shared_ptr<Camera> m_camera;
+	std::shared_ptr<Scene> m_scene;
 };

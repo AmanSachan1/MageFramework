@@ -23,7 +23,7 @@ class Scene
 {
 public:
 	Scene() = delete;
-	Scene(VulkanManager* vulkanObj, uint32_t numSwapChainImages, VkExtent2D windowExtents,
+	Scene(std::shared_ptr<VulkanManager> vulkanObj, uint32_t numSwapChainImages, VkExtent2D windowExtents,
 		VkQueue& graphicsQueue, VkCommandPool& graphicsCommandPool,	VkQueue& computeQueue, VkCommandPool& computeCommandPool);
 	~Scene();
 
@@ -42,9 +42,9 @@ public:
 	void writeToAndUpdateDescriptorSets();
 
 	// Getters
-	Model* getModel(std::string key);
-	Texture* getTexture(std::string key);
-	Texture* getTexture(std::string key, unsigned int index);
+	std::shared_ptr<Model> getModel(std::string key);
+	std::shared_ptr<Texture> getTexture(std::string key);
+	std::shared_ptr<Texture> getTexture(std::string key, unsigned int index);
 
 	VkBuffer getTimeBuffer(unsigned int index) const;
 	uint32_t getTimeBufferSize() const;
@@ -53,7 +53,7 @@ public:
 	VkDescriptorSetLayout getDescriptorSetLayout(DSL_TYPE key);
 
 private:
-	VulkanManager* m_vulkanObj;
+	std::shared_ptr<VulkanManager> m_vulkanObj;
 	VkDevice m_logicalDevice;
 	VkPhysicalDevice m_physicalDevice;
 	VkQueue	m_graphicsQueue;
@@ -62,8 +62,8 @@ private:
 	VkCommandPool m_computeCommandPool;
 	uint32_t m_numSwapChainImages;
 	
-	std::unordered_map<std::string, Model*> m_modelMap;
-	std::unordered_map<std::string, Texture*> m_textureMap;
+	std::unordered_map<std::string, std::shared_ptr<Model>> m_modelMap;
+	std::unordered_map<std::string, std::shared_ptr<Texture>> m_textureMap;
 	
 	//// Compute
 	//std::vector<Texture*> m_computeTextures;

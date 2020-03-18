@@ -18,8 +18,8 @@ class Model
 {
 public:
 	Model() = delete;
-	Model(VulkanManager* vulkanObj, VkQueue& graphicsQueue, VkCommandPool& commandPool, unsigned int numSwapChainImages, std::vector<Vertex> &vertices, std::vector<uint32_t> &indices, bool isMipMapped = false, bool yAxisIsUp = true);
-	Model(VulkanManager* vulkanObj, VkQueue& graphicsQueue, VkCommandPool& commandPool, unsigned int numSwapChainImages, const std::string model_path, const std::string texture_path, bool isMipMapped = false, bool yAxisIsUp = true);
+	Model(std::shared_ptr<VulkanManager> vulkanObj, VkQueue& graphicsQueue, VkCommandPool& commandPool, unsigned int numSwapChainImages, std::vector<Vertex> &vertices, std::vector<uint32_t> &indices, bool isMipMapped = false, bool yAxisIsUp = true);
+	Model(std::shared_ptr<VulkanManager> vulkanObj, VkQueue& graphicsQueue, VkCommandPool& commandPool, unsigned int numSwapChainImages, const std::string model_path, const std::string texture_path, bool isMipMapped = false, bool yAxisIsUp = true);
 	~Model();
 
 	void updateUniformBuffer(uint32_t currentImageIndex);
@@ -28,7 +28,7 @@ public:
 	void addToDescriptorPoolSize(std::vector<VkDescriptorPoolSize>& poolSizes);
 	void createDescriptorSetLayout(VkDescriptorSetLayout& DSL_model);
 	void createDescriptorSets(VkDescriptorPool descriptorPool, VkDescriptorSetLayout& DSL_model, uint32_t index);
-	void writeToAndUpdateDescriptorSets(Texture* computeTexture, uint32_t index);
+	void writeToAndUpdateDescriptorSets(std::shared_ptr<Texture> computeTexture, uint32_t index);
 
 	//Getters
 	const std::vector<Vertex>& getVertices() const;
@@ -40,7 +40,7 @@ public:
 	VkBuffer& getIndexBuffer();
 	uint32_t getIndexBufferSize() const;
 
-	Texture* getTexture() const;
+	std::shared_ptr<Texture> getTexture() const;
 
 	VkBuffer& getUniformBuffer(unsigned int bufferIndex);
 	uint32_t getUniformBufferSize() const;
@@ -63,7 +63,7 @@ private:
 	VkDeviceSize m_indexBufferSize;
 	void* m_mappedDataIndexBuffer;
 
-	Texture* m_texture;
+	std::shared_ptr<Texture> m_texture;
 
 	// Multiple buffers for UBO because multiple frames may be in flight at the same time and this is data that could potentially be updated every frame
 	// This is also why it wouldnt make sense to use the staging buffer, the overhead of that may lead to worse performance

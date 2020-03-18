@@ -11,7 +11,7 @@
 #include <imgui_impl_glfw.cpp>
 #include <imgui_impl_vulkan.cpp>
 
-UIManager::UIManager(GLFWwindow* window, VulkanManager* vulkanObj, RendererOptions rendererOptions)
+UIManager::UIManager(GLFWwindow* window, std::shared_ptr<VulkanManager> vulkanObj, RendererOptions rendererOptions)
 	: m_vulkanObj(vulkanObj), 
 	m_logicalDevice(vulkanObj->getLogicalDevice()), 
 	m_queue(m_vulkanObj->getQueue(QueueFlags::Graphics)),
@@ -52,6 +52,8 @@ UIManager::UIManager(GLFWwindow* window, VulkanManager* vulkanObj, RendererOptio
 }
 UIManager::~UIManager()
 {
+	vkDeviceWaitIdle(m_logicalDevice);
+
 	clean();
 	vkDestroyDescriptorPool(m_vulkanObj->getLogicalDevice(), m_UIDescriptorPool, nullptr);
 	vkDestroyCommandPool(m_logicalDevice, m_UICommandPool, nullptr);

@@ -1,7 +1,7 @@
 #include "model.h"
 #include <Utilities/loadingUtility.h>
 
-Model::Model(VulkanManager* vulkanObj, VkQueue& graphicsQueue, VkCommandPool& commandPool, unsigned int numSwapChainImages,
+Model::Model(std::shared_ptr<VulkanManager> vulkanObj, VkQueue& graphicsQueue, VkCommandPool& commandPool, unsigned int numSwapChainImages,
 	std::vector<Vertex> &vertices, std::vector<uint32_t> &indices, bool isMipMapped, bool yAxisIsUp)
 	: m_logicalDevice(vulkanObj->getLogicalDevice()), m_physicalDevice(vulkanObj->getPhysicalDevice()),
 	m_vertices(vertices), m_indices(indices), m_numSwapChainImages(numSwapChainImages), m_yAxisIsUp(yAxisIsUp)
@@ -30,13 +30,13 @@ Model::Model(VulkanManager* vulkanObj, VkQueue& graphicsQueue, VkCommandPool& co
 		memcpy(m_mappedDataUniformBuffers[i], &m_modelUBOs[i], (size_t)m_uniformBufferSize);
 	}
 }
-Model::Model(VulkanManager* vulkanObj, VkQueue& graphicsQueue, VkCommandPool& commandPool, unsigned int numSwapChainImages,
+Model::Model(std::shared_ptr<VulkanManager> vulkanObj, VkQueue& graphicsQueue, VkCommandPool& commandPool, unsigned int numSwapChainImages,
 	const std::string model_path, const std::string texture_path, bool isMipMapped, bool yAxisIsUp) 
 	: m_logicalDevice(vulkanObj->getLogicalDevice()), m_physicalDevice(vulkanObj->getPhysicalDevice()),
 	m_numSwapChainImages(numSwapChainImages), m_yAxisIsUp(yAxisIsUp)
 {
 	loadingUtil::loadObj(m_vertices, m_indices, model_path);
-	m_texture = new Texture(vulkanObj, graphicsQueue, commandPool, VK_FORMAT_R8G8B8A8_UNORM);
+	m_texture = std::make_shared<Texture>(vulkanObj, graphicsQueue, commandPool, VK_FORMAT_R8G8B8A8_UNORM);
 	m_texture->create2DTexture(texture_path, isMipMapped);
 
 	m_vertexBufferSize = m_vertices.size() * sizeof(m_vertices[0]);
@@ -65,11 +65,11 @@ Model::Model(VulkanManager* vulkanObj, VkQueue& graphicsQueue, VkCommandPool& co
 }
 Model::~Model()
 {
+	vkDeviceWaitIdle(m_logicalDevice);
+
 	// Destroy Descriptor Stuff
 	m_DS_model.clear();
-
-	delete m_texture;
-
+	
 	vkDestroyBuffer(m_logicalDevice, m_indexBuffer, nullptr);
 	vkFreeMemory(m_logicalDevice, m_indexBufferMemory, nullptr);
 
@@ -121,7 +121,7 @@ void Model::createDescriptorSets(VkDescriptorPool descriptorPool, VkDescriptorSe
 {
 	DescriptorUtil::createDescriptorSets(m_logicalDevice, descriptorPool, 1, &DSL_model, &m_DS_model[index]);
 }
-void Model::writeToAndUpdateDescriptorSets(Texture* computeTexture, uint32_t index)
+void Model::writeToAndUpdateDescriptorSets(std::shared_ptr<Texture> computeTexture, uint32_t index)
 {
 	std::array<VkWriteDescriptorSet, 2> writeGraphicsSetInfo = {};
 	VkDescriptorBufferInfo modelBufferSetInfo;
@@ -176,7 +176,7 @@ uint32_t Model::getIndexBufferSize() const
 	return static_cast<uint32_t>(m_indexBufferSize);
 }
 
-Texture* Model::getTexture() const
+std::shared_ptr<Texture> Model::getTexture() const
 {
 	return m_texture;
 }
