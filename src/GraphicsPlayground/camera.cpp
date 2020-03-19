@@ -1,8 +1,8 @@
 #include "camera.h"
 
-Camera::Camera(std::shared_ptr<VulkanManager> vulkanObject, glm::vec3 eyePos, glm::vec3 lookAtPoint, int width, int height,
+Camera::Camera(std::shared_ptr<VulkanManager> vulkanManager, glm::vec3 eyePos, glm::vec3 lookAtPoint, int width, int height,
 	float foV_vertical, float aspectRatio, float nearClip, float farClip, int numSwapChainImages, CameraMode mode)
-	: m_vulkanObj(vulkanObject), m_logicalDevice(m_vulkanObj->getLogicalDevice()), m_physicalDevice(m_vulkanObj->getPhysicalDevice()),
+	: m_vulkanManager(vulkanManager), m_logicalDevice(m_vulkanManager->getLogicalDevice()), m_physicalDevice(m_vulkanManager->getPhysicalDevice()),
 	m_numSwapChainImages(numSwapChainImages), m_mode(mode),
 	m_eyePos(eyePos), m_ref(lookAtPoint), m_width(width), m_height(height),
 	m_fovy(foV_vertical), m_aspect(aspectRatio), m_near_clip(nearClip), m_far_clip(farClip)

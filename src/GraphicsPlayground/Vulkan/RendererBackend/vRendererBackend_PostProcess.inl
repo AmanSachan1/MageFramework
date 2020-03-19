@@ -5,7 +5,7 @@
 inline void VulkanRendererBackend::cleanupPostProcess()
 {
 	// Destroy Pipelines
-	for (int i = 0; i<m_numPostEffects; i++)
+	for (unsigned int i = 0; i<m_numPostEffects; i++)
 	{
 		vkDestroyPipeline(m_logicalDevice, m_postProcess_Ps[i], nullptr);
 		vkDestroyPipelineLayout(m_logicalDevice, m_postProcess_PLs[i], nullptr);
@@ -14,79 +14,66 @@ inline void VulkanRendererBackend::cleanupPostProcess()
 	m_postProcess_Ps.clear();
 	m_postProcess_PLs.clear();
 	m_numPostEffects = 0;
-
+	
 	// Destroy Samplers
-	vkDestroySampler(m_logicalDevice, m_toneMapSampler, nullptr);
-	vkDestroySampler(m_logicalDevice, m_32bitSampler, nullptr);
-	vkDestroySampler(m_logicalDevice, m_8bitSampler, nullptr);
+	vkDestroySampler(m_logicalDevice, m_postProcessSampler, nullptr);
 
-	// Destroy 32 bit passes
-	for (int i = 0; i < m_32bitPasses.size(); i++)
+	//Destroy the common frame buffer attachments
+	for (unsigned int j = 0; j < 2; j++)
 	{
-		for (uint32_t j = 0; j < m_numSwapChainImages; j++)
+		for (uint32_t i = 0; i < m_numSwapChainImages; i++)
+		{
+			// Destroy the frame buffer attachment
+			vkDestroyImage(m_logicalDevice, m_fbaHighRes[j][i].image, nullptr);
+			vkDestroyImageView(m_logicalDevice, m_fbaHighRes[j][i].view, nullptr);
+			vkFreeMemory(m_logicalDevice, m_fbaHighRes[j][i].memory, nullptr);
+
+			vkDestroyImage(m_logicalDevice, m_fbaLowRes[j][i].image, nullptr);
+			vkDestroyImageView(m_logicalDevice, m_fbaLowRes[j][i].view, nullptr);
+			vkFreeMemory(m_logicalDevice, m_fbaLowRes[j][i].memory, nullptr);
+		}
+		m_fbaHighRes[j].clear();
+		m_fbaLowRes[j].clear();
+	}
+
+	// Destroy all post process passes
+	for (unsigned int j = 0; j < m_postProcessRPIs.size(); j++)
+	{
+		for (uint32_t i = 0; i < m_numSwapChainImages; i++)
 		{
 			// Destroy Framebuffers
-			vkDestroyFramebuffer(m_logicalDevice, m_32bitPasses[i].frameBuffers[j], nullptr);
-
-			// Destroy the input attachment
-			vkDestroyImage(m_logicalDevice, m_32bitPasses[i].inputImages[j].image, nullptr);
-			vkDestroyImageView(m_logicalDevice, m_32bitPasses[i].inputImages[j].view, nullptr);
-			vkFreeMemory(m_logicalDevice, m_32bitPasses[i].inputImages[j].memory, nullptr);
+			vkDestroyFramebuffer(m_logicalDevice, m_postProcessRPIs[j].frameBuffers[i], nullptr);
 		}
 		// Destroy Renderpasses
-		vkDestroyRenderPass(m_logicalDevice, m_32bitPasses[i].renderPass, nullptr);
+		vkDestroyRenderPass(m_logicalDevice, m_postProcessRPIs[j].renderPass, nullptr);
 	}
-	m_32bitPasses.clear();
-
-	// Destroy 8 bit passes
-	for (int i = 0; i < m_8bitPasses.size(); i++)
-	{
-		for (uint32_t j = 0; j < m_numSwapChainImages; j++)
-		{
-			// Destroy Framebuffers
-			vkDestroyFramebuffer(m_logicalDevice, m_8bitPasses[i].frameBuffers[j], nullptr);
-
-			// Destroy the input attachment
-			vkDestroyImage(m_logicalDevice, m_8bitPasses[i].inputImages[j].image, nullptr);
-			vkDestroyImageView(m_logicalDevice, m_8bitPasses[i].inputImages[j].view, nullptr);
-			vkFreeMemory(m_logicalDevice, m_8bitPasses[i].inputImages[j].memory, nullptr);
-		}
-		// Destroy Renderpasses
-		vkDestroyRenderPass(m_logicalDevice, m_8bitPasses[i].renderPass, nullptr);
-	}
-	m_8bitPasses.clear();
-
-	// Destroy tone map pass
-	{
-		for (uint32_t j = 0; j < m_numSwapChainImages; j++)
-		{
-			// Destroy Framebuffers
-			vkDestroyFramebuffer(m_logicalDevice, m_toneMapRPI.frameBuffers[j], nullptr);
-
-			// Destroy the input attachment
-			vkDestroyImage(m_logicalDevice, m_toneMapRPI.inputImages[j].image, nullptr);
-			vkDestroyImageView(m_logicalDevice, m_toneMapRPI.inputImages[j].view, nullptr);
-			vkFreeMemory(m_logicalDevice, m_toneMapRPI.inputImages[j].memory, nullptr);
-		}
-		// Destroy Renderpasses
-		vkDestroyRenderPass(m_logicalDevice, m_toneMapRPI.renderPass, nullptr);
-	}
+	m_postProcessRPIs.clear();
 }
-inline void VulkanRendererBackend::recordCommandBuffer_PostProcess(VkCommandBuffer& graphicsCmdBuffer, unsigned int frameIndex)
-{
 
-}
 inline void VulkanRendererBackend::prePostProcess()
 {
 	m_numPostEffects = 0;
-	createAllPostProcessSamplers();
-	
+	m_fbaHighResIndexInUse = 0;
+	m_fbaLowResIndexInUse = 0;
+
+	// Create the post Process sampler
+	{
+		const float mipLevels = 1;
+		const uint32_t arrayLayers = 1;
+		const float anisotropy = 16.0f;
+
+		ImageUtil::createImageSampler(m_logicalDevice, m_postProcessSampler, 
+			VK_FILTER_LINEAR, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, 
+			VK_SAMPLER_MIPMAP_MODE_LINEAR, 0, 0, mipLevels, anisotropy, VK_COMPARE_OP_NEVER);
+	}
+
+	// Store info used to fill out descriptors sets
 	m_prePostProcessInput.resize(m_numSwapChainImages);
 	for (uint32_t i = 0; i < m_numSwapChainImages; i++)
 	{
 		m_prePostProcessInput[i].imageLayout = m_compositeComputeOntoRasterRPI.imageSetInfo[i].imageLayout;
 		m_prePostProcessInput[i].imageView = m_compositeComputeOntoRasterRPI.imageSetInfo[i].imageView;
-		m_prePostProcessInput[i].sampler = m_32bitSampler;
+		m_prePostProcessInput[i].sampler = m_postProcessSampler;
 	}
 
 	// Transition swapchain images to VK_IMAGE_LAYOUT_PRESENT_SRC_KHR for consistency during later transitions
@@ -94,48 +81,141 @@ inline void VulkanRendererBackend::prePostProcess()
 	{
 		VkImageLayout oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		VkImageLayout newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;// VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; //VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
-		m_vulkanObj->transitionSwapChainImageLayout_SingleTimeCommand(index, oldLayout, newLayout, m_graphicsCommandPool);
+		m_vulkanManager->transitionSwapChainImageLayout_SingleTimeCommand(index, oldLayout, newLayout, m_graphicsCommandPool);
 	}
 
-	// TODO Setup last post process pass as the transition pass to the UI. 
-	// It basically takes whatever was the last result and copies it into the swapchain. 
+	// Create the framebuffer attachments used by more than one post process pass
+	{
+		// Ping pong post process framebuffers that will be alternatively read from and written into.
+		// Need 2 sets for the 2 types of resolutions we support
+		const VkImageLayout layoutBeforeImageCreation = VK_IMAGE_LAYOUT_UNDEFINED;
+		const VkImageLayout layoutToTransitionImageToAfterCreation = VK_IMAGE_LAYOUT_GENERAL; // No transition if same as layoutBeforeImageCreation
+		const VkImageUsageFlags frameBufferUsage = 
+			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | 
+			VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+
+		for (uint32_t j = 0; j < 2; j++)
+		{
+			m_fbaHighRes[j].resize(m_numSwapChainImages);
+			m_fbaLowRes[j].resize(m_numSwapChainImages);
+
+			FrameResourcesUtil::createFrameBufferAttachments(m_logicalDevice, m_physicalDevice, m_graphicsQueue, m_graphicsCommandPool,
+				m_numSwapChainImages, m_fbaHighRes[j], m_highResolutionRenderFormat,
+				layoutBeforeImageCreation, layoutToTransitionImageToAfterCreation, m_windowExtents, frameBufferUsage);
+
+			FrameResourcesUtil::createFrameBufferAttachments(m_logicalDevice, m_physicalDevice, m_graphicsQueue, m_graphicsCommandPool,
+				m_numSwapChainImages, m_fbaLowRes[j], m_lowResolutionRenderFormat,
+				layoutBeforeImageCreation, layoutToTransitionImageToAfterCreation, m_windowExtents, frameBufferUsage);
+		}
+	}
 }
 
 
 
 inline void VulkanRendererBackend::expandDescriptorPool_PostProcess(std::vector<VkDescriptorPoolSize>& poolSizes)
 {
+	//Common
+	poolSizes.push_back({ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, m_numSwapChainImages }); // before post process
+	poolSizes.push_back({ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, m_numSwapChainImages }); // high res frame 1
+	poolSizes.push_back({ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, m_numSwapChainImages }); // high res frame 2
+	poolSizes.push_back({ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, m_numSwapChainImages }); // low res frame 1
+	poolSizes.push_back({ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, m_numSwapChainImages }); // low res frame 2
+
+	// Test High Res Pass
 	// Tonemap
-	poolSizes.push_back({ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, m_numSwapChainImages }); // input image
-	poolSizes.push_back({ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, m_numSwapChainImages }); // output image
+	// Test low Res Pass
 }
-inline void VulkanRendererBackend::createDescriptors_PostProcess(VkDescriptorPool descriptorPool)
+inline void VulkanRendererBackend::createDescriptors_PostProcess_Common(VkDescriptorPool descriptorPool)
 {
 	int serialCount = 0;
 
+	m_postProcessDescriptorsCommon.push_back(DescriptorUtil::createImgSamplerDescriptor(
+		serialCount, "SampleFrameBeforePostProcess", m_numSwapChainImages, descriptorPool, m_logicalDevice));
+	serialCount++;
+
+	m_postProcessDescriptorsCommon.push_back( DescriptorUtil::createImgSamplerDescriptor(
+		serialCount, "SampleFrameHighResolution1", m_numSwapChainImages, descriptorPool, m_logicalDevice) );
+	serialCount++;
+
+	m_postProcessDescriptorsCommon.push_back(DescriptorUtil::createImgSamplerDescriptor(
+		serialCount, "SampleFrameHighResolution2", m_numSwapChainImages, descriptorPool, m_logicalDevice));
+	serialCount++;
+
+	m_postProcessDescriptorsCommon.push_back(DescriptorUtil::createImgSamplerDescriptor(
+		serialCount, "SampleFrameLowResolution1", m_numSwapChainImages, descriptorPool, m_logicalDevice));
+	serialCount++;
+
+	m_postProcessDescriptorsCommon.push_back(DescriptorUtil::createImgSamplerDescriptor(
+		serialCount, "SampleFrameLowResolution2", m_numSwapChainImages, descriptorPool, m_logicalDevice));
+	serialCount++;
+}
+inline void VulkanRendererBackend::createDescriptors_PostProcess_Specific(VkDescriptorPool descriptorPool)
+{
+	int serialCount = 0;
+	// Test High Res Pass
+	//{
+	//	PostProcessDescriptors tonemapDescriptor;
+	//	tonemapDescriptor.descriptorName = "HighResTestPass";
+	//	tonemapDescriptor.serialIndex = serialCount;
+	//	tonemapDescriptor.postProcess_DSs.resize(m_numSwapChainImages);
+
+	//	const uint32_t numBindings = 1;
+	//	VkDescriptorSetLayoutBinding inputImageLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
+	//	std::array<VkDescriptorSetLayoutBinding, numBindings> toneMapBindings = { inputImageLayoutBinding };
+	//	DescriptorUtil::createDescriptorSetLayout(m_logicalDevice, tonemapDescriptor.postProcess_DSL, numBindings, toneMapBindings.data());
+
+	//	for (uint32_t i = 0; i < m_numSwapChainImages; i++)
+	//	{
+	//		DescriptorUtil::createDescriptorSets(m_logicalDevice, descriptorPool, 1, &tonemapDescriptor.postProcess_DSL, &tonemapDescriptor.postProcess_DSs[i]);
+	//	}
+	//	tonemapDescriptor.genericDescriptorsUsed.push_back(DSL_TYPE::TIME);
+
+	//	m_postProcessDescriptorsSpecific.push_back(tonemapDescriptor);
+	//	serialCount++;
+	//}
+
 	// Tonemap
 	{
-		PostProcessDescriptors tonemapDescriptor;
-		tonemapDescriptor.descriptorName = "Tonemap";
-		tonemapDescriptor.serialIndex = serialCount;
-		tonemapDescriptor.postProcess_DSs.resize(m_numSwapChainImages);
+		//PostProcessDescriptors tonemapDescriptor;
+		//tonemapDescriptor.descriptorName = "Tonemap";
+		//tonemapDescriptor.serialIndex = serialCount;
+		//tonemapDescriptor.postProcess_DSs.resize(m_numSwapChainImages);
 
-		VkDescriptorSetLayoutBinding inputImageLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
-		VkDescriptorSetLayoutBinding outputImageBinding      = { 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,          1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
-		std::array<VkDescriptorSetLayoutBinding, 2> toneMapBindings = { inputImageLayoutBinding, outputImageBinding };
-		DescriptorUtil::createDescriptorSetLayout(m_logicalDevice, tonemapDescriptor.postProcess_DSL, static_cast<uint32_t>(toneMapBindings.size()), toneMapBindings.data());
-		m_postProcessDescriptors.push_back(tonemapDescriptor);
+		//tonemapDescriptor.genericDescriptorsUsed.push_back(DSL_TYPE::BEFOREPOST_FRAME);
 
-		for (uint32_t i = 0; i < m_numSwapChainImages; i++)
-		{
-			DescriptorUtil::createDescriptorSets(m_logicalDevice, descriptorPool, 1, &m_postProcessDescriptors[serialCount].postProcess_DSL, &m_postProcessDescriptors[serialCount].postProcess_DSs[i]);
-		}
-		serialCount++;
+		//m_postProcessDescriptorsSpecific.push_back(tonemapDescriptor);
+		//serialCount++;
 	}
 
 	// TXAA and other Post Process effects
 }
-inline void VulkanRendererBackend::writeToAndUpdateDescriptorSets_PostProcess()
+inline void VulkanRendererBackend::writeToAndUpdateDescriptorSets_PostProcess_Common()
+{
+	// Ordering is very very important here. 
+	// It has to match the order of descriptors in createDescriptors_PostProcess_Common(...)
+	int index = 0;
+
+	DescriptorUtil::writeToImageSamplerDescriptor(m_postProcessDescriptorsCommon[index].postProcess_DSs,
+		m_prePostProcessInput, m_postProcessSampler, m_numSwapChainImages, m_logicalDevice);
+	index++;
+
+	DescriptorUtil::writeToImageSamplerDescriptor(m_postProcessDescriptorsCommon[index].postProcess_DSs,
+		m_fbaHighRes[0], VK_IMAGE_LAYOUT_GENERAL, m_postProcessSampler, m_numSwapChainImages, m_logicalDevice);
+	index++;
+
+	DescriptorUtil::writeToImageSamplerDescriptor(m_postProcessDescriptorsCommon[index].postProcess_DSs,
+		m_fbaHighRes[1], VK_IMAGE_LAYOUT_GENERAL, m_postProcessSampler, m_numSwapChainImages, m_logicalDevice);
+	index++;
+
+	DescriptorUtil::writeToImageSamplerDescriptor(m_postProcessDescriptorsCommon[index].postProcess_DSs,
+		m_fbaLowRes[0], VK_IMAGE_LAYOUT_GENERAL, m_postProcessSampler, m_numSwapChainImages, m_logicalDevice);
+	index++;
+
+	DescriptorUtil::writeToImageSamplerDescriptor(m_postProcessDescriptorsCommon[index].postProcess_DSs,
+		m_fbaLowRes[1], VK_IMAGE_LAYOUT_GENERAL, m_postProcessSampler, m_numSwapChainImages, m_logicalDevice);
+	index++;
+}
+inline void VulkanRendererBackend::writeToAndUpdateDescriptorSets_PostProcess_Specific()
 {
 	for (uint32_t i = 0; i < m_numSwapChainImages; i++)
 	{
@@ -143,29 +223,22 @@ inline void VulkanRendererBackend::writeToAndUpdateDescriptorSets_PostProcess()
 		// TODO: change to something that searches for the particular string name later
 		int index = 0; // controls which descriptor is being accessed
 		{
-			// The input image for the tonemap is the last renderpass in the 32 bit passes.
-			// TODO: The inputImages data is probably not needed and can be removed at a later point
-			// We should simply be able to use the data from the last renderpass if things are in the correct order.
-			// We are already doing this with the image layout.
-			VkDescriptorImageInfo inputImageInfo = DescriptorUtil::createDescriptorImageInfo(
-				m_32bitSampler,
-				m_compositeComputeOntoRasterRPI.imageSetInfo[i].imageView, // m_toneMapRPI.inputImages[i].view
-				m_compositeComputeOntoRasterRPI.imageSetInfo[i].imageLayout); // m_prePostProcessInput[i].imageLayout);
-			//VkDescriptorImageInfo outputImageInfo = DescriptorUtil::createDescriptorImageInfo(
-			//	m_toneMapSampler,
-			//	m_toneMapRPI.imageSetInfo[i].imageView,
-			//	m_toneMapRPI.imageSetInfo[i].imageLayout);
+			//// The input image for the tonemap is the last renderpass in the 32 bit passes.
+			//// TODO: The inputImages data is probably not needed and can be removed at a later point
+			//// We should simply be able to use the data from the last renderpass if things are in the correct order.
+			//// We are already doing this with the image layout.
+			//VkDescriptorImageInfo inputImageInfo = DescriptorUtil::createDescriptorImageInfo(
+			//	m_postProcessSampler,
+			//	m_prePostProcessInput[i].imageView,
+			//	m_prePostProcessInput[i].imageLayout);
 
-			const int descriptorCount = 1; //2;
-			std::array<VkWriteDescriptorSet, descriptorCount> writeToneMapSetInfo = {};
-			writeToneMapSetInfo[0] = DescriptorUtil::writeDescriptorSet(
-				m_postProcessDescriptors[index].postProcess_DSs[i], 0, 1, 
-				VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &inputImageInfo);
-			//writeToneMapSetInfo[1] = DescriptorUtil::writeDescriptorSet(
-			//	m_postProcessDescriptors[index].postProcess_DSs[i], 1, 1, 
-			//	VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &outputImageInfo);
+			//const int descriptorCount = 1;
+			//std::array<VkWriteDescriptorSet, descriptorCount> writeToneMapSetInfo = {};
+			//writeToneMapSetInfo[0] = DescriptorUtil::writeDescriptorSet(
+			//	m_postProcessDescriptorsSpecific[index].postProcess_DSs[i], 0, 1, 
+			//	VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &inputImageInfo);
 
-			vkUpdateDescriptorSets(m_logicalDevice, descriptorCount, writeToneMapSetInfo.data(), 0, nullptr);
+			//vkUpdateDescriptorSets(m_logicalDevice, descriptorCount, writeToneMapSetInfo.data(), 0, nullptr);
 		}
 
 		// Another Postprocess pass
@@ -176,59 +249,46 @@ inline void VulkanRendererBackend::writeToAndUpdateDescriptorSets_PostProcess()
 
 
 inline void VulkanRendererBackend::addPostProcessPass(std::string effectName,
-	std::vector<VkDescriptorSetLayout>& effectDSL, POST_PROCESS_GROUP postType)
+	std::vector<VkDescriptorSetLayout>& effectDSL, POST_PROCESS_TYPE postType, PostProcessRPI& postRPI)
 {
-	m_postEffectNames.push_back(effectName);
+	m_postEffectNames.push_back(effectName);	
+	postRPI.serialIndex = m_numPostEffects;
+	postRPI.postType = postType;
 
-	if (postType == POST_PROCESS_GROUP::PASS_32BIT)
+	// All framebuffer attachments have been transitioned to VK_IMAGE_LAYOUT_GENERAL after creation
+	// Currently we only need to tranisiont the image to something other than VK_IMAGE_LAYOUT_GENERAL if it is the last pass.
+	// This is because after the last pass we will directly copy the result into the swapchain
+	const VkImageLayout layoutAfterImageCreation = VK_IMAGE_LAYOUT_GENERAL;
+	const VkImageLayout layoutAfterRenderPassExecuted = VK_IMAGE_LAYOUT_GENERAL;
+	const VkFormat depthFormat = VK_FORMAT_UNDEFINED; // m_depth.format
+		
+	if (postType == POST_PROCESS_TYPE::HIGH_RESOLUTION)
 	{
-		const VkFormat colorFormat = VK_FORMAT_R16G16B16A16_SFLOAT; // Technically not 32 bit but just higher resolution
-		const VkImageLayout layoutBeforeImageCreation = VK_IMAGE_LAYOUT_UNDEFINED; // can be VK_IMAGE_LAYOUT_UNDEFINED or VK_IMAGE_LAYOUT_PREINITIALIZED
-		const VkImageLayout layoutToTransitionImageToAfterCreation = VK_IMAGE_LAYOUT_GENERAL; // No transition if same as layoutBeforeImageCreation
-		const VkImageLayout layoutAfterRenderPassExecuted = VK_IMAGE_LAYOUT_GENERAL;
-		const VkImageUsageFlags frameBufferUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
-		m_32bitPasses[m_numPostEffects].serialIndex = m_numPostEffects;
+		addRenderPass_PostProcess(postRPI.renderPass, m_highResolutionRenderFormat, depthFormat, layoutAfterImageCreation, layoutAfterRenderPassExecuted);
+		addFrameBuffers_PostProcess(postRPI, m_highResolutionRenderFormat, postType, m_fbaHighRes[m_fbaHighResIndexInUse], layoutAfterRenderPassExecuted);
+		addPipeline_PostProcess(effectName, effectDSL, postRPI.renderPass);
 
-		addRenderPass_PostProcess(m_32bitPasses[m_numPostEffects].renderPass, colorFormat, m_depth.format, 
-			layoutToTransitionImageToAfterCreation, layoutAfterRenderPassExecuted);
-		addFrameBuffers_PostProcess(m_32bitPasses[m_numPostEffects], colorFormat, POST_PROCESS_GROUP::PASS_32BIT, frameBufferUsage,
-			layoutBeforeImageCreation, layoutToTransitionImageToAfterCreation, layoutAfterRenderPassExecuted);
-		addPipeline_PostProcess(effectName, effectDSL, m_32bitPasses[m_numPostEffects].renderPass);
+		m_fbaHighResIndexInUse = (m_fbaHighResIndexInUse + 1) % 2;
 	}
-	else if (postType == POST_PROCESS_GROUP::PASS_8BIT)
+	else if (postType == POST_PROCESS_TYPE::TONEMAP)
 	{
-		const VkFormat colorFormat = VK_FORMAT_B8G8R8A8_UNORM;
-		const VkImageLayout layoutBeforeImageCreation = VK_IMAGE_LAYOUT_UNDEFINED; // can be VK_IMAGE_LAYOUT_UNDEFINED or VK_IMAGE_LAYOUT_PREINITIALIZED
-		const VkImageLayout layoutToTransitionImageToAfterCreation = VK_IMAGE_LAYOUT_GENERAL; // No transition if same as layoutBeforeImageCreation
-		const VkImageLayout layoutAfterRenderPassExecuted = VK_IMAGE_LAYOUT_GENERAL;
-		const VkImageUsageFlags frameBufferUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
-		m_8bitPasses[m_numPostEffects].serialIndex = m_numPostEffects;
-
-		addRenderPass_PostProcess(m_8bitPasses[m_numPostEffects].renderPass, colorFormat, m_depth.format, 
-			layoutToTransitionImageToAfterCreation, layoutAfterRenderPassExecuted);
-		addFrameBuffers_PostProcess(m_8bitPasses[m_numPostEffects], colorFormat, POST_PROCESS_GROUP::PASS_8BIT, frameBufferUsage,
-			layoutBeforeImageCreation, layoutToTransitionImageToAfterCreation, layoutAfterRenderPassExecuted);
-		addPipeline_PostProcess(effectName, effectDSL, m_8bitPasses[m_numPostEffects].renderPass);
-	}
-	else if (postType == POST_PROCESS_GROUP::PASS_TONEMAP)
-	{
-		const VkFormat startColorFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
-		const VkFormat endColorFormat = VK_FORMAT_B8G8R8A8_UNORM;
-		const VkFormat depthFormat = VK_FORMAT_UNDEFINED;
-		const VkImageLayout layoutBeforeImageCreation = VK_IMAGE_LAYOUT_UNDEFINED; // can be VK_IMAGE_LAYOUT_UNDEFINED or VK_IMAGE_LAYOUT_PREINITIALIZED
-		const VkImageLayout layoutToTransitionImageToAfterCreation = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL; // Change to VK_IMAGE_LAYOUT_GENERAL when it is not the first pass
-		const VkImageLayout layoutAfterRenderPassExecuted = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL; // Change to VK_IMAGE_LAYOUT_GENERAL when it is not the last pass before the UI overlay pass.
-		const VkImageUsageFlags frameBufferUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-		m_toneMapRPI.serialIndex = m_numPostEffects;
-
 		// undefined depth format means we dont add depth as a attachment to the renderpass
-		addRenderPass_PostProcess(m_toneMapRPI.renderPass, endColorFormat, depthFormat, 
-			layoutToTransitionImageToAfterCreation, layoutAfterRenderPassExecuted);
-		addFrameBuffers_PostProcess(m_toneMapRPI, endColorFormat, POST_PROCESS_GROUP::PASS_TONEMAP, frameBufferUsage,
-			layoutBeforeImageCreation, layoutToTransitionImageToAfterCreation, layoutAfterRenderPassExecuted);
-		addPipeline_PostProcess(effectName, effectDSL, m_toneMapRPI.renderPass);
+		addRenderPass_PostProcess(postRPI.renderPass, m_lowResolutionRenderFormat, depthFormat,	layoutAfterImageCreation, layoutAfterRenderPassExecuted);
+		addFrameBuffers_PostProcess(postRPI, m_lowResolutionRenderFormat, postType,	m_fbaLowRes[m_fbaLowResIndexInUse], layoutAfterRenderPassExecuted);
+		addPipeline_PostProcess(effectName, effectDSL, postRPI.renderPass);
+
+		m_fbaLowResIndexInUse++; // Can do this because tone map pass should only happen once
+	}
+	else if (postType == POST_PROCESS_TYPE::LOW_RESOLUTION)
+	{
+		addRenderPass_PostProcess(postRPI.renderPass, m_lowResolutionRenderFormat, depthFormat,	layoutAfterImageCreation, layoutAfterRenderPassExecuted);
+		addFrameBuffers_PostProcess(postRPI, m_lowResolutionRenderFormat, postType,	m_fbaLowRes[m_fbaLowResIndexInUse], layoutAfterRenderPassExecuted);
+		addPipeline_PostProcess(effectName, effectDSL, postRPI.renderPass);
+
+		m_fbaLowResIndexInUse = (m_fbaLowResIndexInUse + 1) % 2;
 	}
 
+	m_postProcessRPIs.push_back(postRPI);
 	m_numPostEffects++;
 }
 
@@ -254,38 +314,23 @@ inline void VulkanRendererBackend::addRenderPass_PostProcess( VkRenderPass& l_re
 }
 
 inline void VulkanRendererBackend::addFrameBuffers_PostProcess(
-	PostProcessRPI& passRPI, VkFormat colorFormat, POST_PROCESS_GROUP postType, const VkImageUsageFlags frameBufferUsage,
-	const VkImageLayout beforeCreation, const VkImageLayout afterCreation, const VkImageLayout afterRenderPassExecuted)
+	PostProcessRPI& passRPI, VkFormat colorFormat, POST_PROCESS_TYPE postType,
+	std::vector<FrameBufferAttachment>& fbAttachments, const VkImageLayout afterRenderPassExecuted)
 {
 	passRPI.frameBuffers.resize(m_numSwapChainImages);
-	passRPI.inputImages.resize(m_numSwapChainImages);
 	passRPI.imageSetInfo.resize(m_numSwapChainImages);
-
-	FrameResourcesUtil::createFrameBufferAttachments(m_logicalDevice, m_physicalDevice, m_graphicsQueue, m_graphicsCommandPool,
-		m_numSwapChainImages, passRPI.inputImages, colorFormat, beforeCreation, afterCreation, m_windowExtents, frameBufferUsage);
-
+	
 	for (uint32_t i = 0; i < m_numSwapChainImages; i++)
 	{
-		std::array<VkImageView, 1> attachments = { passRPI.inputImages[i].view };// , m_depth.view
+		std::array<VkImageView, 1> attachments = { fbAttachments[i].view };
 
 		FrameResourcesUtil::createFrameBuffer(m_logicalDevice, passRPI.frameBuffers[i], passRPI.renderPass,
 			m_windowExtents, static_cast<uint32_t>(attachments.size()), attachments.data());
 
 		// Fill a descriptor for later use in a descriptor set 
 		passRPI.imageSetInfo[i].imageLayout = afterRenderPassExecuted;
-		passRPI.imageSetInfo[i].imageView = passRPI.inputImages[i].view;
-		if (postType == PASS_32BIT)
-		{
-			passRPI.imageSetInfo[i].sampler = m_32bitSampler;
-		}
-		else if (postType == PASS_TONEMAP)
-		{
-			passRPI.imageSetInfo[i].sampler = m_toneMapSampler;
-		}
-		else if (postType == PASS_8BIT)
-		{
-			passRPI.imageSetInfo[i].sampler = m_8bitSampler;
-		}
+		passRPI.imageSetInfo[i].imageView = fbAttachments[i].view;
+		passRPI.imageSetInfo[i].sampler = m_postProcessSampler;
 	}
 }
 
@@ -322,20 +367,12 @@ inline void VulkanRendererBackend::addPipeline_PostProcess(
 	vkDestroyShaderModule(m_logicalDevice, fragShaderModule, nullptr);
 }
 
-inline void VulkanRendererBackend::createAllPostProcessSamplers()
-{
-	const float mipLevels = 1;
-	const uint32_t arrayLayers = 1;
-	const float anisotropy = 16.0f;
-	const VkSamplerAddressMode samplerAddressMode = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 
-	// 32 Bit Sampler
-	ImageUtil::createImageSampler(m_logicalDevice, m_32bitSampler, VK_FILTER_LINEAR, VK_FILTER_LINEAR, samplerAddressMode,
-		VK_SAMPLER_MIPMAP_MODE_LINEAR, 0, 0, mipLevels, anisotropy, VK_COMPARE_OP_NEVER);
-	// 8 Bit Sampler
-	ImageUtil::createImageSampler(m_logicalDevice, m_8bitSampler, VK_FILTER_LINEAR, VK_FILTER_LINEAR, samplerAddressMode,
-		VK_SAMPLER_MIPMAP_MODE_LINEAR, 0, 0, mipLevels, anisotropy, VK_COMPARE_OP_NEVER);
-	// Tonemap Sampler
-	ImageUtil::createImageSampler(m_logicalDevice, m_toneMapSampler, VK_FILTER_LINEAR, VK_FILTER_LINEAR, samplerAddressMode,
-		VK_SAMPLER_MIPMAP_MODE_LINEAR, 0, 0, mipLevels, anisotropy, VK_COMPARE_OP_NEVER);
+inline DSL_TYPE VulkanRendererBackend::chooseHighResInput()
+{
+	return (m_fbaHighResIndexInUse == 1) ? DSL_TYPE::POST_HRFRAME1 : DSL_TYPE::POST_HRFRAME2;
+}
+inline DSL_TYPE VulkanRendererBackend::chooseLowResInput()
+{
+	return (m_fbaLowResIndexInUse == 1) ? DSL_TYPE::POST_LRFRAME1 : DSL_TYPE::POST_LRFRAME2;
 }

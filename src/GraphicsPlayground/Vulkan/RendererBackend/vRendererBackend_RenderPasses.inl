@@ -58,9 +58,6 @@ inline void VulkanRendererBackend::createRenderPasses(const VkImageLayout& befor
 
 	// Subpass dependencies define layout transitions between subpasses -- Vulkan automatically handles these transitions
 
-	VkFormat swapChainImageFormat = m_vulkanObj->getSwapChainImageFormat();
-	VkFormat color32bitFormat = m_vulkanObj->getSwapChainImageFormat();
-
 	// --- Raster Render Pass --- 
 	// Renders Geometry to an offscreen buffer
 	{
@@ -79,7 +76,7 @@ inline void VulkanRendererBackend::createRenderPasses(const VkImageLayout& befor
 					VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT));
 		}
 		RenderPassUtil::renderPassCreationHelper(m_logicalDevice, m_rasterRPI.renderPass,
-			swapChainImageFormat, m_depthFormat, beforeRenderPassExecuted, afterRenderPassExecuted, subpassDependencies);
+			m_highResolutionRenderFormat, m_depthFormat, beforeRenderPassExecuted, afterRenderPassExecuted, subpassDependencies);
 	}
 
 	// --- Raster + Compute Composite Render Pass --- 
@@ -102,7 +99,7 @@ inline void VulkanRendererBackend::createRenderPasses(const VkImageLayout& befor
 					VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_ACCESS_MEMORY_READ_BIT));
 		}
 		RenderPassUtil::renderPassCreationHelper(m_logicalDevice, m_compositeComputeOntoRasterRPI.renderPass,
-			swapChainImageFormat, m_depthFormat, beforeRenderPassExecuted, afterRenderPassExecuted, subpassDependencies);
+			m_highResolutionRenderFormat, m_depthFormat, beforeRenderPassExecuted, afterRenderPassExecuted, subpassDependencies);
 	}
 }
 inline void VulkanRendererBackend::createDepthResources()
@@ -126,7 +123,6 @@ inline void VulkanRendererBackend::createFrameBuffers(
 	// A framebuffer object references all of the VkImageView objects that represent the attachments. 
 	// Think color attachment and depth attachment 
 
-	const VkFormat swapChainImageFormat = m_vulkanObj->getSwapChainImageFormat();
 	const VkImageUsageFlags frameBufferUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 
 	// Render Geometry
@@ -137,7 +133,7 @@ inline void VulkanRendererBackend::createFrameBuffers(
 		m_rasterRPI.extents = m_windowExtents;
 
 		FrameResourcesUtil::createFrameBufferAttachments(m_logicalDevice, m_physicalDevice, m_graphicsQueue, m_graphicsCommandPool,
-			m_numSwapChainImages, m_rasterRPI.color, m_rasterRPI.sampler, swapChainImageFormat, 
+			m_numSwapChainImages, m_rasterRPI.color, m_rasterRPI.sampler, m_highResolutionRenderFormat,
 			layoutBeforeImageCreation, layoutToTransitionImageToAfterCreation, m_windowExtents, frameBufferUsage);
 
 		const uint32_t numAttachments = 2;
@@ -165,7 +161,7 @@ inline void VulkanRendererBackend::createFrameBuffers(
 		m_compositeComputeOntoRasterRPI.extents = m_windowExtents;
 
 		FrameResourcesUtil::createFrameBufferAttachments(m_logicalDevice, m_physicalDevice, m_graphicsQueue, m_graphicsCommandPool,
-			m_numSwapChainImages, m_compositeComputeOntoRasterRPI.color, m_compositeComputeOntoRasterRPI.sampler, swapChainImageFormat, 
+			m_numSwapChainImages, m_compositeComputeOntoRasterRPI.color, m_compositeComputeOntoRasterRPI.sampler, m_highResolutionRenderFormat,
 			layoutBeforeImageCreation, layoutToTransitionImageToAfterCreation, m_windowExtents, frameBufferUsage);
 
 		const uint32_t numAttachments = 2;

@@ -14,8 +14,8 @@ inline void VulkanRendererBackend::createCommandPoolsAndBuffers()
 	// Because one of the drawing commands involves binding the right VkFramebuffer, we'll actually have to 
 	// record a command buffer for every image in the swap chain once again.
 
-	VulkanCommandUtil::createCommandPool(m_logicalDevice, m_graphicsCommandPool, m_vulkanObj->getQueueIndex(QueueFlags::Graphics));
-	VulkanCommandUtil::createCommandPool(m_logicalDevice, m_computeCommandPool, m_vulkanObj->getQueueIndex(QueueFlags::Compute));
+	VulkanCommandUtil::createCommandPool(m_logicalDevice, m_graphicsCommandPool, m_vulkanManager->getQueueIndex(QueueFlags::Graphics));
+	VulkanCommandUtil::createCommandPool(m_logicalDevice, m_computeCommandPool, m_vulkanManager->getQueueIndex(QueueFlags::Compute));
 	recreateCommandBuffers();
 }
 inline void VulkanRendererBackend::recreateCommandBuffers()
@@ -27,13 +27,13 @@ inline void VulkanRendererBackend::recreateCommandBuffers()
 }
 inline void VulkanRendererBackend::submitCommandBuffers()
 {
-	VkSemaphore waitSemaphores[] = { m_vulkanObj->getImageAvailableVkSemaphore() };
+	VkSemaphore waitSemaphores[] = { m_vulkanManager->getImageAvailableVkSemaphore() };
 	// We want to wait with writing colors to the image until it's available, so we're specifying the stage of the graphics pipeline 
 	// that writes to the color attachment. That means that theoretically the implementation can already start executing our vertex 
 	// shader and such while the image is not available yet.
 	VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-	VkSemaphore signalSemaphores[] = { m_vulkanObj->getRenderFinishedVkSemaphore() };
-	VkFence inFlightFence = m_vulkanObj->getInFlightFence();
+	VkSemaphore signalSemaphores[] = { m_vulkanManager->getRenderFinishedVkSemaphore() };
+	VkFence inFlightFence = m_vulkanManager->getInFlightFence();
 
 	//	Submit Commands
 	{
@@ -43,7 +43,7 @@ inline void VulkanRendererBackend::submitCommandBuffers()
 		// The inflight fence basically tells us when a frame has finished rendering, and the submitToQueueSynced function 
 		// signals the fence, informing it and thus us of the same.
 
-		uint32_t index = m_vulkanObj->getIndex();
+		uint32_t index = m_vulkanManager->getIndex();
 		VulkanCommandUtil::submitToQueue(m_computeQueue, 1, m_computeCommandBuffers[index]);
 		VulkanCommandUtil::submitToQueueSynced(
 			m_graphicsQueue, 1, &m_graphicsCommandBuffers[index],
@@ -84,7 +84,7 @@ inline void VulkanRendererBackend::recordCommandBuffer_GraphicsCmds(
 	clearValues[0].color = { 0.0f, 0.0f, 0.0f, 1.0f };
 	clearValues[1].depthStencil = { 1.0f, 0 };
 
-	const VkRect2D renderArea = Util::createRectangle(m_vulkanObj->getSwapChainVkExtent());
+	const VkRect2D renderArea = Util::createRectangle(m_vulkanManager->getSwapChainVkExtent());
 
 	// Create a Image Memory Barrier between the compute pipeline that creates the image and the graphics pipeline that access the image
 	// Image barriers should come before render passes begin, unless you're working with subpasses
@@ -94,7 +94,7 @@ inline void VulkanRendererBackend::recordCommandBuffer_GraphicsCmds(
 		VkImageMemoryBarrier imageMemoryBarrier = ImageUtil::createImageMemoryBarrier(computeTexture->getImage(),
 			computeTexture->getImageLayout(), VK_IMAGE_LAYOUT_GENERAL,
 			VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, imageSubresourceRange,
-			m_vulkanObj->getQueueIndex(QueueFlags::Compute), m_vulkanObj->getQueueIndex(QueueFlags::Graphics));
+			m_vulkanManager->getQueueIndex(QueueFlags::Compute), m_vulkanManager->getQueueIndex(QueueFlags::Graphics));
 
 		VulkanCommandUtil::pipelineBarrier(graphicsCmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
 			0, 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
@@ -160,24 +160,26 @@ inline void VulkanRendererBackend::recordCommandBuffer_PostProcessCmds(
 	unsigned int frameIndex, VkCommandBuffer& graphicsCmdBuffer, std::shared_ptr<Scene> scene,
 	VkRect2D renderArea, uint32_t clearValueCount, const VkClearValue* clearValue)
 {
-	// Tonemap Render Pass
+	for (unsigned int postProcessIndex =0; postProcessIndex <m_numPostEffects; postProcessIndex++)
 	{
-		const unsigned int postProcessIndex = 0; // TODO: CHANGE this when there are multiple post process passes
-		const VkPipeline l_toneMapP = m_postProcess_Ps[postProcessIndex];
-		const VkPipelineLayout l_toneMapPL = m_postProcess_PLs[postProcessIndex];
-
-		const VkDescriptorSet DS_tonemap = getDescriptorSet(DSL_TYPE::POST_PROCESS, frameIndex, postProcessIndex);
-		const VkDescriptorSet DS_timeUBO = scene->getDescriptorSet(DSL_TYPE::TIME, frameIndex);
+		const VkPipeline l_Pipeline = m_postProcess_Ps[postProcessIndex];
+		const VkPipelineLayout l_PipelineLayout = m_postProcess_PLs[postProcessIndex];
+		const VkRenderPass l_renderPass = m_postProcessRPIs[postProcessIndex].renderPass;
+		const VkFramebuffer l_frameBuffer = m_postProcessRPIs[postProcessIndex].frameBuffers[frameIndex];
 
 		// Actual commands for the renderPass
 		{
-			VulkanCommandUtil::beginRenderPass(graphicsCmdBuffer,
-				m_toneMapRPI.renderPass, m_toneMapRPI.frameBuffers[frameIndex],
-				renderArea, clearValueCount, clearValue);
-
-			vkCmdBindDescriptorSets(graphicsCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, l_toneMapPL, 0, 1, &DS_tonemap, 0, nullptr);
-			vkCmdBindDescriptorSets(graphicsCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, l_toneMapPL, 1, 1, &DS_timeUBO, 0, nullptr);
-			vkCmdBindPipeline(graphicsCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, l_toneMapP);
+			VulkanCommandUtil::beginRenderPass(graphicsCmdBuffer, l_renderPass, l_frameBuffer, renderArea, clearValueCount, clearValue);
+			
+			const int numDescriptors = static_cast<int>(m_postProcessRPIs[postProcessIndex].descriptors.size() / 3);
+			for (int i = 0; i < numDescriptors; i++)
+			{
+				const int index = i + frameIndex * numDescriptors;
+				VkDescriptorSet DescSet = m_postProcessRPIs[postProcessIndex].descriptors[index];
+				vkCmdBindDescriptorSets(graphicsCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, l_PipelineLayout, i, 1, &DescSet, 0, nullptr);
+			}
+									
+			vkCmdBindPipeline(graphicsCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, l_Pipeline);
 			vkCmdDraw(graphicsCmdBuffer, 3, 1, 0, 0);
 
 			vkCmdEndRenderPass(graphicsCmdBuffer);
@@ -193,15 +195,43 @@ inline void VulkanRendererBackend::recordCommandBuffer_FinalCmds(
 	// Instead of creating a renderpass to copy the results of the last post process pass into the swapchain we simply use a copy image command.
 	// The vkCmdCopyImage command requires that we do some image tranisitions for the source and destination images
 	{
-		VkImage& srcImage = m_toneMapRPI.inputImages[frameIndex].image;
+		const unsigned int fbaLowResLastUsed = (2 + (m_fbaLowResIndexInUse - 1)) % 2;
+		VkImage& srcImage = m_fbaLowRes[fbaLowResLastUsed][frameIndex].image;
+
+		VkImageLayout srcImageLayoutInitial = VK_IMAGE_LAYOUT_GENERAL;
+		VkImageLayout srcImageLayoutForTransition = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+
 		VkImageLayout swapChainImageLayoutInitial = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; ;
 		VkImageLayout swapChainImageLayoutBeforeUIPass = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		
+		const uint32_t mipLevels = 1;
+		// Pre-copy Transitions
+		{
+			// Transition Last post process pass's result image into VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
+			ImageUtil::transitionImageLayout(m_logicalDevice, m_graphicsQueue, m_graphicsCommandPool, graphicsCmdBuffer,
+				srcImage, m_lowResolutionRenderFormat, srcImageLayoutInitial, srcImageLayoutForTransition, mipLevels);
 
-		// Transition swapchain to VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
-		m_vulkanObj->transitionSwapChainImageLayout(frameIndex, swapChainImageLayoutInitial, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, graphicsCmdBuffer, m_graphicsCommandPool);
+			// Transition swapchain to VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+			m_vulkanManager->transitionSwapChainImageLayout(frameIndex, swapChainImageLayoutInitial, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, graphicsCmdBuffer, m_graphicsCommandPool);
+		}
+
 		// Copy last post process pass's image into the swapchain image
-		m_vulkanObj->copyImageToSwapChainImage(frameIndex, srcImage, graphicsCmdBuffer, m_graphicsCommandPool, m_windowExtents);
-		// Transition swapchain to the VkImageLayout expected by our UI manager
-		m_vulkanObj->transitionSwapChainImageLayout(frameIndex, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, swapChainImageLayoutBeforeUIPass, graphicsCmdBuffer, m_graphicsCommandPool);
+		m_vulkanManager->copyImageToSwapChainImage(frameIndex, srcImage, graphicsCmdBuffer, m_graphicsCommandPool, m_windowExtents);
+
+		// Post-copy Transitions
+		{
+			// Transition Last post process pass's result image back into it's original layout
+			const VkAccessFlags srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+			const VkPipelineStageFlags srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+			const VkAccessFlags dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+			const VkPipelineStageFlags dstStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
+			
+			ImageUtil::transitionImageLayout(m_logicalDevice, m_graphicsQueue, m_graphicsCommandPool, graphicsCmdBuffer,
+				srcImage, m_lowResolutionRenderFormat, srcImageLayoutForTransition, srcImageLayoutInitial, mipLevels,
+				srcAccessMask, dstAccessMask, srcStageMask, dstStageMask);
+
+			// Transition swapchain to the VkImageLayout expected by our UI manager
+			m_vulkanManager->transitionSwapChainImageLayout(frameIndex, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, swapChainImageLayoutBeforeUIPass, graphicsCmdBuffer, m_graphicsCommandPool);
+		}
 	}
 }

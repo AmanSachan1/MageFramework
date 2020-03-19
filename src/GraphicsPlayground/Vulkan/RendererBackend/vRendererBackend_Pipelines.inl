@@ -44,7 +44,7 @@ inline void VulkanRendererBackend::createCompositeComputeOntoRasterPipeline(std:
 	VulkanPipelineCreation::createGraphicsPipeline(m_logicalDevice,
 		m_compositeComputeOntoRaster_P, m_compositeComputeOntoRaster_PL,
 		m_compositeComputeOntoRasterRPI.renderPass, 0,
-		stageCount, shaderStages.data(), vertexInput, m_vulkanObj->getSwapChainVkExtent());
+		stageCount, shaderStages.data(), vertexInput, m_vulkanManager->getSwapChainVkExtent());
 
 	// No need for the shader modules anymore, so we destory them!
 	vkDestroyShaderModule(m_logicalDevice, vertShaderModule, nullptr);
@@ -81,7 +81,7 @@ inline void VulkanRendererBackend::createRasterizationRenderPipeline(std::vector
 	VulkanPipelineCreation::createGraphicsPipeline(m_logicalDevice,
 		m_rasterization_P, m_rasterization_PL,
 		m_rasterRPI.renderPass, 0,
-		stageCount, shaderStages.data(), vertexInput, m_vulkanObj->getSwapChainVkExtent());
+		stageCount, shaderStages.data(), vertexInput, m_vulkanManager->getSwapChainVkExtent());
 
 	// No need for the shader modules anymore, so we destory them!
 	vkDestroyShaderModule(m_logicalDevice, vertShaderModule, nullptr);

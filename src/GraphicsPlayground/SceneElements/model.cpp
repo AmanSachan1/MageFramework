@@ -1,9 +1,9 @@
 #include "model.h"
 #include <Utilities/loadingUtility.h>
 
-Model::Model(std::shared_ptr<VulkanManager> vulkanObj, VkQueue& graphicsQueue, VkCommandPool& commandPool, unsigned int numSwapChainImages,
+Model::Model(std::shared_ptr<VulkanManager> vulkanManager, VkQueue& graphicsQueue, VkCommandPool& commandPool, unsigned int numSwapChainImages,
 	std::vector<Vertex> &vertices, std::vector<uint32_t> &indices, bool isMipMapped, bool yAxisIsUp)
-	: m_logicalDevice(vulkanObj->getLogicalDevice()), m_physicalDevice(vulkanObj->getPhysicalDevice()),
+	: m_logicalDevice(vulkanManager->getLogicalDevice()), m_physicalDevice(vulkanManager->getPhysicalDevice()),
 	m_vertices(vertices), m_indices(indices), m_numSwapChainImages(numSwapChainImages), m_yAxisIsUp(yAxisIsUp)
 {
 	m_vertexBufferSize = vertices.size() * sizeof(vertices[0]);
@@ -30,13 +30,13 @@ Model::Model(std::shared_ptr<VulkanManager> vulkanObj, VkQueue& graphicsQueue, V
 		memcpy(m_mappedDataUniformBuffers[i], &m_modelUBOs[i], (size_t)m_uniformBufferSize);
 	}
 }
-Model::Model(std::shared_ptr<VulkanManager> vulkanObj, VkQueue& graphicsQueue, VkCommandPool& commandPool, unsigned int numSwapChainImages,
+Model::Model(std::shared_ptr<VulkanManager> vulkanManager, VkQueue& graphicsQueue, VkCommandPool& commandPool, unsigned int numSwapChainImages,
 	const std::string model_path, const std::string texture_path, bool isMipMapped, bool yAxisIsUp) 
-	: m_logicalDevice(vulkanObj->getLogicalDevice()), m_physicalDevice(vulkanObj->getPhysicalDevice()),
+	: m_logicalDevice(vulkanManager->getLogicalDevice()), m_physicalDevice(vulkanManager->getPhysicalDevice()),
 	m_numSwapChainImages(numSwapChainImages), m_yAxisIsUp(yAxisIsUp)
 {
 	loadingUtil::loadObj(m_vertices, m_indices, model_path);
-	m_texture = std::make_shared<Texture>(vulkanObj, graphicsQueue, commandPool, VK_FORMAT_R8G8B8A8_UNORM);
+	m_texture = std::make_shared<Texture>(vulkanManager, graphicsQueue, commandPool, VK_FORMAT_R8G8B8A8_UNORM);
 	m_texture->create2DTexture(texture_path, isMipMapped);
 
 	m_vertexBufferSize = m_vertices.size() * sizeof(m_vertices[0]);

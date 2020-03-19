@@ -1,8 +1,8 @@
 #include "Scene.h"
 
-Scene::Scene(std::shared_ptr<VulkanManager> vulkanObj, uint32_t numSwapChainImages, VkExtent2D windowExtents,
+Scene::Scene(std::shared_ptr<VulkanManager> vulkanManager, uint32_t numSwapChainImages, VkExtent2D windowExtents,
 	VkQueue& graphicsQueue, VkCommandPool& graphicsCommandPool,	VkQueue& computeQueue, VkCommandPool& computeCommandPool )
-	:  m_vulkanObj(vulkanObj), m_logicalDevice(vulkanObj->getLogicalDevice()), m_physicalDevice(vulkanObj->getPhysicalDevice()),
+	:  m_vulkanManager(vulkanManager), m_logicalDevice(vulkanManager->getLogicalDevice()), m_physicalDevice(vulkanManager->getPhysicalDevice()),
 	m_numSwapChainImages(numSwapChainImages),
 	m_graphicsQueue(graphicsQueue),	m_graphicsCommandPool(graphicsCommandPool),
 	m_computeQueue(computeQueue), m_computeCommandPool(computeCommandPool)
@@ -48,18 +48,18 @@ void Scene::createScene()
 {
 	std::shared_ptr<Model> model = nullptr;
 #ifdef DEBUG
-	model = new Model(m_vulkanObj, m_graphicsQueue, m_graphicsCommandPool, m_numSwapChainImages, "thinCube.obj", "statue.jpg", false, true);
+	model = std::make_shared<Model>(m_vulkanManager, m_graphicsQueue, m_graphicsCommandPool, m_numSwapChainImages, "thinCube.obj", "statue.jpg", false, true);
 #else
-	model = std::make_shared<Model>(m_vulkanObj, m_graphicsQueue, m_graphicsCommandPool, m_numSwapChainImages, "chalet.obj", "chalet.jpg", true, true);
+	model = std::make_shared<Model>(m_vulkanManager, m_graphicsQueue, m_graphicsCommandPool, m_numSwapChainImages, "chalet.obj", "chalet.jpg", true, true);
 #endif
 	m_modelMap.insert({ "house", model });
 	
-	VkExtent2D windowExtents = m_vulkanObj->getSwapChainVkExtent();
+	VkExtent2D windowExtents = m_vulkanManager->getSwapChainVkExtent();
 
 	for (uint32_t i = 0; i < m_numSwapChainImages; i++)
 	{
 		std::string name = "compute" + std::to_string(i);
-		std::shared_ptr<Texture> texture = std::make_shared<Texture>(m_vulkanObj, m_graphicsQueue, m_graphicsCommandPool, VK_FORMAT_R8G8B8A8_UNORM);
+		std::shared_ptr<Texture> texture = std::make_shared<Texture>(m_vulkanManager, m_graphicsQueue, m_graphicsCommandPool, VK_FORMAT_R8G8B8A8_UNORM);
 		texture->createEmpty2DTexture(windowExtents.width, windowExtents.height, 1, false,
 			VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, 
 			VK_IMAGE_TILING_OPTIMAL, 

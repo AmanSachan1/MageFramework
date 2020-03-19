@@ -49,7 +49,7 @@ bool loadingUtil::loadObj(std::vector<Vertex>& vertices, std::vector<uint32_t>& 
 	}
 
 #ifndef NDEBUG
-	std::cout << "An obj file was loaded" << std::endl;
+	std::cout << "\nAn obj file was loaded" << std::endl;
 	std::cout << "# of vertices  : " << (attrib.vertices.size() / 3) << std::endl;
 	std::cout << "# of normals   : " << (attrib.normals.size() / 3) << std::endl;
 	std::cout << "# of texcoords : " << (attrib.texcoords.size() / 2) << std::endl;

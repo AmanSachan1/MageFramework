@@ -1,30 +1,30 @@
 #include "Renderer.h"
 
 Renderer::Renderer(GLFWwindow* window, 
-	std::shared_ptr<VulkanManager> vulkanObject, 
+	std::shared_ptr<VulkanManager> vulkanManager, 
 	std::shared_ptr<Camera> camera,
 	uint32_t width, uint32_t height)
-	: m_window(window), m_vulkanObj(vulkanObject), m_camera(camera)
+	: m_window(window), m_vulkanManager(vulkanManager), m_camera(camera)
 {
 	initialize();
 }
 Renderer::~Renderer()
 {
-	vkDeviceWaitIdle(m_vulkanObj->getLogicalDevice());
+	vkDeviceWaitIdle(m_vulkanManager->getLogicalDevice());
 	cleanup();
 }
 
 void Renderer::initialize()
 {
-	const uint32_t numFrames = m_vulkanObj->getSwapChainImageCount();
-	const VkExtent2D windowsExtent = m_vulkanObj->getSwapChainVkExtent();
-	m_rendererBackend = std::make_shared<VulkanRendererBackend>(m_vulkanObj, numFrames, windowsExtent);
+	const uint32_t numFrames = m_vulkanManager->getSwapChainImageCount();
+	const VkExtent2D windowsExtent = m_vulkanManager->getSwapChainVkExtent();
+	m_rendererBackend = std::make_shared<VulkanRendererBackend>(m_vulkanManager, numFrames, windowsExtent);
 
-	VkQueue graphicsQueue = m_vulkanObj->getQueue(QueueFlags::Graphics);
-	VkQueue computeQueue = m_vulkanObj->getQueue(QueueFlags::Compute);
+	VkQueue graphicsQueue = m_vulkanManager->getQueue(QueueFlags::Graphics);
+	VkQueue computeQueue = m_vulkanManager->getQueue(QueueFlags::Compute);
 	VkCommandPool computeCmdPool = m_rendererBackend->getComputeCommandPool();
 	VkCommandPool graphicsCmdPool = m_rendererBackend->getGraphicsCommandPool();
-	m_scene = std::make_shared<Scene>(m_vulkanObj, numFrames, windowsExtent, graphicsQueue, graphicsCmdPool, computeQueue, computeCmdPool);
+	m_scene = std::make_shared<Scene>(m_vulkanManager, numFrames, windowsExtent, graphicsQueue, graphicsCmdPool, computeQueue, computeCmdPool);
 
 	setupDescriptorSets();
 	createAllPipelines();
@@ -38,7 +38,7 @@ void Renderer::initialize()
 		false, 1.0f, // Sample Rate Shading
 		true, 16.0f	}; // Anisotropy
 
-	m_UI = std::make_shared<UIManager>(m_window, m_vulkanObj, rendererOptions);
+	m_UI = std::make_shared<UIManager>(m_window, m_vulkanManager, rendererOptions);
 }
 void Renderer::recreate()
 {
@@ -50,12 +50,12 @@ void Renderer::recreate()
 		glfwWaitEvents();
 	}
 
-	vkDeviceWaitIdle(m_vulkanObj->getLogicalDevice());
+	vkDeviceWaitIdle(m_vulkanManager->getLogicalDevice());
 
 	cleanup();
 
-	m_vulkanObj->recreate(m_window);
-	m_rendererBackend->setWindowExtents(m_vulkanObj->getSwapChainVkExtent());
+	m_vulkanManager->recreate(m_window);
+	m_rendererBackend->setWindowExtents(m_vulkanManager->getSwapChainVkExtent());
 	m_rendererBackend->createRenderPassesAndFrameResources();
 
 	createAllPipelines();
@@ -69,7 +69,7 @@ void Renderer::recreate()
 }
 void Renderer::cleanup()
 {
-	m_vulkanObj->cleanup();
+	m_vulkanManager->cleanup();
 	m_rendererBackend->cleanup();
 }
 
@@ -77,31 +77,29 @@ void Renderer::cleanup()
 void Renderer::renderLoop(float prevFrameTime)
 {
 	updateRenderState();
-	acquireNextSwapChainImage();
-
 	m_UI->update(prevFrameTime);
 
+	acquireNextSwapChainImage();
 	m_rendererBackend->submitCommandBuffers();
 	m_UI->submitDrawCommands();
-
 	presentCurrentImageToSwapChainImage();
 }
 void Renderer::updateRenderState()
 {
 	// Update Uniforms
 	{
-		m_camera->updateUniformBuffer(m_vulkanObj->getIndex());
-		m_scene->updateUniforms(m_vulkanObj->getIndex());
+		m_camera->updateUniformBuffer(m_vulkanManager->getIndex());
+		m_scene->updateUniforms(m_vulkanManager->getIndex());
 	}
 }
 void Renderer::acquireNextSwapChainImage()
 {
 	// Wait for the the frame to be finished before working on it
-	m_vulkanObj->waitForAndResetInFlightFence();
+	m_vulkanManager->waitForAndResetInFlightFence();
 
 	// Acquire image from swapchain
 	// this is the image we will put our final render on and present
-	bool result = m_vulkanObj->acquireNextSwapChainImage();
+	bool result = m_vulkanManager->acquireNextSwapChainImage();
 	if (!result) 
 	{ 
 		recreate();
@@ -110,19 +108,19 @@ void Renderer::acquireNextSwapChainImage()
 void Renderer::presentCurrentImageToSwapChainImage()
 {
 	// Return the image to the swapchain for presentation
-	bool result = m_vulkanObj->presentImageToSwapChain();
+	bool result = m_vulkanManager->presentImageToSwapChain();
 	if (!result) 
 	{
 		recreate();
 	}
 
-	m_vulkanObj->advanceCurrentFrameIndex();
+	m_vulkanManager->advanceCurrentFrameIndex();
 }
 
 
 void Renderer::recordAllCommandBuffers()
 {
-	const unsigned int numCommandBuffers = m_vulkanObj->getSwapChainImageCount();
+	const unsigned int numCommandBuffers = m_vulkanManager->getSwapChainImageCount();
 	unsigned int i = 0;
 	for (; i < numCommandBuffers; i++)
 	{
@@ -161,9 +159,6 @@ void Renderer::setupDescriptorSets()
 		m_scene->createDescriptors(descriptorPool);
 		m_rendererBackend->createDescriptors(descriptorPool);
 	}
-
-	// --- Write to Descriptor Sets ---
-	//writeToAndUpdateDescriptorSets();
 }
 void Renderer::writeToAndUpdateDescriptorSets()
 {	

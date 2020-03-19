@@ -1,8 +1,8 @@
 ﻿#include "Texture.h"
 #include <Utilities/loadingUtility.h>
 
-Texture::Texture(std::shared_ptr<VulkanManager> vulkanObj, VkQueue& queue, VkCommandPool& cmdPool, VkFormat format = VK_FORMAT_R8G8B8A8_UNORM)
-	: m_logicalDevice(vulkanObj->getLogicalDevice()), m_physicalDevice(vulkanObj->getPhysicalDevice()),
+Texture::Texture(std::shared_ptr<VulkanManager> vulkanManager, VkQueue& queue, VkCommandPool& cmdPool, VkFormat format = VK_FORMAT_R8G8B8A8_UNORM)
+	: m_logicalDevice(vulkanManager->getLogicalDevice()), m_physicalDevice(vulkanManager->getPhysicalDevice()),
 	m_graphicsQueue(queue), m_cmdPool(cmdPool), m_format(format),
 	m_image(VK_NULL_HANDLE), m_imageMemory(VK_NULL_HANDLE), m_imageView(VK_NULL_HANDLE), m_sampler(VK_NULL_HANDLE)
 {}

@@ -34,7 +34,6 @@ struct DescriptorSetDependencies
 	std::vector<VkDescriptorImageInfo> geomRenderPassImageSet;
 };
 
-enum POST_PROCESS_GROUP { PASS_32BIT, PASS_TONEMAP, PASS_8BIT };
 
 // This class will manage the pipelines created and used for rendering
 // It should help abstract away that detail from the renderer class and prevent the renderpass stuff from being coupled with other things
@@ -42,7 +41,7 @@ class VulkanRendererBackend
 {
 public:
 	VulkanRendererBackend() = delete;
-	VulkanRendererBackend(std::shared_ptr<VulkanManager> vulkanObject, int numSwapChainImages, VkExtent2D windowExtents);
+	VulkanRendererBackend(std::shared_ptr<VulkanManager> vulkanManager, int numSwapChainImages, VkExtent2D windowExtents);
 	~VulkanRendererBackend();
 	void cleanup();
 
@@ -113,34 +112,41 @@ private:
 
 	// Command Buffers
 	void createCommandPoolsAndBuffers();
-	void recordCommandBuffer_PostProcess(VkCommandBuffer& graphicsCmdBuffer, unsigned int frameIndex);
 
 	// Post Process
 	void expandDescriptorPool_PostProcess(std::vector<VkDescriptorPoolSize>& poolSizes);
-	void createDescriptors_PostProcess(VkDescriptorPool descriptorPool);
-	void writeToAndUpdateDescriptorSets_PostProcess();
+	void createDescriptors_PostProcess_Common(VkDescriptorPool descriptorPool);
+	void createDescriptors_PostProcess_Specific(VkDescriptorPool descriptorPool);
+	void writeToAndUpdateDescriptorSets_PostProcess_Common();
+	void writeToAndUpdateDescriptorSets_PostProcess_Specific();
 	
 	void prePostProcess();
-	void createAllPostProcessSamplers();
-	void addPostProcessPass(std::string effectName, std::vector<VkDescriptorSetLayout>& effectDSL, POST_PROCESS_GROUP postType);
+	void addPostProcessPass(std::string effectName, std::vector<VkDescriptorSetLayout>& effectDSL, 
+		POST_PROCESS_TYPE postType,	PostProcessRPI& postRPI);
 
 	// A image that is rendered to in one pass will be read from in the next pass. For this reason we treat the images as storage images,
 	// which helps us avoid constantly transitioning the images from a color attachment optimal state to a read only optimal state.
 	// Load and store operations on storage images can only be done on images in VK_IMAGE_LAYOUT_GENERAL layout.
 	void addRenderPass_PostProcess(VkRenderPass& l_renderPass, const VkFormat colorFormat, const VkFormat depthFormat,
 		const VkImageLayout initialLayout, const VkImageLayout finalLayout);
-	void addFrameBuffers_PostProcess(PostProcessRPI& passRPI, VkFormat colorFormat, POST_PROCESS_GROUP postType, const VkImageUsageFlags usage,
-		const VkImageLayout beforeCreation, const VkImageLayout afterCreation, const VkImageLayout afterRenderPassExecuted);
+	void addFrameBuffers_PostProcess(PostProcessRPI& passRPI, VkFormat colorFormat, POST_PROCESS_TYPE postType,
+		std::vector<FrameBufferAttachment>& fbAttachments, const VkImageLayout afterRenderPassExecuted);
 	void addPipeline_PostProcess(const std::string &shaderName, std::vector<VkDescriptorSetLayout>& l_postProcessDSL,
 		VkRenderPass& l_renderPass, const uint32_t subpass = 0, VkExtent2D extents = { 0,0 });
 
+	inline DSL_TYPE chooseHighResInput();
+	inline DSL_TYPE chooseLowResInput();
 
 private:
-	std::shared_ptr<VulkanManager> m_vulkanObj;
+	std::shared_ptr<VulkanManager> m_vulkanManager;
 	VkDevice m_logicalDevice;
 	VkPhysicalDevice m_physicalDevice;
 	uint32_t m_numSwapChainImages;
 	VkExtent2D m_windowExtents;
+
+	VkFormat m_highResolutionRenderFormat;
+	VkFormat m_lowResolutionRenderFormat;
+	VkFormat m_depthFormat;
 
 	VkDescriptorPool m_descriptorPool;
 	// --- Descriptor Sets ---
@@ -161,39 +167,35 @@ private:
 
 	// --- Frame Buffer Attachments --- 
 	// Depth is going to be common to the scene across render passes as well
-	VkFormat m_depthFormat;
 	FrameBufferAttachment m_depth;
+	std::array<std::vector<FrameBufferAttachment>, 2> m_fbaHighRes;
+	std::array<std::vector<FrameBufferAttachment>, 2> m_fbaLowRes;
+	unsigned int m_fbaHighResIndexInUse;
+	unsigned int m_fbaLowResIndexInUse;
+
+	// --- PostProcess ---
+	// This set can then be referenced by the UI pass easily.
+	std::vector<VkDescriptorImageInfo> m_prePostProcessInput; // result of render passes that occur before post process work.
+
+	unsigned int m_numPostEffects;
+	VkSampler m_postProcessSampler;
+	std::vector<std::string> m_postEffectNames;
+	std::vector<VkPipeline> m_postProcess_Ps;
+	std::vector<VkPipelineLayout> m_postProcess_PLs;
+	std::vector<PostProcessRPI> m_postProcessRPIs;
+	std::vector<PostProcessDescriptors> m_postProcessDescriptorsSpecific;
+	std::vector<PostProcessDescriptors> m_postProcessDescriptorsCommon;
 	
+
 	// --- Command Buffers and Memory Pools --- 
 	VkCommandPool m_graphicsCommandPool;
 	VkCommandPool m_computeCommandPool;
 	std::vector<VkCommandBuffer> m_graphicsCommandBuffers;
 	std::vector<VkCommandBuffer> m_computeCommandBuffers;
-	
+
 	// --- Queues --- 
 	VkQueue m_graphicsQueue;
 	VkQueue m_computeQueue;
-
-
-public:
-	// --- PostProcess ---
-	// This set can then be referenced by the UI pass easily.
-	std::vector<VkDescriptorImageInfo> m_prePostProcessInput; // result of render passes that occur before post process work.
-
-	std::vector<PostProcessDescriptors> m_postProcessDescriptors;
-	std::vector<PostProcessRPI> m_32bitPasses;
-	std::vector<PostProcessRPI> m_8bitPasses;
-	PostProcessRPI m_toneMapRPI;
-
-	// Should be able to use a single sampler for all the images as long as they are the same format and size
-	VkSampler m_32bitSampler;
-	VkSampler m_8bitSampler;
-	VkSampler m_toneMapSampler;
-
-	int m_numPostEffects;
-	std::vector<std::string> m_postEffectNames;
-	std::vector<VkPipeline> m_postProcess_Ps;
-	std::vector<VkPipelineLayout> m_postProcess_PLs;
 };
 
 #pragma once

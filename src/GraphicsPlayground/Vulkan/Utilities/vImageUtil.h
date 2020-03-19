@@ -221,13 +221,6 @@ namespace ImageUtil
 			flag_ImageLayoutSupported = true;
 			break;
 
-		case VK_IMAGE_LAYOUT_GENERAL:
-			srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT; // Because general?
-			srcStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-
-			flag_ImageLayoutSupported = true;
-			break;
-
 		case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
 			srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 			srcStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
@@ -238,6 +231,13 @@ namespace ImageUtil
 		case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
 			srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
 			srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+			flag_ImageLayoutSupported = true;
+			break;
+
+		case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
+			srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+			srcStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
 
 			flag_ImageLayoutSupported = true;
 			break;
@@ -291,6 +291,20 @@ namespace ImageUtil
 		{
 			throw std::invalid_argument("unsupported layout transition!");
 		}
+
+		VkImageSubresourceRange imageSubresourceRange = createImageSubResourceRange(aspectMask, 0, mipLevels, 0, 1);
+		VkImageMemoryBarrier imageBarrier = createImageMemoryBarrier(image, oldLayout, newLayout, srcAccessMask, dstAccessMask, imageSubresourceRange);
+		VulkanCommandUtil::pipelineBarrier(cmdBuffer, srcStageMask, dstStageMask, 0, 0, nullptr, 0, nullptr, 1, &imageBarrier);
+	}
+
+	inline void transitionImageLayout(VkDevice& logicalDevice, VkQueue& queue, VkCommandPool& cmdPool, VkCommandBuffer& cmdBuffer,
+		VkImage& image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t mipLevels,
+		VkAccessFlags srcAccessMask, VkAccessFlags dstAccessMask, 
+		VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask)
+	{
+		// Set VkAccessMasks and VkPipelineStageFlags based on the layouts used in the transition
+		VkImageAspectFlags aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;;
+		bool flag_ImageLayoutSupported = false;
 
 		VkImageSubresourceRange imageSubresourceRange = createImageSubResourceRange(aspectMask, 0, mipLevels, 0, 1);
 		VkImageMemoryBarrier imageBarrier = createImageMemoryBarrier(image, oldLayout, newLayout, srcAccessMask, dstAccessMask, imageSubresourceRange);

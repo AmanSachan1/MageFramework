@@ -2,6 +2,9 @@
 #include <global.h>
 #include <Vulkan\Utilities\vImageUtil.h>
 
+// Disable warning C26495: Uninitialized variables (type.6); In various structs below
+#pragma warning( disable : 26495 )
+
 struct FrameBufferAttachment
 {
 	// Each framebuffer attachment needs its VkImage and associated VkDeviceMemory even though they aren't directly referenced in our code, 
@@ -10,7 +13,7 @@ struct FrameBufferAttachment
 	VkImage image = VK_NULL_HANDLE;
 	VkDeviceMemory memory = VK_NULL_HANDLE;
 	VkImageView view = VK_NULL_HANDLE;
-	VkFormat format;
+	VkFormat format = VK_FORMAT_UNDEFINED;
 };
 
 struct RenderPassInfo
@@ -27,10 +30,11 @@ struct RenderPassInfo
 struct PostProcessRPI
 {
 	int serialIndex; // Ordering in list of post process effects that exist in PostProcessManager 
+	POST_PROCESS_TYPE postType;
 	VkRenderPass renderPass;
-	std::vector<VkFramebuffer> frameBuffers;  // write to
-	std::vector<FrameBufferAttachment> inputImages; // read from
+	std::vector<VkFramebuffer> frameBuffers;
 	std::vector<VkDescriptorImageInfo> imageSetInfo; // [optional] for use later in a descriptor set, stores output data
+	std::vector<VkDescriptorSet> descriptors; // 3 * descriptors
 };
 
 struct PostProcessDescriptors

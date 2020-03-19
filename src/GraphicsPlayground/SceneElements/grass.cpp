@@ -36,7 +36,6 @@ Scene::~Scene()
 
 void Scene::CreateModelsInScene(VkCommandPool commandPool)
 {
-	// TODO: Large Models cause a crash; Not entirely sure why.
 	// Model and texture file paths
 	const std::string model_path = "../../src/CloudScapes/models/thinCube.obj";
 	const std::string texture_path = "../../src/CloudScapes/textures/DarkPavement.png";

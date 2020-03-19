@@ -5,6 +5,10 @@
 #include <Vulkan\Utilities\vRenderUtil.h>
 #include <Vulkan\vulkanManager.h>
 
+// Disable Warnings because of imgui
+// C26451: Arithmetic overflow;
+#pragma warning( disable : 26451 )
+
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <imconfig.h>
@@ -55,7 +59,7 @@ class UIManager
 {
 public:
 	UIManager() = delete;
-	UIManager(GLFWwindow* window, std::shared_ptr<VulkanManager> vulkanObj, RendererOptions rendererOptions);
+	UIManager(GLFWwindow* window, std::shared_ptr<VulkanManager> vulkanManager, RendererOptions rendererOptions);
 	~UIManager();
 	
 	void clean();
@@ -65,7 +69,7 @@ public:
 	void submitDrawCommands();
 
 private:
-	std::shared_ptr<VulkanManager> m_vulkanObj;
+	std::shared_ptr<VulkanManager> m_vulkanManager;
 	VkDevice m_logicalDevice;
 	VkQueue m_queue;
 	UIOptions m_options;

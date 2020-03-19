@@ -18,8 +18,8 @@ class Model
 {
 public:
 	Model() = delete;
-	Model(std::shared_ptr<VulkanManager> vulkanObj, VkQueue& graphicsQueue, VkCommandPool& commandPool, unsigned int numSwapChainImages, std::vector<Vertex> &vertices, std::vector<uint32_t> &indices, bool isMipMapped = false, bool yAxisIsUp = true);
-	Model(std::shared_ptr<VulkanManager> vulkanObj, VkQueue& graphicsQueue, VkCommandPool& commandPool, unsigned int numSwapChainImages, const std::string model_path, const std::string texture_path, bool isMipMapped = false, bool yAxisIsUp = true);
+	Model(std::shared_ptr<VulkanManager> vulkanManager, VkQueue& graphicsQueue, VkCommandPool& commandPool, unsigned int numSwapChainImages, std::vector<Vertex> &vertices, std::vector<uint32_t> &indices, bool isMipMapped = false, bool yAxisIsUp = true);
+	Model(std::shared_ptr<VulkanManager> vulkanManager, VkQueue& graphicsQueue, VkCommandPool& commandPool, unsigned int numSwapChainImages, const std::string model_path, const std::string texture_path, bool isMipMapped = false, bool yAxisIsUp = true);
 	~Model();
 
 	void updateUniformBuffer(uint32_t currentImageIndex);

@@ -23,7 +23,7 @@ class Scene
 {
 public:
 	Scene() = delete;
-	Scene(std::shared_ptr<VulkanManager> vulkanObj, uint32_t numSwapChainImages, VkExtent2D windowExtents,
+	Scene(std::shared_ptr<VulkanManager> vulkanManager, uint32_t numSwapChainImages, VkExtent2D windowExtents,
 		VkQueue& graphicsQueue, VkCommandPool& graphicsCommandPool,	VkQueue& computeQueue, VkCommandPool& computeCommandPool);
 	~Scene();
 
@@ -53,7 +53,7 @@ public:
 	VkDescriptorSetLayout getDescriptorSetLayout(DSL_TYPE key);
 
 private:
-	std::shared_ptr<VulkanManager> m_vulkanObj;
+	std::shared_ptr<VulkanManager> m_vulkanManager;
 	VkDevice m_logicalDevice;
 	VkPhysicalDevice m_physicalDevice;
 	VkQueue	m_graphicsQueue;

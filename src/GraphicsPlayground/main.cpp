@@ -10,7 +10,7 @@
 int window_height = 720;
 int window_width = 1284;
 
-std::shared_ptr<VulkanManager> vulkanObject;
+std::shared_ptr<VulkanManager> vulkanManager;
 std::shared_ptr<Renderer> renderer;
 std::shared_ptr<Camera> camera;
 
@@ -78,8 +78,8 @@ namespace InputUtil
 			camera->rotateAboutUp(-deltaForRotation);
 		}
 
-		camera->updateUniformBuffer(vulkanObject->getIndex());
-		camera->copyToGPUMemory(vulkanObject->getIndex());
+		camera->updateUniformBuffer(vulkanManager->getIndex());
+		camera->copyToGPUMemory(vulkanManager->getIndex());
 	}
 
 	void mouseDownCallback(GLFWwindow* window, int button, int action, int mods)
@@ -170,15 +170,15 @@ void GraphicsPlaygroundApplication::initialize()
 {
 	static constexpr char* applicationName = "Graphics Playground";
 	initWindow(window_width, window_height, applicationName);
-	vulkanObject = std::make_shared<VulkanManager>(window, applicationName);
+	vulkanManager = std::make_shared<VulkanManager>(window, applicationName);
 
 	TimerUtil::initTimer();
 
-	camera = std::make_shared<Camera>(vulkanObject, glm::vec3(0.0f, 3.0f, -8.0f), glm::vec3(0.0f, 0.0f, 0.0f),
+	camera = std::make_shared<Camera>(vulkanManager, glm::vec3(0.0f, 3.0f, -8.0f), glm::vec3(0.0f, 0.0f, 0.0f),
 		window_width, window_height, 45.0f, float(window_width) / float(window_height), 0.1f, 1000.0f,
-		vulkanObject->getSwapChainImageCount(), CameraMode::ORBIT);
+		vulkanManager->getSwapChainImageCount(), CameraMode::ORBIT);
 
-	renderer = std::make_shared<Renderer>(window, vulkanObject, camera, window_width, window_height);
+	renderer = std::make_shared<Renderer>(window, vulkanManager, camera, window_width, window_height);
 
 	glfwSetWindowSizeCallback(window, InputUtil::resizeCallback);
 	glfwSetFramebufferSizeCallback(window, InputUtil::resizeCallback);
@@ -211,8 +211,7 @@ void GraphicsPlaygroundApplication::mainLoop()
 void GraphicsPlaygroundApplication::cleanup()
 {
 	// Wait for the device to finish executing before cleanup
-	vkDeviceWaitIdle(vulkanObject->getLogicalDevice());
-	
+	vkDeviceWaitIdle(vulkanManager->getLogicalDevice());
 	glfwDestroyWindow(window);
 	glfwTerminate();
 }
@@ -238,6 +237,6 @@ int main()
 		return EXIT_FAILURE;
 	}
 
-	std::cout << "Mage Engine Successfull Exit" << std::endl;
+	std::cout << "\nSuccessfully Exiting Mage Framework" << std::endl;
 	return EXIT_SUCCESS;
 }

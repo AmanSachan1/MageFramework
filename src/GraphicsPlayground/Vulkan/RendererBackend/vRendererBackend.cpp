@@ -1,10 +1,12 @@
 #include "Vulkan/RendererBackend/vRendererBackend.h"
 
-VulkanRendererBackend::VulkanRendererBackend(std::shared_ptr<VulkanManager> vulkanObject, int numSwapChainImages, VkExtent2D windowExtents) :
-	m_vulkanObj(vulkanObject), m_logicalDevice(vulkanObject->getLogicalDevice()), m_physicalDevice(vulkanObject->getPhysicalDevice()),
-	m_graphicsQueue(vulkanObject->getQueue(QueueFlags::Graphics)), m_computeQueue(vulkanObject->getQueue(QueueFlags::Compute)),
+VulkanRendererBackend::VulkanRendererBackend(std::shared_ptr<VulkanManager> vulkanManager, int numSwapChainImages, VkExtent2D windowExtents) :
+	m_vulkanManager(vulkanManager), m_logicalDevice(vulkanManager->getLogicalDevice()), m_physicalDevice(vulkanManager->getPhysicalDevice()),
+	m_graphicsQueue(vulkanManager->getQueue(QueueFlags::Graphics)), m_computeQueue(vulkanManager->getQueue(QueueFlags::Compute)),
 	m_numSwapChainImages(numSwapChainImages), m_windowExtents(windowExtents)
 {
+	m_highResolutionRenderFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
+	m_lowResolutionRenderFormat = m_vulkanManager->getSwapChainImageFormat();
 	m_depthFormat = FormatUtil::findDepthFormat(m_physicalDevice);
 	
 	createCommandPoolsAndBuffers();
@@ -23,9 +25,13 @@ VulkanRendererBackend::~VulkanRendererBackend()
 	// Descriptor Set Layouts
 	vkDestroyDescriptorSetLayout(m_logicalDevice, m_DSL_compositeComputeOntoRaster, nullptr);
 	//vkDestroyDescriptorSetLayout(m_logicalDevice, m_DSL_compute, nullptr);
-	for (int i = 0; i < m_postProcessDescriptors.size(); i++)
+	for (int i = 0; i < m_postProcessDescriptorsSpecific.size(); i++)
 	{
-		vkDestroyDescriptorSetLayout(m_logicalDevice, m_postProcessDescriptors[i].postProcess_DSL, nullptr);
+		vkDestroyDescriptorSetLayout(m_logicalDevice, m_postProcessDescriptorsSpecific[i].postProcess_DSL, nullptr);
+	}
+	for (int i = 0; i < m_postProcessDescriptorsCommon.size(); i++)
+	{
+		vkDestroyDescriptorSetLayout(m_logicalDevice, m_postProcessDescriptorsCommon[i].postProcess_DSL, nullptr);
 	}
 }
 void VulkanRendererBackend::cleanup()
@@ -64,22 +70,81 @@ void VulkanRendererBackend::createRenderPassesAndFrameResources()
 void VulkanRendererBackend::createAllPostProcessEffects(std::shared_ptr<Scene> scene)
 {
 	prePostProcess();
-	
-	// Add 32 bit passes
-	//addPostProcessPass("32bit", std::vector<VkDescriptorSetLayout>& effectDSL, POST_PROCESS_GROUP::PASS_32BIT);
+
+	const int& postProcessIndex = m_numPostEffects;
+	// Add High Resolution passes
+	{
+		// Test High Res pass 1
+		{
+			PostProcessRPI postRPI;
+			std::vector<VkDescriptorSetLayout> effectDSL;
+			const DSL_TYPE inputToBeRead = DSL_TYPE::BEFOREPOST_FRAME;
+			effectDSL.push_back(getDescriptorSetLayout(inputToBeRead));
+			for (uint32_t j = 0; j < m_numSwapChainImages; j++)
+			{
+				postRPI.descriptors.push_back(getDescriptorSet(inputToBeRead, j));
+			}
+			addPostProcessPass("HighResTestPass1", effectDSL, POST_PROCESS_TYPE::HIGH_RESOLUTION, postRPI);
+		}
+
+		// Test High Res pass 2
+		{
+			PostProcessRPI postRPI;
+			std::vector<VkDescriptorSetLayout> effectDSL;
+			const DSL_TYPE inputToBeRead = chooseHighResInput();
+			effectDSL.push_back(getDescriptorSetLayout(inputToBeRead));
+			for (uint32_t j = 0; j < m_numSwapChainImages; j++)
+			{
+				postRPI.descriptors.push_back(getDescriptorSet(inputToBeRead, j));
+			}
+			addPostProcessPass("HighResTestPass2", effectDSL, POST_PROCESS_TYPE::HIGH_RESOLUTION, postRPI);
+		}
+	}
 
 	// Tone Map Pass
 	{
+		PostProcessRPI postRPI;
 		std::vector<VkDescriptorSetLayout> effectDSL;
-		effectDSL.push_back(m_postProcessDescriptors[0].postProcess_DSL);
+		const DSL_TYPE inputToBeRead = chooseHighResInput();
+		effectDSL.push_back(getDescriptorSetLayout(inputToBeRead));
 		effectDSL.push_back(scene->getDescriptorSetLayout(DSL_TYPE::TIME));
-		addPostProcessPass("tonemap", effectDSL, POST_PROCESS_GROUP::PASS_TONEMAP);
+		// effectDSL.push_back(m_postProcessDescriptorsSpecific[postProcessIndex].postProcess_DSL);
+		for (uint32_t j = 0; j < m_numSwapChainImages; j++)
+		{
+			postRPI.descriptors.push_back(getDescriptorSet(inputToBeRead, j));
+			postRPI.descriptors.push_back(scene->getDescriptorSet(DSL_TYPE::TIME, j));
+		}
+ 		addPostProcessPass("Tonemap", effectDSL, POST_PROCESS_TYPE::TONEMAP, postRPI);
 	}
 
-	// Add 8 bit passes
-	//addPostProcessPass("8bit", std::vector<VkDescriptorSetLayout>& effectDSL, POST_PROCESS_GROUP::PASS_8BIT);
+	// Add Low Resolution Passes
+	{
+		// Test Low Res pass 1
+		{
+			PostProcessRPI postRPI;
+			std::vector<VkDescriptorSetLayout> effectDSL;
+			const DSL_TYPE inputToBeRead = chooseLowResInput();
+			effectDSL.push_back(getDescriptorSetLayout(inputToBeRead));
+			for (uint32_t j = 0; j < m_numSwapChainImages; j++)
+			{
+				postRPI.descriptors.push_back(getDescriptorSet(inputToBeRead, j));
+			}
+			addPostProcessPass("LowResTestPass1", effectDSL, POST_PROCESS_TYPE::LOW_RESOLUTION, postRPI);
+		}
 
-	// Transition the last image rendered to the layout accepted by the UI renderpass
+		// Test Low Res pass 2
+		{
+			PostProcessRPI postRPI;
+			std::vector<VkDescriptorSetLayout> effectDSL;
+			const DSL_TYPE inputToBeRead = chooseLowResInput();
+			effectDSL.push_back(getDescriptorSetLayout(inputToBeRead));
+			for (uint32_t j = 0; j < m_numSwapChainImages; j++)
+			{
+				postRPI.descriptors.push_back(getDescriptorSet(inputToBeRead, j));
+			}
+			addPostProcessPass("LowResTestPass2", effectDSL, POST_PROCESS_TYPE::LOW_RESOLUTION, postRPI);
+		}
+	}
 }
 
 //===============================================================================================
@@ -135,7 +200,8 @@ void VulkanRendererBackend::createDescriptors(VkDescriptorPool descriptorPool)
 		}
 	}
 
-	createDescriptors_PostProcess(descriptorPool);
+	createDescriptors_PostProcess_Common(descriptorPool);
+	createDescriptors_PostProcess_Specific(descriptorPool);
 }
 void VulkanRendererBackend::writeToAndUpdateDescriptorSets(DescriptorSetDependencies& descSetDependencies)
 {
@@ -164,7 +230,8 @@ void VulkanRendererBackend::writeToAndUpdateDescriptorSets(DescriptorSetDependen
 		}
 	}
 
-	writeToAndUpdateDescriptorSets_PostProcess();
+	writeToAndUpdateDescriptorSets_PostProcess_Common();
+	writeToAndUpdateDescriptorSets_PostProcess_Specific();
 }
 
 //===============================================================================================
@@ -222,7 +289,22 @@ VkDescriptorSet VulkanRendererBackend::getDescriptorSet(DSL_TYPE type, int frame
 		return m_DS_compositeComputeOntoRaster[frameIndex];
 		break;
 	case DSL_TYPE::POST_PROCESS:
-		return m_postProcessDescriptors[postProcessIndex].postProcess_DSs[frameIndex];
+		return m_postProcessDescriptorsSpecific[postProcessIndex].postProcess_DSs[frameIndex];
+		break;
+	case DSL_TYPE::BEFOREPOST_FRAME:
+		return m_postProcessDescriptorsCommon[0].postProcess_DSs[frameIndex];
+		break;
+	case DSL_TYPE::POST_HRFRAME1:
+		return m_postProcessDescriptorsCommon[1].postProcess_DSs[frameIndex];
+		break;
+	case DSL_TYPE::POST_HRFRAME2:
+		return m_postProcessDescriptorsCommon[2].postProcess_DSs[frameIndex];
+		break;
+	case DSL_TYPE::POST_LRFRAME1:
+		return m_postProcessDescriptorsCommon[3].postProcess_DSs[frameIndex];
+		break;
+	case DSL_TYPE::POST_LRFRAME2:
+		return m_postProcessDescriptorsCommon[4].postProcess_DSs[frameIndex];
 		break;
 	default:
 		throw std::runtime_error("no such Descriptor Set Layout Type (DSL_TYPE) exists");
@@ -238,7 +320,22 @@ VkDescriptorSetLayout VulkanRendererBackend::getDescriptorSetLayout(DSL_TYPE typ
 		return m_DSL_compositeComputeOntoRaster;
 		break;
 	case DSL_TYPE::POST_PROCESS:
-		return m_postProcessDescriptors[postProcessIndex].postProcess_DSL;
+		return m_postProcessDescriptorsSpecific[postProcessIndex].postProcess_DSL;
+		break;
+	case DSL_TYPE::BEFOREPOST_FRAME:
+		return m_postProcessDescriptorsCommon[0].postProcess_DSL;
+		break;
+	case DSL_TYPE::POST_HRFRAME1:
+		return m_postProcessDescriptorsCommon[1].postProcess_DSL;
+		break;
+	case DSL_TYPE::POST_HRFRAME2:
+		return m_postProcessDescriptorsCommon[2].postProcess_DSL;
+		break;
+	case DSL_TYPE::POST_LRFRAME1:
+		return m_postProcessDescriptorsCommon[3].postProcess_DSL;
+		break;
+	case DSL_TYPE::POST_LRFRAME2:
+		return m_postProcessDescriptorsCommon[4].postProcess_DSL;
 		break;
 	default:
 		throw std::runtime_error("no such Descriptor Set Layout Type (DSL_TYPE) exists");

@@ -1,5 +1,6 @@
 #pragma once
 #include <global.h>
+#include <Vulkan/Utilities/vRenderUtil.h>
 
 namespace DescriptorUtil
 {
@@ -124,5 +125,56 @@ namespace DescriptorUtil
 		l_descriptorWrite.descriptorType = descriptorType;
 		l_descriptorWrite.pImageInfo = pImageInfo;
 		return l_descriptorWrite;
+	}
+
+	inline PostProcessDescriptors createImgSamplerDescriptor(int serialIndex, std::string descriptorName, uint32_t numFrames,
+		VkDescriptorPool descriptorPool, VkDevice& logicalDevice)
+	{
+		PostProcessDescriptors ImgSamplerDescriptor;
+		ImgSamplerDescriptor.descriptorName = descriptorName;
+		ImgSamplerDescriptor.serialIndex = serialIndex;
+		ImgSamplerDescriptor.postProcess_DSs.resize(numFrames);
+
+		VkDescriptorSetLayoutBinding ImgSamplerBinding = { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
+		DescriptorUtil::createDescriptorSetLayout(logicalDevice, ImgSamplerDescriptor.postProcess_DSL, 1, &ImgSamplerBinding);
+
+		for (uint32_t i = 0; i < numFrames; i++)
+		{
+			DescriptorUtil::createDescriptorSets(logicalDevice, descriptorPool, 1,
+				&ImgSamplerDescriptor.postProcess_DSL, &ImgSamplerDescriptor.postProcess_DSs[i]);
+		}
+		return ImgSamplerDescriptor;
+	}
+
+	inline void writeToImageSamplerDescriptor(std::vector<VkDescriptorSet>& descriptorsSets,
+		std::vector<VkDescriptorImageInfo>& descriptorInfo, VkSampler& sampler,
+		uint32_t numFrames, VkDevice& logicalDevice)
+	{
+		for (uint32_t i = 0; i < numFrames; i++)
+		{
+			VkDescriptorImageInfo ImgSamplerDescriptorInfo = DescriptorUtil::createDescriptorImageInfo(
+					sampler, descriptorInfo[i].imageView, descriptorInfo[i].imageLayout);
+
+			VkWriteDescriptorSet writeToneMapSetInfo = DescriptorUtil::writeDescriptorSet(
+				descriptorsSets[i], 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &ImgSamplerDescriptorInfo);
+
+			vkUpdateDescriptorSets(logicalDevice, 1, &writeToneMapSetInfo, 0, nullptr);
+		}
+	}
+
+	inline void writeToImageSamplerDescriptor(std::vector<VkDescriptorSet>& descriptorsSets,
+		std::vector<FrameBufferAttachment>& fba, VkImageLayout imageLayout, VkSampler& sampler,
+		uint32_t numFrames, VkDevice& logicalDevice)
+	{
+		for (uint32_t i = 0; i < numFrames; i++)
+		{
+			VkDescriptorImageInfo ImgSamplerDescriptorInfo = 
+				DescriptorUtil::createDescriptorImageInfo(sampler, fba[i].view, imageLayout);
+
+			VkWriteDescriptorSet writeToneMapSetInfo = DescriptorUtil::writeDescriptorSet(
+				descriptorsSets[i], 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &ImgSamplerDescriptorInfo);
+
+			vkUpdateDescriptorSets(logicalDevice, 1, &writeToneMapSetInfo, 0, nullptr);
+		}
 	}
 }

@@ -1,8 +1,21 @@
 #pragma once
 #include "UIManager.h"
 
-// Disable Warning C26451: Arithmetic overflow; Because of imgui_draw.cpp
+// Disable Warnings because of imgui
+// C26451: Arithmetic overflow; 
+// C6031: Return value ignored 'sscanf';
+// C6011: Dereferencing NULL pointer;
+// C28182: Dereferencing NULL pointer;
+// C6587: 'buf' could be '0':  this does not adhere to the specification for the function 'memcpy';
+// C6385: Reading invalid data from 'buffer':  the readable size is '_Old_3`kernel_width' bytes, but '3' bytes may be read;
+// C6255: _alloca indicates failure by raising a stack overflow exception. Consider using _malloca instead;
 #pragma warning( disable : 26451 )
+#pragma warning( disable : 6031 )
+#pragma warning( disable : 6011 )
+#pragma warning( disable : 28182 )
+#pragma warning( disable : 6387 )
+#pragma warning( disable : 6385 )
+#pragma warning( disable : 6255 )
 
 #include <imgui.cpp>
 #include <imgui_demo.cpp>
@@ -11,10 +24,10 @@
 #include <imgui_impl_glfw.cpp>
 #include <imgui_impl_vulkan.cpp>
 
-UIManager::UIManager(GLFWwindow* window, std::shared_ptr<VulkanManager> vulkanObj, RendererOptions rendererOptions)
-	: m_vulkanObj(vulkanObj), 
-	m_logicalDevice(vulkanObj->getLogicalDevice()), 
-	m_queue(m_vulkanObj->getQueue(QueueFlags::Graphics)),
+UIManager::UIManager(GLFWwindow* window, std::shared_ptr<VulkanManager> vulkanManager, RendererOptions rendererOptions)
+	: m_vulkanManager(vulkanManager),
+	m_logicalDevice(vulkanManager->getLogicalDevice()),
+	m_queue(m_vulkanManager->getQueue(QueueFlags::Graphics)),
 	m_rendererOptions(rendererOptions)
 {
 	setupVulkanObjectsForImgui();
@@ -28,7 +41,7 @@ UIManager::UIManager(GLFWwindow* window, std::shared_ptr<VulkanManager> vulkanOb
 	setupPlatformAndRendererBindings(window);
 	uploadFonts();
 
-	const VkExtent2D extents = m_vulkanObj->getSwapChainVkExtent();
+	const VkExtent2D extents = m_vulkanManager->getSwapChainVkExtent();
 	m_windowWidth = extents.width;
 	m_windowHeight = extents.height;
 	m_stateChanged = true;
@@ -55,7 +68,7 @@ UIManager::~UIManager()
 	vkDeviceWaitIdle(m_logicalDevice);
 
 	clean();
-	vkDestroyDescriptorPool(m_vulkanObj->getLogicalDevice(), m_UIDescriptorPool, nullptr);
+	vkDestroyDescriptorPool(m_vulkanManager->getLogicalDevice(), m_UIDescriptorPool, nullptr);
 	vkDestroyCommandPool(m_logicalDevice, m_UICommandPool, nullptr);
 
 	ImGui_ImplVulkan_Shutdown();
@@ -75,7 +88,7 @@ void UIManager::clean()
 }
 void UIManager::resize(GLFWwindow* window)
 {
-	const VkExtent2D extents = m_vulkanObj->getSwapChainVkExtent();
+	const VkExtent2D extents = m_vulkanManager->getSwapChainVkExtent();
 	m_windowWidth = extents.width;
 	m_windowHeight = extents.height;
 	m_stateChanged = true;
@@ -84,7 +97,7 @@ void UIManager::resize(GLFWwindow* window)
 	clean();
 
 	// Recreate CommandBuffers
-	const int numSWImages = m_vulkanObj->getSwapChainImageCount();
+	const int numSWImages = m_vulkanManager->getSwapChainImageCount();
 	m_UICommandBuffers.resize(numSWImages);
 	VulkanCommandUtil::allocateCommandBuffers(m_logicalDevice, m_UICommandPool, m_UICommandBuffers);
 
@@ -109,9 +122,9 @@ void UIManager::update(float frameTime)
 }
 void UIManager::submitDrawCommands()
 {
-	unsigned int frameIndex = m_vulkanObj->getIndex();
+	unsigned int frameIndex = m_vulkanManager->getIndex();
 	VkRect2D renderArea = {};
-	renderArea.extent = m_vulkanObj->getSwapChainVkExtent();
+	renderArea.extent = m_vulkanManager->getSwapChainVkExtent();
 	VkClearValue clearColor = { 0.0f, 0.0f, 0.0f, 1.0f };
 
 	vkResetCommandBuffer(m_UICommandBuffers[frameIndex], VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT);
@@ -230,16 +243,16 @@ void UIManager::setupPlatformAndRendererBindings(GLFWwindow* window)
 {
 	// Setup Platform/Renderer bindings
 	ImGui_ImplVulkan_InitInfo init_info = {};
-	init_info.Instance = m_vulkanObj->getVkInstance();
-	init_info.PhysicalDevice = m_vulkanObj->getPhysicalDevice();
-	init_info.Device = m_vulkanObj->getLogicalDevice();
-	init_info.QueueFamily = m_vulkanObj->getQueueIndex(QueueFlags::Graphics);;
+	init_info.Instance = m_vulkanManager->getVkInstance();
+	init_info.PhysicalDevice = m_vulkanManager->getPhysicalDevice();
+	init_info.Device = m_vulkanManager->getLogicalDevice();
+	init_info.QueueFamily = m_vulkanManager->getQueueIndex(QueueFlags::Graphics);;
 	init_info.Queue = m_queue;
 	init_info.PipelineCache = nullptr;
 	init_info.DescriptorPool = m_UIDescriptorPool; // Separate Descriptor Pool for UI
 	init_info.Allocator = nullptr;
-	init_info.MinImageCount = m_vulkanObj->getSwapChainImageCount();
-	init_info.ImageCount = m_vulkanObj->getSwapChainImageCount();
+	init_info.MinImageCount = m_vulkanManager->getSwapChainImageCount();
+	init_info.ImageCount = m_vulkanManager->getSwapChainImageCount();
 	init_info.CheckVkResultFn = check_vk_result;
 	ImGui_ImplVulkan_Init(&init_info, m_UIRenderPass); // Separate Render Pass for UI
 }
@@ -278,14 +291,14 @@ void UIManager::setupVulkanObjectsForImgui()
 void UIManager::createCommandPoolAndCommandBuffers()
 {
 	// Do not need multiple command pools, just multiple command buffers
-	const int numSWImages = m_vulkanObj->getSwapChainImageCount();
+	const int numSWImages = m_vulkanManager->getSwapChainImageCount();
 	m_UICommandBuffers.resize(numSWImages);
 
 	// VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT allows any command buffer allocated from a pool to be
 	// individually reset to the initial state; either by calling vkResetCommandBuffer, or via the 
 	// implicit reset when calling vkBeginCommandBuffer.
 	VulkanCommandUtil::createCommandPool(m_logicalDevice, m_UICommandPool, 
-		m_vulkanObj->getQueueIndex(QueueFlags::Graphics), VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+		m_vulkanManager->getQueueIndex(QueueFlags::Graphics), VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
 	VulkanCommandUtil::allocateCommandBuffers(m_logicalDevice, m_UICommandPool, m_UICommandBuffers);
 }
 void UIManager::createDescriptorPool()
@@ -310,14 +323,14 @@ void UIManager::createDescriptorPool()
 	pool_info.maxSets = 1000 * IM_ARRAYSIZE(pool_sizes);
 	pool_info.poolSizeCount = (uint32_t)IM_ARRAYSIZE(pool_sizes);
 	pool_info.pPoolSizes = pool_sizes;
-	VkResult err = vkCreateDescriptorPool(m_vulkanObj->getLogicalDevice(), &pool_info, nullptr, &m_UIDescriptorPool);
+	VkResult err = vkCreateDescriptorPool(m_vulkanManager->getLogicalDevice(), &pool_info, nullptr, &m_UIDescriptorPool);
 	check_vk_result(err);
 }
 void UIManager::createRenderPass()
 {
 	// Create Color Attachment 
 	VkAttachmentDescription	colorAttachment =
-		RenderPassUtil::attachmentDescription(m_vulkanObj->getSwapChainImageFormat(), VK_SAMPLE_COUNT_1_BIT,
+		RenderPassUtil::attachmentDescription(m_vulkanManager->getSwapChainImageFormat(), VK_SAMPLE_COUNT_1_BIT,
 			VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_STORE_OP_STORE,			  //color data
 			VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_DONT_CARE,    //stencil data
 			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);  //initial and final layout
@@ -340,7 +353,7 @@ void UIManager::createRenderPass()
 			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0 /* Or use VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT */,
 			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
 
-	VkDevice logicalDevice = m_vulkanObj->getLogicalDevice();
+	VkDevice logicalDevice = m_vulkanManager->getLogicalDevice();
 	RenderPassUtil::createRenderPass(logicalDevice,
 		m_UIRenderPass,
 		1, &colorAttachment,
@@ -352,15 +365,15 @@ void UIManager::createRenderPass()
 }
 void UIManager::createFrameBuffers()
 {
-	uint32_t numSwapChainImages = m_vulkanObj->getSwapChainImageCount();
+	uint32_t numSwapChainImages = m_vulkanManager->getSwapChainImageCount();
 	VkImageView frameBufferColorAttachment[1];
-	VkFormat swapChainImageFormat = m_vulkanObj->getSwapChainImageFormat();
-	VkExtent2D extents = m_vulkanObj->getSwapChainVkExtent();
+	VkFormat swapChainImageFormat = m_vulkanManager->getSwapChainImageFormat();
+	VkExtent2D extents = m_vulkanManager->getSwapChainVkExtent();
 
 	m_UIFrameBuffers.resize(numSwapChainImages);
 	for (uint32_t i = 0; i < numSwapChainImages; i++)
 	{
-		frameBufferColorAttachment[0] = m_vulkanObj->getSwapChainImageView(i);
+		frameBufferColorAttachment[0] = m_vulkanManager->getSwapChainImageView(i);
 		FrameResourcesUtil::createFrameBuffer(m_logicalDevice, m_UIFrameBuffers[i],	m_UIRenderPass, extents, 1, frameBufferColorAttachment);
 	}
 }
