@@ -352,7 +352,10 @@ inline void VulkanRendererBackend::addPipeline_PostProcess(
 	ShaderUtil::createShaderStageInfos_RenderToQuad(shaderStages, shaderName, vertShaderModule, fragShaderModule, m_logicalDevice);
 
 	// -------- Create Pipeline Layout -------------
-	VkPipelineLayout postProcessPL = VulkanPipelineCreation::createPipelineLayout(m_logicalDevice, l_postProcessDSL, 0, nullptr);
+	// Define push constant
+	// Spec requires a minimum of 128 bytes, bigger values need to be checked against maxPushConstantsSize
+	VkPushConstantRange pushConstantRange = { VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(shaderConstants) };
+	VkPipelineLayout postProcessPL = VulkanPipelineCreation::createPipelineLayout(m_logicalDevice, l_postProcessDSL, 1, &pushConstantRange);
 	m_postProcess_PLs.push_back(postProcessPL);
 
 	// -------- Create Post Process pipeline ---------

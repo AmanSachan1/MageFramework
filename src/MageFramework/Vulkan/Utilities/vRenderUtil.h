@@ -45,6 +45,14 @@ struct PostProcessDescriptors
 	std::vector<VkDescriptorSet> postProcess_DSs;
 };
 
+struct PostProcessPushConstants
+{
+	// This can only be 128 bytes long
+	// Updating any of these values requires rebuilding of commandbuffers
+	float toneMap_WhitePoint = 10.0f;
+	float toneMap_Exposure = 2.5f;
+};
+
 namespace RenderPassUtil
 {
 	inline VkSubpassDescription subpassDescription(

@@ -90,4 +90,4 @@ function(buildSource SAMPLE_NAME)
 	ExternalTarget("" ${SAMPLE_NAME})
 endfunction(buildSource)
 
-buildSource(GraphicsPlayground)
+buildSource(MageFramework)

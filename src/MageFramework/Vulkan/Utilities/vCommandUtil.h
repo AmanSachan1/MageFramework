@@ -97,21 +97,20 @@ namespace VulkanCommandUtil
 	{
 		VkSubmitInfo submitInfo = {};
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		submitInfo.commandBufferCount = commandBufferCount;
+		submitInfo.pCommandBuffers = pCommandBuffers;
 
 		// These parameters specify which semaphores to wait on before execution begins and in which stage(s) of the pipeline to wait
 		// Each entry in the waitStages array corresponds to the semaphore with the same index in pWaitSemaphores
 		submitInfo.waitSemaphoreCount = waitSemaphoreCount;
 		submitInfo.pWaitSemaphores = pWaitSemaphores;
 		submitInfo.pWaitDstStageMask = pWaitDstStageMask;
-
-		submitInfo.commandBufferCount = commandBufferCount;
-		submitInfo.pCommandBuffers = pCommandBuffers;
 		submitInfo.signalSemaphoreCount = signalSemaphoreCount;
 		submitInfo.pSignalSemaphores = pSignalSemaphores;
 
 		if (vkQueueSubmit(queue, 1, &submitInfo, inFlightFence) != VK_SUCCESS)
 		{
-			throw std::runtime_error("failed to submit graphics command buffer to graphics queue!");
+			throw std::runtime_error("failed to submit command buffer to queue!");
 		}
 	}
 
@@ -131,7 +130,7 @@ namespace VulkanCommandUtil
 
 		if (vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS)
 		{
-			throw std::runtime_error("failed to submit command buffer to graphics queue!");
+			throw std::runtime_error("failed to submit command buffer to queue!");
 		}
 
 		vkQueueWaitIdle(queue);

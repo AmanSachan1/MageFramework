@@ -28,7 +28,8 @@ UIManager::UIManager(GLFWwindow* window, std::shared_ptr<VulkanManager> vulkanMa
 	: m_vulkanManager(vulkanManager),
 	m_logicalDevice(vulkanManager->getLogicalDevice()),
 	m_queue(m_vulkanManager->getQueue(QueueFlags::Graphics)),
-	m_rendererOptions(rendererOptions)
+	m_rendererOptions(rendererOptions),
+	cmdBufferIndex(vulkanManager->getIndex())
 {
 	setupVulkanObjectsForImgui();
 
@@ -97,8 +98,9 @@ void UIManager::resize(GLFWwindow* window)
 	clean();
 
 	// Recreate CommandBuffers
-	const int numSWImages = m_vulkanManager->getSwapChainImageCount();
-	m_UICommandBuffers.resize(numSWImages);
+	cmdBufferIndex = m_vulkanManager->getIndex();
+	const int numCmdBuffers = m_vulkanManager->getSwapChainImageCount() * 2;
+	m_UICommandBuffers.resize(numCmdBuffers);
 	VulkanCommandUtil::allocateCommandBuffers(m_logicalDevice, m_UICommandPool, m_UICommandBuffers);
 
 	// Recreate FrameBuffers and Renderpasses again
@@ -120,24 +122,27 @@ void UIManager::update(float frameTime)
 	// Record new state into command buffers
 	ImGui::Render();
 }
-void UIManager::submitDrawCommands()
+void UIManager::submitDrawCommands(VkSemaphore& waitSemaphore, VkSemaphore& signalSemaphore)
 {
-	unsigned int frameIndex = m_vulkanManager->getIndex();
 	VkRect2D renderArea = {};
 	renderArea.extent = m_vulkanManager->getSwapChainVkExtent();
 	VkClearValue clearColor = { 0.0f, 0.0f, 0.0f, 1.0f };
 
-	vkResetCommandBuffer(m_UICommandBuffers[frameIndex], VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT);
-	VulkanCommandUtil::beginCommandBuffer(m_UICommandBuffers[frameIndex]);
-	VulkanCommandUtil::beginRenderPass(m_UICommandBuffers[frameIndex], m_UIRenderPass, m_UIFrameBuffers[frameIndex], renderArea, 1, &clearColor);
+	const unsigned int frameIndex = m_vulkanManager->getIndex();
+	cmdBufferIndex = (cmdBufferIndex + 1) % 6;
+	vkResetCommandBuffer(m_UICommandBuffers[cmdBufferIndex], VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT);
+	VulkanCommandUtil::beginCommandBuffer(m_UICommandBuffers[cmdBufferIndex]);
+	VulkanCommandUtil::beginRenderPass(m_UICommandBuffers[cmdBufferIndex], m_UIRenderPass, m_UIFrameBuffers[frameIndex], renderArea, 1, &clearColor);
 
 	// Record Imgui Draw Data and draw funcs into command buffer
-	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), m_UICommandBuffers[frameIndex]);
+	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), m_UICommandBuffers[cmdBufferIndex]);
 
-	vkCmdEndRenderPass(m_UICommandBuffers[frameIndex]);
-	VulkanCommandUtil::endCommandBuffer(m_UICommandBuffers[frameIndex]);
+	vkCmdEndRenderPass(m_UICommandBuffers[cmdBufferIndex]);
+	VulkanCommandUtil::endCommandBuffer(m_UICommandBuffers[cmdBufferIndex]);
 
-	VulkanCommandUtil::submitToQueue(m_queue, 1, m_UICommandBuffers[frameIndex]);
+	VkPipelineStageFlags waitStages_UI[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+	//VulkanCommandUtil::submitToQueueSynced(m_queue, 1, &m_UICommandBuffers[cmdBufferIndex], 1, &waitSemaphore, waitStages_UI, 1, &signalSemaphore, nullptr);
+	VulkanCommandUtil::submitToQueueSynced(m_queue, 1, &m_UICommandBuffers[cmdBufferIndex], 0, nullptr, waitStages_UI, 1, &signalSemaphore, nullptr);
 }
 
 
@@ -291,8 +296,8 @@ void UIManager::setupVulkanObjectsForImgui()
 void UIManager::createCommandPoolAndCommandBuffers()
 {
 	// Do not need multiple command pools, just multiple command buffers
-	const int numSWImages = m_vulkanManager->getSwapChainImageCount();
-	m_UICommandBuffers.resize(numSWImages);
+	const int numCmdBuffers = m_vulkanManager->getSwapChainImageCount() * 2;
+	m_UICommandBuffers.resize(numCmdBuffers);
 
 	// VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT allows any command buffer allocated from a pool to be
 	// individually reset to the initial state; either by calling vkResetCommandBuffer, or via the 

@@ -1,10 +1,27 @@
-# GraphicsPlayGround
+# MAGE Framework
 Vulkan Framework for testing out and demoing shader techniques I've been intrigued by
 
 # Design Goals:
 1) Framework is meant to ease exploration of graphical techniques and ideas.
 2) This framework will optimize for the individual techniques rather than the framework itself. The framework is not meant to be slow but resources will be put towards exploring techniques and creative ideas rather than fine grained optimization of the framework.
 3) Cross API; Currently it only supports Vulkan but I want to have it support both Vulkan and DX12/DXR
+
+
+# To Do List (Features/Tasks/Demos)
+- Support use of push constants (test with tonemap)
+- Texture Arrays
+- Scene Rendering (Multuiple meshes, textures, and shaders. Meshes are stored and rendered from a single buffer using vertex offsets. Use push constants, separate per-model and scene descriptor sets are used to pass data to the shaders).
+- Sky Compute Shader
+- Grass Shaders (Compute, Tesselation and Frag shader)
+- Witcher 3 painted world post process shader
+- VK_NV_raytracing
+- Terrain
+- Visibility Buffer
+- Clouds
+- Sea/Water
+- Demo
+- DXR/DX12 support
+
 
 # Design Decisions
 ## Writing to the Swapchain Image:

@@ -66,7 +66,7 @@ public:
 	void resize(GLFWwindow* window);
 	
 	void update(float frameTime);
-	void submitDrawCommands();
+	void submitDrawCommands(VkSemaphore& waitSemaphore, VkSemaphore& signalSemaphore);
 
 private:
 	std::shared_ptr<VulkanManager> m_vulkanManager;
@@ -85,6 +85,9 @@ private:
 	// New windows or other UI objects can be created each frame, this means the descriptor pool is purposefully reserving extra stuff,
 	// It also means command buffers are recreated every frame. To prevent regular render operation command buffers from being recreated every time
 	// we separate UI vulkan stuff.
+	// Because we reset command buffers, we may run into an issue where we are still using a command buffer and then we try to reset it, 
+	// to avoid this we just double the number of command buffers we use.
+	unsigned int cmdBufferIndex;
 	VkCommandPool m_UICommandPool;
 	std::vector<VkCommandBuffer> m_UICommandBuffers;
 	VkDescriptorPool m_UIDescriptorPool;

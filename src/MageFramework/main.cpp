@@ -168,7 +168,7 @@ void GraphicsPlaygroundApplication::initWindow(int width, int height, const char
 
 void GraphicsPlaygroundApplication::initialize()
 {
-	static constexpr char* applicationName = "Graphics Playground";
+	static constexpr char* applicationName = "Mage Framework";
 	initWindow(window_width, window_height, applicationName);
 	vulkanManager = std::make_shared<VulkanManager>(window, applicationName);
 

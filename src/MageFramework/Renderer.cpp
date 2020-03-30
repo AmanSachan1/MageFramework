@@ -26,6 +26,7 @@ void Renderer::initialize()
 	VkCommandPool graphicsCmdPool = m_rendererBackend->getGraphicsCommandPool();
 	m_scene = std::make_shared<Scene>(m_vulkanManager, numFrames, windowsExtent, graphicsQueue, graphicsCmdPool, computeQueue, computeCmdPool);
 
+	m_rendererBackend->createSyncObjects();
 	setupDescriptorSets();
 	createAllPipelines();
 	m_rendererBackend->createAllPostProcessEffects(m_scene);
@@ -57,9 +58,10 @@ void Renderer::recreate()
 	m_vulkanManager->recreate(m_window);
 	m_rendererBackend->setWindowExtents(m_vulkanManager->getSwapChainVkExtent());
 	m_rendererBackend->createRenderPassesAndFrameResources();
+	m_rendererBackend->createSyncObjects();
 
 	createAllPipelines();
-	m_rendererBackend->createAllPostProcessEffects(m_scene);
+	m_rendererBackend->createAllPostProcessEffects(m_scene);	
 	writeToAndUpdateDescriptorSets();
 
 	m_rendererBackend->recreateCommandBuffers();
@@ -81,15 +83,20 @@ void Renderer::renderLoop(float prevFrameTime)
 
 	acquireNextSwapChainImage();
 	m_rendererBackend->submitCommandBuffers();
-	m_UI->submitDrawCommands();
+
+	VkSemaphore waitSemaphore = m_rendererBackend->getpostProcessFinishedVkSemaphore(m_vulkanManager->getIndex());
+	VkSemaphore signalSemaphore = m_vulkanManager->getRenderFinishedVkSemaphore();
+	m_UI->submitDrawCommands(waitSemaphore, signalSemaphore);
 	presentCurrentImageToSwapChainImage();
 }
 void Renderer::updateRenderState()
 {
 	// Update Uniforms
+	const uint32_t currentFrameIndex = m_vulkanManager->getIndex();
 	{
-		m_camera->updateUniformBuffer(m_vulkanManager->getIndex());
-		m_scene->updateUniforms(m_vulkanManager->getIndex());
+		m_camera->updateUniformBuffer(currentFrameIndex);
+		m_scene->updateUniforms(currentFrameIndex);
+		m_rendererBackend->update(currentFrameIndex);
 	}
 }
 void Renderer::acquireNextSwapChainImage()
@@ -120,6 +127,12 @@ void Renderer::presentCurrentImageToSwapChainImage()
 
 void Renderer::recordAllCommandBuffers()
 {
+	const uint32_t numClearValues = 2;
+	std::array<VkClearValue, numClearValues> clearValues = {};
+	clearValues[0].color = { 0.0f, 0.0f, 0.0f, 1.0f };
+	clearValues[1].depthStencil = { 1.0f, 0 };
+
+	const VkRect2D renderArea = Util::createRectangle(m_vulkanManager->getSwapChainVkExtent());
 	const unsigned int numCommandBuffers = m_vulkanManager->getSwapChainImageCount();
 	unsigned int i = 0;
 	for (; i < numCommandBuffers; i++)
@@ -134,8 +147,16 @@ void Renderer::recordAllCommandBuffers()
 	{
 		VkCommandBuffer graphicsCmdBuffer = m_rendererBackend->getGraphicsCommandBuffer(i);
 		VulkanCommandUtil::beginCommandBuffer(graphicsCmdBuffer);
-		m_rendererBackend->recordCommandBuffer_GraphicsCmds(i, graphicsCmdBuffer, m_scene, m_camera);
+		m_rendererBackend->recordCommandBuffer_GraphicsCmds(i, graphicsCmdBuffer, m_scene, m_camera, renderArea, numClearValues, clearValues.data());
 		VulkanCommandUtil::endCommandBuffer(graphicsCmdBuffer);
+	}
+
+	for (i = 0; i < numCommandBuffers; i++)
+	{
+		VkCommandBuffer postProcessCmdBuffer = m_rendererBackend->getPostProcessCommandBuffer(i);
+		VulkanCommandUtil::beginCommandBuffer(postProcessCmdBuffer);
+		m_rendererBackend->recordCommandBuffer_PostProcessCmds(i, postProcessCmdBuffer, m_scene, renderArea, numClearValues, clearValues.data());
+		VulkanCommandUtil::endCommandBuffer(postProcessCmdBuffer);
 	}
 }
 

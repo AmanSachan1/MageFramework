@@ -28,7 +28,7 @@
 
 #ifdef _DEBUG
 #define DEBUG
-#define DEBUG_GRAPHICS_PLAYGROUND
+#define DEBUG_MAGE_FRAMEWORK
 #endif // _DEBUG
 
 const static unsigned int MAX_FRAMES_IN_FLIGHT = 3;

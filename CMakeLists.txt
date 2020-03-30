@@ -4,7 +4,7 @@
 ### This project is only being tested on a x64 build with Visual Studio 2017. Uses win32.
 
 cmake_minimum_required(VERSION 3.5)
-project(GraphicsPlayground)
+project(MageFramework)
 
 ##############################################
 ## set CMAKE variables

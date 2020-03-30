@@ -39,6 +39,15 @@ void VulkanRendererBackend::cleanup()
 	// Command Buffers
 	vkFreeCommandBuffers(m_logicalDevice, m_graphicsCommandPool, static_cast<uint32_t>(m_graphicsCommandBuffers.size()), m_graphicsCommandBuffers.data());
 	vkFreeCommandBuffers(m_logicalDevice, m_computeCommandPool, static_cast<uint32_t>(m_computeCommandBuffers.size()), m_computeCommandBuffers.data());
+	vkFreeCommandBuffers(m_logicalDevice, m_graphicsCommandPool, static_cast<uint32_t>(m_postProcessCommandBuffers.size()), m_postProcessCommandBuffers.data());
+
+	// Sync Objects
+	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	{
+		vkDestroySemaphore(m_logicalDevice, m_forwardRenderOperationsFinishedSemaphores[i], nullptr);
+		vkDestroySemaphore(m_logicalDevice, m_computeOperationsFinishedSemaphores[i], nullptr);
+		vkDestroySemaphore(m_logicalDevice, m_postProcessFinishedSemaphores[i], nullptr);
+	}
 
 	cleanupPipelines();
 	cleanupRenderPassesAndFrameResources();
@@ -115,6 +124,9 @@ void VulkanRendererBackend::createAllPostProcessEffects(std::shared_ptr<Scene> s
 			postRPI.descriptors.push_back(scene->getDescriptorSet(DSL_TYPE::TIME, j));
 		}
  		addPostProcessPass("Tonemap", effectDSL, POST_PROCESS_TYPE::TONEMAP, postRPI);
+
+		shaderConstants.toneMap_Exposure = 1.0f;
+		shaderConstants.toneMap_WhitePoint = 1.5f;
 	}
 
 	// Add Low Resolution Passes
@@ -146,6 +158,10 @@ void VulkanRendererBackend::createAllPostProcessEffects(std::shared_ptr<Scene> s
 		}
 	}
 }
+
+
+void VulkanRendererBackend::update(uint32_t currentImageIndex)
+{}
 
 //===============================================================================================
 //===============================================================================================

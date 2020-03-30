@@ -49,11 +49,17 @@ public:
 	void createRenderPassesAndFrameResources();
 	void createAllPostProcessEffects(std::shared_ptr<Scene> scene);
 	
+	// Update Descriptors and Resources
+	void update(uint32_t currentImageIndex);
+
 	// Descriptor Sets
 	void expandDescriptorPool(std::vector<VkDescriptorPoolSize>& poolSizes);
 	void createDescriptorPool(std::vector<VkDescriptorPoolSize>& poolSizes);
 	void createDescriptors(VkDescriptorPool descriptorPool);
 	void writeToAndUpdateDescriptorSets(DescriptorSetDependencies& descSetDependencies);
+
+	// Synchronization Objects
+	void createSyncObjects();
 
 	// Command Buffers
 	void recreateCommandBuffers();
@@ -62,12 +68,13 @@ public:
 	void recordCommandBuffer_ComputeCmds(
 		unsigned int frameIndex, VkCommandBuffer& ComputeCmdBuffer, std::shared_ptr<Scene> scene);
 	void recordCommandBuffer_GraphicsCmds(
-		unsigned int frameIndex, VkCommandBuffer& graphicsCmdBuffer, std::shared_ptr<Scene> scene, std::shared_ptr<Camera> camera);
+		unsigned int frameIndex, VkCommandBuffer& graphicsCmdBuffer, std::shared_ptr<Scene> scene, std::shared_ptr<Camera> camera,
+		VkRect2D renderArea, uint32_t clearValueCount, const VkClearValue* clearValues);
 	void recordCommandBuffer_PostProcessCmds(
-		unsigned int frameIndex, VkCommandBuffer& graphicsCmdBuffer, std::shared_ptr<Scene> scene,
-		VkRect2D renderArea, uint32_t clearValueCount, const VkClearValue* clearValue);
+		unsigned int frameIndex, VkCommandBuffer& postProcessCmdBuffer, std::shared_ptr<Scene> scene,
+		VkRect2D renderArea, uint32_t clearValueCount, const VkClearValue* clearValues);
 	void recordCommandBuffer_FinalCmds(
-		unsigned int frameIndex, VkCommandBuffer& graphicsCmdBuffer);
+		unsigned int frameIndex, VkCommandBuffer& cmdBuffer);
 
 
 	// Getters
@@ -78,6 +85,8 @@ public:
 	const VkDescriptorPool getDescriptorPool() const { return m_descriptorPool; }
 	const VkCommandBuffer getComputeCommandBuffer(uint32_t index) const { return m_computeCommandBuffers[index]; }
 	const VkCommandBuffer getGraphicsCommandBuffer(uint32_t index) const { return m_graphicsCommandBuffers[index]; }
+	const VkCommandBuffer getPostProcessCommandBuffer(uint32_t index) const { return m_postProcessCommandBuffers[index]; }
+	VkSemaphore getpostProcessFinishedVkSemaphore(uint32_t index) const { return m_postProcessFinishedSemaphores[index]; }
 	const VkCommandPool getComputeCommandPool() const { return m_computeCommandPool; }
 	const VkCommandPool getGraphicsCommandPool() const { return m_graphicsCommandPool; }
 
@@ -176,6 +185,7 @@ private:
 	// --- PostProcess ---
 	// This set can then be referenced by the UI pass easily.
 	std::vector<VkDescriptorImageInfo> m_prePostProcessInput; // result of render passes that occur before post process work.
+	PostProcessPushConstants shaderConstants;
 
 	unsigned int m_numPostEffects;
 	VkSampler m_postProcessSampler;
@@ -188,10 +198,17 @@ private:
 	
 
 	// --- Command Buffers and Memory Pools --- 
+	// Need a command pool for every type of queue you use
 	VkCommandPool m_graphicsCommandPool;
 	VkCommandPool m_computeCommandPool;
 	std::vector<VkCommandBuffer> m_graphicsCommandBuffers;
 	std::vector<VkCommandBuffer> m_computeCommandBuffers;
+	std::vector<VkCommandBuffer> m_postProcessCommandBuffers;
+
+	// Synchronization
+	std::vector<VkSemaphore> m_forwardRenderOperationsFinishedSemaphores;
+	std::vector<VkSemaphore> m_computeOperationsFinishedSemaphores;
+	std::vector<VkSemaphore> m_postProcessFinishedSemaphores;
 
 	// --- Queues --- 
 	VkQueue m_graphicsQueue;

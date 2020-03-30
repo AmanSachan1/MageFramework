@@ -12,6 +12,12 @@ layout (set = 1, binding = 0) uniform TimeUBO
     int frameCountMod16;
 };
 
+layout (std140, push_constant) uniform ShaderConsts 
+{
+	float toneMap_WhitePoint; // The white point is the value that is mapped to 1.0 in the regular RGB space.
+	float toneMap_Exposure;
+} shaderConsts;
+
 layout (location = 0) in vec2 in_uv;
 layout (location = 0) out vec4 outColor;
 
@@ -25,16 +31,19 @@ layout (location = 0) out vec4 outColor;
 #define E 0.02
 #define F 0.30
 #define INVGAMMA (1.0 / 2.2)
-#define EXPOSURE 2.5
+//#define EXPOSURE 2.5
 
 vec3 Uncharted2Tonemap(vec3 x)
 {
    return ((x*(A*x+C*B)+D*E)/(x*(A*x+B)+D*F))-E/F;
 }
 
-vec3 tonemap(vec3 x, float whiteBalance) 
+vec3 tonemap(vec3 x, const float whiteBalance) 
 {
-   vec3 color = Uncharted2Tonemap(EXPOSURE * x);
+	// whiteBalance determines the point at which something becomes pure white
+	// The white point is the value that is mapped to 1.0 in the regular RGB space.
+
+   vec3 color = Uncharted2Tonemap(shaderConsts.toneMap_Exposure * x);
 
    vec3 white = vec3(whiteBalance);
    vec3 whitemap = 1.0 / Uncharted2Tonemap(white);
@@ -72,9 +81,7 @@ void main()
 
 	vec3 in_color = texture(inputImageSampler, in_uv).rgb;
 
-	float whitepoint = 100.0f; // Changes the point at which something becomes pure white
-	// The white point is the value that is mapped to 1.0 in the regular RGB space.
-	vec3 toneMapped_color = tonemap(in_color, whitepoint);
+	vec3 toneMapped_color = tonemap(in_color, shaderConsts.toneMap_WhitePoint);
 
 	// Dithering to prevent banding
 	float noise = WangHashNoise(pixelPos.x, pixelPos.y, uint(time.y))*0.01;
