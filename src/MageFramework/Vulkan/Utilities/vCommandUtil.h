@@ -108,7 +108,8 @@ namespace VulkanCommandUtil
 		submitInfo.signalSemaphoreCount = signalSemaphoreCount;
 		submitInfo.pSignalSemaphores = pSignalSemaphores;
 
-		if (vkQueueSubmit(queue, 1, &submitInfo, inFlightFence) != VK_SUCCESS)
+		VkResult res = vkQueueSubmit(queue, 1, &submitInfo, inFlightFence);
+		if (res != VK_SUCCESS)
 		{
 			throw std::runtime_error("failed to submit command buffer to queue!");
 		}

@@ -4,12 +4,11 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/glm.hpp>
 
-#include <Vulkan\vulkanManager.h>
-#include <Vulkan\Utilities\vBufferUtil.h>
-#include <Vulkan\Utilities\vRenderUtil.h>
-#include <Vulkan\Utilities\vDescriptorUtil.h>
-
-#define PI 3.14159
+#include <Vulkan/vulkanManager.h>
+#include <Vulkan/Utilities/vBufferUtil.h>
+#include <Vulkan/Utilities/vRenderUtil.h>
+#include <Vulkan/Utilities/vDescriptorUtil.h>
+#include <Utilities/loadingUtility.h>
 
 struct CameraUBO {
 	glm::mat4 view;
@@ -27,6 +26,7 @@ public:
 	Camera() = delete;	// https://stackoverflow.com/questions/5513881/meaning-of-delete-after-function-declaration
 	Camera(std::shared_ptr<VulkanManager> vulkanManager, glm::vec3 eyePos, glm::vec3 lookAtPoint, int width, int height,
 		float foV_vertical, float aspectRatio, float nearClip, float farClip, int numSwapChainImages, CameraMode mode = CameraMode::FLY);
+	Camera(std::shared_ptr<VulkanManager> vulkanManager, JSONItem::Camera& jsonCam, int numSwapChainImages, CameraMode mode = CameraMode::FLY);
 	~Camera();
 	void cleanup() {} //specifically clean up resources that are recreated on frame resizing
 

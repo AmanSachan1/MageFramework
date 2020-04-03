@@ -7,9 +7,6 @@
 #include "camera.h"
 #include "renderer.h"
 
-int window_height = 720;
-int window_width = 1284;
-
 std::shared_ptr<VulkanManager> vulkanManager;
 std::shared_ptr<Renderer> renderer;
 std::shared_ptr<Camera> camera;
@@ -116,7 +113,7 @@ namespace InputUtil
 			(glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS))
 		{
 			deltaForMovement += static_cast<float>(yoffset) * 0.001f;
-			deltaForMovement = glm::clamp(deltaForMovement, 0.0f, 1.0f);
+			deltaForMovement = glm::clamp(deltaForMovement, 0.0f, 10.0f);
 		}
 		else
 		{
@@ -169,16 +166,17 @@ void GraphicsPlaygroundApplication::initWindow(int width, int height, const char
 void GraphicsPlaygroundApplication::initialize()
 {
 	static constexpr char* applicationName = "Mage Framework";
+	//Loads in the main camera and the scene
+	JSONContents jsonContent = loadingUtil::loadJSON("gltfTestSponza.json");
+	const int window_width = jsonContent.mainCamera.width;
+	const int window_height = jsonContent.mainCamera.height;
+
 	initWindow(window_width, window_height, applicationName);
 	vulkanManager = std::make_shared<VulkanManager>(window, applicationName);
 
 	TimerUtil::initTimer();
-
-	camera = std::make_shared<Camera>(vulkanManager, glm::vec3(0.0f, 3.0f, -8.0f), glm::vec3(0.0f, 0.0f, 0.0f),
-		window_width, window_height, 45.0f, float(window_width) / float(window_height), 0.1f, 1000.0f,
-		vulkanManager->getSwapChainImageCount(), CameraMode::ORBIT);
-
-	renderer = std::make_shared<Renderer>(window, vulkanManager, camera, window_width, window_height);
+	camera = std::make_shared<Camera>(vulkanManager, jsonContent.mainCamera, vulkanManager->getSwapChainImageCount(), CameraMode::FLY);
+	renderer = std::make_shared<Renderer>(window, vulkanManager, camera, jsonContent.scene, window_width, window_height);
 
 	glfwSetWindowSizeCallback(window, InputUtil::resizeCallback);
 	glfwSetFramebufferSizeCallback(window, InputUtil::resizeCallback);
@@ -191,7 +189,7 @@ void GraphicsPlaygroundApplication::initialize()
 
 void GraphicsPlaygroundApplication::mainLoop()
 {
-	TIME_POINT frameStartTime = std::chrono::high_resolution_clock::now();
+	TIME_POINT frameStartTime;
 	float prevFrameTime = 0.0f;
 
 	// Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Drawing/Rendering_and_presentation

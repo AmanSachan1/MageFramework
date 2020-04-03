@@ -1,6 +1,7 @@
 #pragma once
 #include <global.h>
 #include <Vulkan/Utilities/vRenderUtil.h>
+#include <SceneElements/texture.h>
 
 namespace DescriptorUtil
 {
@@ -93,6 +94,11 @@ namespace DescriptorUtil
 		l_descriptorImageInfo.imageView = imageView;
 		l_descriptorImageInfo.imageLayout = imageLayout;
 		return l_descriptorImageInfo;
+	}
+
+	inline VkDescriptorImageInfo createDescriptorImageInfo(std::shared_ptr<Texture2D>& texture)
+	{
+		return createDescriptorImageInfo(texture->m_sampler, texture->m_imageView, texture->m_imageLayout);
 	}
 
 	inline VkWriteDescriptorSet writeDescriptorSet(

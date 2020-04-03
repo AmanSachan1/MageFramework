@@ -2,7 +2,9 @@
 #include <global.h>
 #include <Vulkan/Utilities/vBufferUtil.h>
 #include <Vulkan/Utilities/vCommandUtil.h>
-#include <Utilities\generalUtility.h>
+#include <Utilities/generalUtility.h>
+
+enum class FixTextureFlag { NONE, ADD_PADDING, SCALE_UP, SCALE_DOWN };
 
 namespace ImageUtil
 {
@@ -354,6 +356,15 @@ namespace ImageUtil
 		VulkanCommandUtil::endAndSubmitSingleTimeCommand(logicalDevice, queue, cmdPool, cmdBuffer);
 	}
 
+	inline void copyBufferToImage_SingleTimeCommand(VkDevice& logicalDevice, VkQueue& queue, VkCommandPool& cmdPool,
+		VkBuffer& buffer, VkImage& image, VkImageLayout dstImageLayout, uint32_t regionCount, VkBufferImageCopy* region)
+	{
+		VkCommandBuffer cmdBuffer;
+		VulkanCommandUtil::beginSingleTimeCommand(logicalDevice, cmdPool, cmdBuffer);
+		vkCmdCopyBufferToImage(cmdBuffer, buffer, image, dstImageLayout, regionCount, region);
+		VulkanCommandUtil::endAndSubmitSingleTimeCommand(logicalDevice, queue, cmdPool, cmdBuffer);
+	}
+
 	inline void copyImageToImage(VkDevice& logicalDevice, VkQueue& queue, VkCommandPool& cmdPool, VkCommandBuffer cmdBuffer,
 		VkImage& srcImage, VkImageLayout srcImageLayout, VkImage& dstImage, VkImageLayout dstImageLayout,
 		uint32_t width, uint32_t height, uint32_t depth = 1)
@@ -516,5 +527,57 @@ namespace ImageUtil
 			1, &imageBarrier);
 
 		VulkanCommandUtil::endAndSubmitSingleTimeCommand(logicalDevice, queue, cmdPool, cmdBuffer);
+	}
+
+
+	// ------------------------------------------------------------------------------------
+	// DEFINITELY NOT DONE
+	// TODO: decide on an interpolation technique for down and up sampling
+	// TODO: finish the function
+	// This function is a no-op right now;
+	inline void fixImagesForTextureArray(
+		uint32_t numLayers, FixTextureFlag fix, uint32_t desiredW, uint32_t desiredH,
+		std::vector<uint32_t>& imgWidths, std::vector<uint32_t>& imgHeights)
+	{
+		return;
+		if (fix == FixTextureFlag::NONE) { return; }
+
+		for (uint32_t layer = 0; layer < numLayers; layer++)
+		{
+			std::vector<unsigned char> pixels;
+			pixels.reserve(desiredW * desiredH * 4);
+			for (uint32_t i = 0; i < desiredW; i++)
+			{
+				for (uint32_t j = 0; j < desiredH; j++)
+				{
+					uint32_t pixelIndex = i * desiredW + j;
+
+					if (fix == FixTextureFlag::ADD_PADDING)
+					{
+						//pixels[pixelIndex + 0] = pixelsArray[layer][pixelIndex + 0];
+						//pixels[pixelIndex + 1] = pixelsArray[layer][pixelIndex + 1];
+						//pixels[pixelIndex + 2] = pixelsArray[layer][pixelIndex + 2];
+						//pixels[pixelIndex + 3] = pixelsArray[layer][pixelIndex + 3];
+					}
+					else if (fix == FixTextureFlag::SCALE_UP
+						&& imgWidths[layer] != desiredW
+						&& imgHeights[layer] != desiredH)
+					{
+						//pixels[pixelIndex + 0] = pixelsArray[layer][pixelIndex + 0];
+						//pixels[pixelIndex + 1] = pixelsArray[layer][pixelIndex + 1];
+						//pixels[pixelIndex + 2] = pixelsArray[layer][pixelIndex + 2];
+						//pixels[pixelIndex + 3] = pixelsArray[layer][pixelIndex + 3];
+					}
+					else if (fix == FixTextureFlag::SCALE_DOWN)
+					{
+						//pixels[pixelIndex + 0] = pixelsArray[layer][pixelIndex + 0];
+						//pixels[pixelIndex + 1] = pixelsArray[layer][pixelIndex + 1];
+						//pixels[pixelIndex + 2] = pixelsArray[layer][pixelIndex + 2];
+						//pixels[pixelIndex + 3] = pixelsArray[layer][pixelIndex + 3];
+					}
+				}
+			}
+		}
+
 	}
 }

@@ -6,11 +6,6 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
 
-////Imgui files that use stb
-//#include <imstb_rectpack.h>
-//#include <imstb_textedit.h>
-//#include <imstb_truetype.h>
-
 namespace stbUtil
 {
 	inline unsigned char* loadImage(std::string imagePath, int* width, int* height, int* numChannels)

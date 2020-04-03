@@ -1,6 +1,6 @@
 #pragma once
 #include <global.h>
-#include <Utilities\generalUtility.h>
+#include <Utilities/generalUtility.h>
 
 namespace VulkanPipelineStructures
 {
@@ -357,7 +357,10 @@ namespace VulkanPipelineCreation
 		// them based on a fragment's slope. This is sometimes used for shadow mapping.
 		VkPipelineRasterizationStateCreateInfo rasterizer =
 			VulkanPipelineStructures::rasterizerCreationInfo(VK_FALSE, VK_FALSE, VK_POLYGON_MODE_FILL, 1.0f,
-				VK_CULL_MODE_BACK_BIT, VK_FRONT_FACE_CLOCKWISE, VK_FALSE, 0.0f, 0.0f, 0.0f);
+				VK_CULL_MODE_NONE, 
+				//VK_CULL_MODE_BACK_BIT,
+				VK_FRONT_FACE_CLOCKWISE,
+				VK_FALSE, 0.0f, 0.0f, 0.0f);
 
 		// -------- Multisampling --------
 		// (turned off here)

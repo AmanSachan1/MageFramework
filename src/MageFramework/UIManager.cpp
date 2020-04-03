@@ -194,8 +194,8 @@ void UIManager::statisticsWindow(float frameTime)
 	else
 	{
 		// Use commented out portion when using your own timer system
-		//ImGui::Text("Framerate: %.3f ms/frame", frameTime);
-		ImGui::Text("Framerate: %.3f ms/frame", 1000.0f / ImGui::GetIO().Framerate);
+		ImGui::Text("Framerate: %.3f ms/frame", frameTime);
+		//ImGui::Text("Framerate: %.3f ms/frame", 1000.0f / ImGui::GetIO().Framerate);
 	}
 	
 	ImGui::End();

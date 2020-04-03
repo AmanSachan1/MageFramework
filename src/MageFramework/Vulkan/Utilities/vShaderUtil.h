@@ -66,7 +66,7 @@ namespace ShaderUtil
 	inline void createVertShaderStageInfo(VkPipelineShaderStageCreateInfo& vertShaderStageInfo,
 		const std::string shaderName, VkShaderModule& vertModule, VkDevice& logicalDevice)
 	{
-		const std::string pathToVertShader = "MageFramework/shaders/" + shaderName + ".vert.spv";
+		const std::string pathToVertShader = "MageFramework/Shaders/" + shaderName + ".vert.spv";
 		// Create vert shader module
 		vertModule = ShaderUtil::createShaderModule(pathToVertShader, logicalDevice);
 		// Assign shader module to the appropriate stage in the pipeline
@@ -75,7 +75,7 @@ namespace ShaderUtil
 	inline void createFragShaderStageInfo(VkPipelineShaderStageCreateInfo& fragShaderStageInfo,
 		const std::string shaderName, VkShaderModule& fragModule, VkDevice& logicalDevice)
 	{
-		const std::string pathToFragShader = "MageFramework/shaders/" + shaderName + ".frag.spv";
+		const std::string pathToFragShader = "MageFramework/Shaders/" + shaderName + ".frag.spv";
 		// Create frag shader module
 		fragModule = ShaderUtil::createShaderModule(pathToFragShader, logicalDevice);
 		// Assign shader module to the appropriate stage in the pipeline

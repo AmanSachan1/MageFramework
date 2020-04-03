@@ -20,9 +20,12 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/hash.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
-// Disable warning C26812: Prefer 'enum class' over 'enum' (Enum.3); Because of Vulkan
-#pragma warning( disable : 26812 )
+// Disable Warnings: 
+#pragma warning( disable : 26495 ) // C26495: Uninitialized variable;
+#pragma warning( disable : 26451 ) // C26451: Arithmetic Overflow;
+#pragma warning( disable : 26812 ) // C26812: Prefer 'enum class' over 'enum' (Enum.3); Because of Vulkan 
 
 #include <Utilities/timerUtility.h>
 
@@ -31,9 +34,7 @@
 #define DEBUG_MAGE_FRAMEWORK
 #endif // _DEBUG
 
-const static unsigned int MAX_FRAMES_IN_FLIGHT = 3;
-
-#define TIME_POINT std::chrono::high_resolution_clock::time_point
+const static float PI = 3.14159f;
 
 enum QueueFlags
 {
@@ -60,3 +61,30 @@ enum class PIPELINE_TYPE { RASTER, COMPOSITE_COMPUTE_ONTO_RASTER, COMPUTE, POST_
 enum class POST_PROCESS_TYPE { HIGH_RESOLUTION, TONEMAP, LOW_RESOLUTION };
 enum class DSL_TYPE { COMPUTE, MODEL, CURRENT_FRAME_CAMERA, PREV_FRAME_CAMERA, TIME, COMPOSITE_COMPUTE_ONTO_RASTER, 
 	POST_PROCESS, BEFOREPOST_FRAME, POST_HRFRAME1, POST_HRFRAME2, POST_LRFRAME1, POST_LRFRAME2};
+
+// If these change we need to inform the renderer and recreate everything.
+struct RendererOptions
+{
+	RenderAPI renderAPI;
+	bool MSAA;  // Geometry Anti-Aliasing
+	bool FXAA;  // Fast-Approximate Anti-Aliasing
+	bool TXAA;	// Temporal Anti-Aliasing
+	bool enableSampleRateShading; // Shading Anti-Aliasing (enables processing more than one sample per fragment)
+	float minSampleShading; // value between 0.0f and 1.0f --> closer to one is smoother
+	bool enableAnisotropy; // Anisotropic filtering -- image sampling will use anisotropic filter
+	float anisotropy; //controls level of anisotropic filtering
+};
+
+struct RendererConstants
+{
+	uint32_t maxImageLayers; //VkPhysicalDeviceLimits::maxImageArrayLayers.
+	unsigned int maxFramesInFlight;
+};
+
+struct UniformBufferObject
+{
+	VkBuffer buffer;
+	VkDeviceMemory memory;
+	VkDeviceSize bufferSize;
+	void* mappedData;
+};

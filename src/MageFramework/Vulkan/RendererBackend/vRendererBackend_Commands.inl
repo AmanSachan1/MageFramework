@@ -1,5 +1,5 @@
 #pragma once
-#include <Vulkan\RendererBackend\vRendererBackend.h>
+#include <Vulkan/RendererBackend/vRendererBackend.h>
 
 static constexpr unsigned int WORKGROUP_SIZE = 32;
 
@@ -60,16 +60,16 @@ inline void VulkanRendererBackend::submitCommandBuffers()
 		VkSemaphore signalSemaphores_compute[] = { m_computeOperationsFinishedSemaphores[index] };
 
 		// Post Process Command Buffer Synchronization
-		VkSemaphore waitSemaphores_postProcess[] = { m_computeOperationsFinishedSemaphores[index] };
+		VkSemaphore waitSemaphores_postProcess[] = { m_forwardRenderOperationsFinishedSemaphores[index] };// , m_computeOperationsFinishedSemaphores[index] }; //
 		VkPipelineStageFlags waitStages_postProcess[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 		VkSemaphore signalSemaphores_postProcess[] = { m_postProcessFinishedSemaphores[index] };
 		
 		VulkanCommandUtil::submitToQueueSynced(	m_graphicsQueue, 1, &m_graphicsCommandBuffers[index],
 			1, waitSemaphores_graphics, waitStages_graphics, 1, signalSemaphores_graphics, inFlightFence_graphics);
 		
-		VulkanCommandUtil::submitToQueueSynced(m_computeQueue, 1, &m_computeCommandBuffers[index],
-			1, waitSemaphores_compute, waitStages_compute, 1, signalSemaphores_compute, nullptr);
-		//VulkanCommandUtil::submitToQueueSynced(m_computeQueue, 1, &m_computeCommandBuffers[index], 0, nullptr, waitStages_compute, 1, signalSemaphores_compute, nullptr);
+		//VulkanCommandUtil::submitToQueueSynced(m_computeQueue, 1, &m_computeCommandBuffers[index],
+		//	1, waitSemaphores_compute, waitStages_compute, 1, signalSemaphores_compute, nullptr);
+		VulkanCommandUtil::submitToQueueSynced(m_computeQueue, 1, &m_computeCommandBuffers[index], 0, nullptr, waitStages_compute, 1, signalSemaphores_compute, nullptr);
 
 		VulkanCommandUtil::submitToQueueSynced(	m_graphicsQueue, 1, &m_postProcessCommandBuffers[index],
 			1, waitSemaphores_postProcess, waitStages_postProcess, 1, signalSemaphores_postProcess, nullptr);
@@ -113,12 +113,12 @@ inline void VulkanRendererBackend::recordCommandBuffer_ComputeCmds(
 	// Test Compute Pass/Kernel
 	{
 		// Get compute texture
-		std::shared_ptr<Texture> texture = scene->getTexture("compute", frameIndex);
+		std::shared_ptr<Texture2D> texture = scene->getTexture("compute", frameIndex);
 		
 		// Decide the size of the compute kernel
 		// Number of threads in the compute kernel =  numBlocksX * numBlocksY * numBlocksZ
-		const uint32_t numBlocksX = (texture->getWidth() + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
-		const uint32_t numBlocksY = (texture->getHeight() + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
+		const uint32_t numBlocksX = (texture->m_width + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
+		const uint32_t numBlocksY = (texture->m_height + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
 		const uint32_t numBlocksZ = 1;
 		
 		const VkPipeline l_computeP = getPipeline(PIPELINE_TYPE::COMPUTE);
@@ -137,10 +137,10 @@ inline void VulkanRendererBackend::recordCommandBuffer_GraphicsCmds(
 	// Create a Image Memory Barrier between the compute pipeline that creates the image and the graphics pipeline that access the image
 	// Image barriers should come before render passes begin, unless you're working with subpasses
 	{
-		std::shared_ptr<Texture> computeTexture = scene->getTexture("compute", frameIndex);
+		std::shared_ptr<Texture2D> computeTexture = scene->getTexture("compute", frameIndex);
 		VkImageSubresourceRange imageSubresourceRange = ImageUtil::createImageSubResourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1);
-		VkImageMemoryBarrier imageMemoryBarrier = ImageUtil::createImageMemoryBarrier(computeTexture->getImage(),
-			computeTexture->getImageLayout(), VK_IMAGE_LAYOUT_GENERAL,
+		VkImageMemoryBarrier imageMemoryBarrier = ImageUtil::createImageMemoryBarrier(computeTexture->m_image,
+			computeTexture->m_imageLayout, VK_IMAGE_LAYOUT_GENERAL,
 			VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, imageSubresourceRange,
 			m_vulkanManager->getQueueIndex(QueueFlags::Compute), m_vulkanManager->getQueueIndex(QueueFlags::Graphics));
 
@@ -153,31 +153,19 @@ inline void VulkanRendererBackend::recordCommandBuffer_GraphicsCmds(
 	{
 		const VkPipeline l_rasterP = getPipeline(PIPELINE_TYPE::RASTER);
 		const VkPipelineLayout l_rasterPL = getPipelineLayout(PIPELINE_TYPE::RASTER);
-
-		std::shared_ptr<Model> model = scene->getModel("house");
-		VkBuffer vertexBuffers[] = { model->getVertexBuffer() };
-		VkBuffer indexBuffer = model->getIndexBuffer();
-		VkDeviceSize offsets[] = { 0 };
-
-		const VkDescriptorSet DS_model = scene->getDescriptorSet(DSL_TYPE::MODEL, frameIndex, "house");
 		const VkDescriptorSet DS_camera = camera->getDescriptorSet(DSL_TYPE::CURRENT_FRAME_CAMERA, frameIndex);
 
-		// Actual commands for the renderPass
-		{
-			VulkanCommandUtil::beginRenderPass(graphicsCmdBuffer,
-				m_rasterRPI.renderPass, m_rasterRPI.frameBuffers[frameIndex],
-				renderArea, clearValueCount, clearValues);
+		VulkanCommandUtil::beginRenderPass(graphicsCmdBuffer,
+			m_rasterRPI.renderPass, m_rasterRPI.frameBuffers[frameIndex],
+			renderArea, clearValueCount, clearValues);
 
-			vkCmdBindDescriptorSets(graphicsCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, l_rasterPL, 0, 1, &DS_model, 0, nullptr);
-			vkCmdBindDescriptorSets(graphicsCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, l_rasterPL, 1, 1, &DS_camera, 0, nullptr);
-
-			vkCmdBindPipeline(graphicsCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, l_rasterP);
-			vkCmdBindVertexBuffers(graphicsCmdBuffer, 0, 1, vertexBuffers, offsets);
-			vkCmdBindIndexBuffer(graphicsCmdBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-
-			vkCmdDrawIndexed(graphicsCmdBuffer, model->getNumIndices(), 1, 0, 0, 0);
-			vkCmdEndRenderPass(graphicsCmdBuffer);
+		for (auto const& element : scene->m_modelMap)
+		{	
+			// Actual commands for the renderPass
+			std::shared_ptr<Model> model = scene->getModel(element.first);
+			model->recordDrawCmds(frameIndex, DS_camera, l_rasterP, l_rasterPL, graphicsCmdBuffer);
 		}
+		vkCmdEndRenderPass(graphicsCmdBuffer);
 	}
 
 	// Composite Pipeline

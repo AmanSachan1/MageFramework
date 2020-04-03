@@ -30,7 +30,7 @@ struct ComputePipelineLayouts
 
 struct DescriptorSetDependencies
 {
-	std::vector<std::shared_ptr<Texture>> computeImages;
+	std::vector<std::shared_ptr<Texture2D>> computeImages;
 	std::vector<VkDescriptorImageInfo> geomRenderPassImageSet;
 };
 

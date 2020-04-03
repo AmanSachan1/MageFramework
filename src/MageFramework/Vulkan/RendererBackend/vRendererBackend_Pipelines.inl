@@ -1,5 +1,5 @@
 #pragma once
-#include <Vulkan\RendererBackend\vRendererBackend.h>
+#include <Vulkan/RendererBackend/vRendererBackend.h>
 
 inline void VulkanRendererBackend::cleanupPipelines()
 {
@@ -60,7 +60,7 @@ inline void VulkanRendererBackend::createRasterizationRenderPipeline(std::vector
 
 	// All of our per-vertex data is packed together in 1 array so we only have one binding; 
 	// The binding param specifies index of the binding in array of bindings
-	const uint32_t numVertexAttributes = 4;
+	const uint32_t numVertexAttributes = 3;
 	VkVertexInputBindingDescription vertexInputBinding =
 		VulkanPipelineStructures::vertexInputBindingDesc(0, static_cast<uint32_t>(sizeof(Vertex)));
 

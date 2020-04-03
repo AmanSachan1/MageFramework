@@ -27,6 +27,11 @@ Camera::Camera(std::shared_ptr<VulkanManager> vulkanManager, glm::vec3 eyePos, g
 	}
 }
 
+Camera::Camera(std::shared_ptr<VulkanManager> vulkanManager, JSONItem::Camera& jsonCam, int numSwapChainImages, CameraMode mode)
+	: Camera( vulkanManager, jsonCam.eyePos, jsonCam.lookAtPoint, jsonCam.width, jsonCam.height,
+		jsonCam.foV_vertical, jsonCam.aspectRatio, jsonCam.nearClip, jsonCam.farClip, numSwapChainImages, mode)
+{};
+
 Camera::~Camera()
 {
 	vkDeviceWaitIdle(m_logicalDevice);

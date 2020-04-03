@@ -1,5 +1,7 @@
 #include "vulkanManager.h"
 
+const uint32_t maxFramesInFlight = 3;
+
 VulkanManager::VulkanManager(GLFWwindow* _window, const char* applicationName)
 {
 	unsigned int glfwExtensionCount = 0;
@@ -46,7 +48,7 @@ void VulkanManager::cleanup()
 		vkDestroyImageView(m_logicalDevice, m_swapChainImageViews[i], nullptr);
 	}
 
-	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	for (size_t i = 0; i < maxFramesInFlight; i++)
 	{
 		vkDestroySemaphore(m_logicalDevice, m_renderFinishedSemaphores[i], nullptr);
 		vkDestroySemaphore(m_logicalDevice, m_imageAvailableSemaphores[i], nullptr);
@@ -268,7 +270,7 @@ bool VulkanManager::presentImageToSwapChain()
 
 void VulkanManager::advanceCurrentFrameIndex()
 {
-	m_currentFrameIndex = (m_currentFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
+	m_currentFrameIndex = (m_currentFrameIndex + 1) % maxFramesInFlight;
 }
 
 void VulkanManager::waitForAndResetInFlightFence()
@@ -395,9 +397,9 @@ void VulkanManager::createSyncObjects()
 
 
 	// Create Semaphores
-	m_imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-	m_renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-	m_inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
+	m_imageAvailableSemaphores.resize(maxFramesInFlight);
+	m_renderFinishedSemaphores.resize(maxFramesInFlight);
+	m_inFlightFences.resize(maxFramesInFlight);
 
 	VkSemaphoreCreateInfo semaphoreInfo = {};
 	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -406,7 +408,7 @@ void VulkanManager::createSyncObjects()
 	fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 	fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	for (size_t i = 0; i < maxFramesInFlight; i++)
 	{
 		if (vkCreateSemaphore(m_logicalDevice, &semaphoreInfo, nullptr, &m_imageAvailableSemaphores[i]) != VK_SUCCESS ||
 			vkCreateSemaphore(m_logicalDevice, &semaphoreInfo, nullptr, &m_renderFinishedSemaphores[i]) != VK_SUCCESS ||

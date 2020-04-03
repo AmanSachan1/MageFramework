@@ -42,7 +42,8 @@ void VulkanRendererBackend::cleanup()
 	vkFreeCommandBuffers(m_logicalDevice, m_graphicsCommandPool, static_cast<uint32_t>(m_postProcessCommandBuffers.size()), m_postProcessCommandBuffers.data());
 
 	// Sync Objects
-	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	const uint32_t numFrames = m_vulkanManager->getSwapChainImageCount();
+	for (size_t i = 0; i < numFrames; i++)
 	{
 		vkDestroySemaphore(m_logicalDevice, m_forwardRenderOperationsFinishedSemaphores[i], nullptr);
 		vkDestroySemaphore(m_logicalDevice, m_computeOperationsFinishedSemaphores[i], nullptr);
@@ -126,7 +127,7 @@ void VulkanRendererBackend::createAllPostProcessEffects(std::shared_ptr<Scene> s
  		addPostProcessPass("Tonemap", effectDSL, POST_PROCESS_TYPE::TONEMAP, postRPI);
 
 		shaderConstants.toneMap_Exposure = 1.0f;
-		shaderConstants.toneMap_WhitePoint = 1.5f;
+		shaderConstants.toneMap_WhitePoint = 1.0f;
 	}
 
 	// Add Low Resolution Passes
@@ -228,9 +229,9 @@ void VulkanRendererBackend::writeToAndUpdateDescriptorSets(DescriptorSetDependen
 		// Composite Compute onto Raster
 		{
 			VkDescriptorImageInfo computePassImageSetInfo = DescriptorUtil::createDescriptorImageInfo(
-				descSetDependencies.computeImages[i]->getSampler(),
-				descSetDependencies.computeImages[i]->getImageView(),
-				descSetDependencies.computeImages[i]->getImageLayout());
+				descSetDependencies.computeImages[i]->m_sampler,
+				descSetDependencies.computeImages[i]->m_imageView,
+				descSetDependencies.computeImages[i]->m_imageLayout);
 			VkDescriptorImageInfo geomRenderedImageSetInfo = DescriptorUtil::createDescriptorImageInfo(
 				descSetDependencies.geomRenderPassImageSet[i].sampler,
 				descSetDependencies.geomRenderPassImageSet[i].imageView,
@@ -357,6 +358,5 @@ VkDescriptorSetLayout VulkanRendererBackend::getDescriptorSetLayout(DSL_TYPE typ
 		throw std::runtime_error("no such Descriptor Set Layout Type (DSL_TYPE) exists");
 	}
 
-	assert(("Did not find a Descriptor Set Layout to return", true));
 	return nullptr;
 }

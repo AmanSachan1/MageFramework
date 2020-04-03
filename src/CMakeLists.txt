@@ -8,13 +8,33 @@ function(buildSource SAMPLE_NAME)
 		${SAMPLE_NAME}/SceneElements/*.h 
 		${SAMPLE_NAME}/SceneElements/*.inl)
 
-	file(GLOB_RECURSE SHADER_SOURCES
-		${SAMPLE_NAME}/*.vert
-		${SAMPLE_NAME}/*.frag
-		${SAMPLE_NAME}/*.geom
-		${SAMPLE_NAME}/*.comp
-		${SAMPLE_NAME}/*.tese
-		${SAMPLE_NAME}/*.tesc )
+	file(GLOB_RECURSE ALL_SHADER_SOURCES
+		${SAMPLE_NAME}/Shaders/Common/*.vert
+		${SAMPLE_NAME}/Shaders/Common/*.frag
+		${SAMPLE_NAME}/Shaders/Common/*.geom
+		${SAMPLE_NAME}/Shaders/Common/*.comp
+		${SAMPLE_NAME}/Shaders/Common/*.tese
+		${SAMPLE_NAME}/Shaders/Common/*.tesc
+		${SAMPLE_NAME}/Shaders/PostProcessEffects/*.vert
+		${SAMPLE_NAME}/Shaders/PostProcessEffects/*.frag
+		${SAMPLE_NAME}/Shaders/PostProcessEffects/*.geom
+		${SAMPLE_NAME}/Shaders/PostProcessEffects/*.comp
+		${SAMPLE_NAME}/Shaders/PostProcessEffects/*.tese
+		${SAMPLE_NAME}/Shaders/PostProcessEffects/*.tesc )
+	file(GLOB_RECURSE COMMON_SHADER_SOURCES
+		${SAMPLE_NAME}/Shaders/Common/*.vert
+		${SAMPLE_NAME}/Shaders/Common/*.frag
+		${SAMPLE_NAME}/Shaders/Common/*.geom
+		${SAMPLE_NAME}/Shaders/Common/*.comp
+		${SAMPLE_NAME}/Shaders/Common/*.tese
+		${SAMPLE_NAME}/Shaders/Common/*.tesc )
+	file(GLOB_RECURSE POSTPROCESS_SHADER_SOURCES
+		${SAMPLE_NAME}/Shaders/PostProcessEffects/*.vert
+		${SAMPLE_NAME}/Shaders/PostProcessEffects/*.frag
+		${SAMPLE_NAME}/Shaders/PostProcessEffects/*.geom
+		${SAMPLE_NAME}/Shaders/PostProcessEffects/*.comp
+		${SAMPLE_NAME}/Shaders/PostProcessEffects/*.tese
+		${SAMPLE_NAME}/Shaders/PostProcessEffects/*.tesc )
 
 	file(GLOB UTILITY_SOURCES 
 		${SAMPLE_NAME}/Utilities/*.cpp 
@@ -37,7 +57,8 @@ function(buildSource SAMPLE_NAME)
 	
 	SET(MAIN_CPP ${SAMPLE_NAME}/main.cpp)
 	source_group("Source" FILES ${SAMPLE_SOURCES})
-	source_group("Source\\Shaders" FILES ${SHADER_SOURCES})
+	source_group("Source\\Shaders" FILES ${COMMON_SHADER_SOURCES})
+	source_group("Source\\Shaders\\PostProcessEffects" FILES ${POSTPROCESS_SHADER_SOURCES})
 	source_group("Source\\SceneElements" FILES ${SCENE_ELEMENTS_SOURCES})
 	
 	source_group("Source\\Utilities" FILES ${UTILITY_SOURCES})
@@ -50,7 +71,7 @@ function(buildSource SAMPLE_NAME)
 		add_executable(${SAMPLE_NAME} ${MAIN_CPP} 
 			${SAMPLE_SOURCES}
 			${SCENE_ELEMENTS_SOURCES}
-			${SHADER_SOURCES} 
+			${ALL_SHADER_SOURCES} 
 			${UTILITY_SOURCES} 			
 			${VULKAN_SOURCES} 
 			${VULKAN_RENDERER_BACKEND_SOURCES} 
@@ -60,7 +81,7 @@ function(buildSource SAMPLE_NAME)
 		add_executable(${SAMPLE_NAME} ${MAIN_CPP} 
 			${SAMPLE_SOURCES}
 			${SCENE_ELEMENTS_SOURCES}
-			${SHADER_SOURCES} 
+			${ALL_SHADER_SOURCES} 
 			${UTILITY_SOURCES} 			
 			${VULKAN_SOURCES} 
 			${VULKAN_RENDERER_BACKEND_SOURCES} 
@@ -68,7 +89,7 @@ function(buildSource SAMPLE_NAME)
 		target_link_libraries(${SAMPLE_NAME} ${CMAKE_THREAD_LIBS_INIT})
 	endif(WIN32)
 
-	foreach(SHADER_SOURCE ${SHADER_SOURCES})
+	foreach(SHADER_SOURCE ${ALL_SHADER_SOURCES})
 		set(SHADER_DIR ${CMAKE_CURRENT_BINARY_DIR}/${SAMPLE_NAME}/shaders)
 		if(WIN32)
 			get_filename_component(fname ${SHADER_SOURCE} NAME)

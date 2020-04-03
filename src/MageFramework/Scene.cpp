@@ -1,6 +1,6 @@
 #include "Scene.h"
 
-Scene::Scene(std::shared_ptr<VulkanManager> vulkanManager, uint32_t numSwapChainImages, VkExtent2D windowExtents,
+Scene::Scene(std::shared_ptr<VulkanManager> vulkanManager, JSONItem::Scene& scene, uint32_t numSwapChainImages, VkExtent2D windowExtents,
 	VkQueue& graphicsQueue, VkCommandPool& graphicsCommandPool,	VkQueue& computeQueue, VkCommandPool& computeCommandPool )
 	:  m_vulkanManager(vulkanManager), m_logicalDevice(vulkanManager->getLogicalDevice()), m_physicalDevice(vulkanManager->getPhysicalDevice()),
 	m_numSwapChainImages(numSwapChainImages),
@@ -9,21 +9,16 @@ Scene::Scene(std::shared_ptr<VulkanManager> vulkanManager, uint32_t numSwapChain
 {
 	m_prevtime = std::chrono::high_resolution_clock::now();
 
-	m_timeBufferSize = sizeof(TimeUBO);
-	m_timeBuffers.resize(m_numSwapChainImages);
-	m_timeBufferMemories.resize(m_numSwapChainImages);
-	m_timeUBOs.resize(m_numSwapChainImages);
-	m_mappedDataTimeBuffers.resize(m_numSwapChainImages);
-
-	BufferUtil::createUniformBuffers( m_logicalDevice, m_physicalDevice, m_numSwapChainImages,
-		m_timeBuffers, m_timeBufferMemories, m_timeBufferSize);
-
+	m_timeUniform.resize(m_numSwapChainImages);
 	for (uint32_t i = 0; i < numSwapChainImages; i++)
 	{
+		UniformBufferObject& timeUBO = m_timeUniform[i].ubo;
+		timeUBO.bufferSize = sizeof(TimeUniform);
+		BufferUtil::createUniformBuffer(m_logicalDevice, m_physicalDevice, timeUBO.buffer, timeUBO.memory, timeUBO.bufferSize);
 		initializeTimeUBO(i);
 	}
 
-	createScene();
+	createScene(scene);
 }
 Scene::~Scene()
 {
@@ -35,32 +30,30 @@ Scene::~Scene()
 
 	for (uint32_t i = 0; i < m_numSwapChainImages; i++)
 	{
-		vkUnmapMemory(m_logicalDevice, m_timeBufferMemories[i]);
-		vkDestroyBuffer(m_logicalDevice, m_timeBuffers[i], nullptr);
-		vkFreeMemory(m_logicalDevice, m_timeBufferMemories[i], nullptr);
+		vkUnmapMemory(m_logicalDevice, m_timeUniform[i].ubo.memory);
+		vkDestroyBuffer(m_logicalDevice, m_timeUniform[i].ubo.buffer, nullptr);
+		vkFreeMemory(m_logicalDevice, m_timeUniform[i].ubo.memory, nullptr);
 	}
 
 	m_modelMap.clear();
 	m_textureMap.clear();
 }
 
-void Scene::createScene()
+void Scene::createScene(JSONItem::Scene& scene)
 {
-	std::shared_ptr<Model> model = nullptr;
-#ifdef DEBUG
-	model = std::make_shared<Model>(m_vulkanManager, m_graphicsQueue, m_graphicsCommandPool, m_numSwapChainImages, "thinCube.obj", "statue.jpg", false, true);
-#else
-	model = std::make_shared<Model>(m_vulkanManager, m_graphicsQueue, m_graphicsCommandPool, m_numSwapChainImages, "chalet.obj", "chalet.jpg", true, true);
-#endif
-	m_modelMap.insert({ "house", model });
+	for (JSONItem::Model& jsonModel : scene.modelList)
+	{
+		std::shared_ptr<Model> model = std::make_shared<Model>(m_vulkanManager, m_graphicsQueue, m_graphicsCommandPool, m_numSwapChainImages, jsonModel, true);
+		m_modelMap.insert({ jsonModel.name, model });
+	}
 	
-	VkExtent2D windowExtents = m_vulkanManager->getSwapChainVkExtent();
-
+	const VkExtent2D windowExtents = m_vulkanManager->getSwapChainVkExtent();
 	for (uint32_t i = 0; i < m_numSwapChainImages; i++)
 	{
 		std::string name = "compute" + std::to_string(i);
-		std::shared_ptr<Texture> texture = std::make_shared<Texture>(m_vulkanManager, m_graphicsQueue, m_graphicsCommandPool, VK_FORMAT_R8G8B8A8_UNORM);
-		texture->createEmpty2DTexture(windowExtents.width, windowExtents.height, 1, false,
+		std::shared_ptr<Texture2D> texture = std::make_shared<Texture2D>(m_vulkanManager, m_graphicsQueue, m_graphicsCommandPool, VK_FORMAT_R8G8B8A8_UNORM);
+		texture->createEmptyTexture(windowExtents.width, windowExtents.height, 1, 1,
+			m_graphicsQueue, m_graphicsCommandPool, false,
 			VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, 
 			VK_IMAGE_TILING_OPTIMAL, 
 			VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT);
@@ -80,47 +73,51 @@ void Scene::updateUniforms(uint32_t currentImageIndex)
 
 void Scene::initializeTimeUBO(uint32_t currentImageIndex)
 {
-	vkMapMemory(m_logicalDevice, m_timeBufferMemories[currentImageIndex], 0, m_timeBufferSize, 0, &m_mappedDataTimeBuffers[currentImageIndex]);
+	UniformBufferObject& timeUBO = m_timeUniform[currentImageIndex].ubo;
+	TimeUniformBlock& timeUniformBlock = m_timeUniform[currentImageIndex].uniformBlock;
+	vkMapMemory(m_logicalDevice, timeUBO.memory, 0, timeUBO.bufferSize, 0, &timeUBO.mappedData);
 
-	m_timeUBOs[currentImageIndex].time.x = 0.0f;
-	m_timeUBOs[currentImageIndex].time.y += 0.0f;
+	timeUniformBlock.time.x = 0.0f;
+	timeUniformBlock.time.y += 0.0f;
 
 	//generate 8 numbers from the halton sequence for TXAA
-	m_timeUBOs[currentImageIndex].haltonSeq1.x = TimerUtil::haltonSequenceAt(1, 3);
-	m_timeUBOs[currentImageIndex].haltonSeq1.y = TimerUtil::haltonSequenceAt(2, 3);
-	m_timeUBOs[currentImageIndex].haltonSeq1.z = TimerUtil::haltonSequenceAt(3, 3);
-	m_timeUBOs[currentImageIndex].haltonSeq1.w = TimerUtil::haltonSequenceAt(4, 3);
+	timeUniformBlock.haltonSeq1.x = TimerUtil::haltonSequenceAt(1, 3);
+	timeUniformBlock.haltonSeq1.y = TimerUtil::haltonSequenceAt(2, 3);
+	timeUniformBlock.haltonSeq1.z = TimerUtil::haltonSequenceAt(3, 3);
+	timeUniformBlock.haltonSeq1.w = TimerUtil::haltonSequenceAt(4, 3);
 
-	m_timeUBOs[currentImageIndex].haltonSeq2.x = TimerUtil::haltonSequenceAt(5, 3);
-	m_timeUBOs[currentImageIndex].haltonSeq2.y = TimerUtil::haltonSequenceAt(6, 3);
-	m_timeUBOs[currentImageIndex].haltonSeq2.z = TimerUtil::haltonSequenceAt(7, 3);
-	m_timeUBOs[currentImageIndex].haltonSeq2.w = TimerUtil::haltonSequenceAt(8, 3);
+	timeUniformBlock.haltonSeq2.x = TimerUtil::haltonSequenceAt(5, 3);
+	timeUniformBlock.haltonSeq2.y = TimerUtil::haltonSequenceAt(6, 3);
+	timeUniformBlock.haltonSeq2.z = TimerUtil::haltonSequenceAt(7, 3);
+	timeUniformBlock.haltonSeq2.w = TimerUtil::haltonSequenceAt(8, 3);
 
-	m_timeUBOs[currentImageIndex].haltonSeq3.x = TimerUtil::haltonSequenceAt(9, 3);
-	m_timeUBOs[currentImageIndex].haltonSeq3.y = TimerUtil::haltonSequenceAt(10, 3);
-	m_timeUBOs[currentImageIndex].haltonSeq3.z = TimerUtil::haltonSequenceAt(11, 3);
-	m_timeUBOs[currentImageIndex].haltonSeq3.w = TimerUtil::haltonSequenceAt(12, 3);
+	timeUniformBlock.haltonSeq3.x = TimerUtil::haltonSequenceAt(9, 3);
+	timeUniformBlock.haltonSeq3.y = TimerUtil::haltonSequenceAt(10, 3);
+	timeUniformBlock.haltonSeq3.z = TimerUtil::haltonSequenceAt(11, 3);
+	timeUniformBlock.haltonSeq3.w = TimerUtil::haltonSequenceAt(12, 3);
 
-	m_timeUBOs[currentImageIndex].haltonSeq4.x = TimerUtil::haltonSequenceAt(13, 3);
-	m_timeUBOs[currentImageIndex].haltonSeq4.y = TimerUtil::haltonSequenceAt(14, 3);
-	m_timeUBOs[currentImageIndex].haltonSeq4.z = TimerUtil::haltonSequenceAt(15, 3);
-	m_timeUBOs[currentImageIndex].haltonSeq4.w = TimerUtil::haltonSequenceAt(16, 3);
+	timeUniformBlock.haltonSeq4.x = TimerUtil::haltonSequenceAt(13, 3);
+	timeUniformBlock.haltonSeq4.y = TimerUtil::haltonSequenceAt(14, 3);
+	timeUniformBlock.haltonSeq4.z = TimerUtil::haltonSequenceAt(15, 3);
+	timeUniformBlock.haltonSeq4.w = TimerUtil::haltonSequenceAt(16, 3);
 
-	m_timeUBOs[currentImageIndex].frameCount = 0;
+	timeUniformBlock.frameCount = 0;
 
-	memcpy(m_mappedDataTimeBuffers[currentImageIndex], &m_timeUBOs[currentImageIndex], sizeof(TimeUBO));
+	memcpy(timeUBO.mappedData, &timeUniformBlock, sizeof(TimeUniform));
 }
 void Scene::updateTimeUBO(uint32_t currentImageIndex)
 {
-	const float deltaTime = TimerUtil::getTimeElapsedSinceStart(m_prevtime);
+	UniformBufferObject& timeUBO = m_timeUniform[currentImageIndex].ubo;
+	TimeUniformBlock& timeUniformBlock = m_timeUniform[currentImageIndex].uniformBlock;
+	const float deltaTime = static_cast<float>(TimerUtil::getTimeElapsedSinceStart(m_prevtime));
 
-	m_timeUBOs[currentImageIndex].time.x = deltaTime;
-	m_timeUBOs[currentImageIndex].time.y += m_timeUBOs[currentImageIndex].time.x;
+	timeUniformBlock.time.x = deltaTime;
+	timeUniformBlock.time.y += timeUniformBlock.time.x;
 
-	m_timeUBOs[currentImageIndex].frameCount += 1;
-	m_timeUBOs[currentImageIndex].frameCount = m_timeUBOs[currentImageIndex].frameCount % 16;
+	timeUniformBlock.frameCount += 1;
+	timeUniformBlock.frameCount = timeUniformBlock.frameCount % 16;
 
-	memcpy(m_mappedDataTimeBuffers[currentImageIndex], &m_timeUBOs[currentImageIndex], sizeof(TimeUBO));
+	memcpy(timeUBO.mappedData, &timeUniformBlock, sizeof(TimeUniform));
 }
 
 void Scene::expandDescriptorPool(std::vector<VkDescriptorPoolSize>& poolSizes)
@@ -162,8 +159,6 @@ void Scene::createDescriptors(VkDescriptorPool descriptorPool)
 		// Model
 		for (auto& model : m_modelMap)
 		{
-			model.second->m_DS_model.resize(m_numSwapChainImages);
-
 			for (uint32_t i = 0; i < static_cast<uint32_t>(m_numSwapChainImages); i++)
 			{
 				model.second->createDescriptorSets(descriptorPool, m_DSL_model, i);
@@ -185,86 +180,32 @@ void Scene::createDescriptors(VkDescriptorPool descriptorPool)
 }
 void Scene::writeToAndUpdateDescriptorSets()
 {
-	// Model
-	for (auto& model : m_modelMap)
-	{
-		for (uint32_t i = 0; i < static_cast<uint32_t>(m_numSwapChainImages); i++)
-		{
-			std::string name = "compute" + std::to_string(i);
-			std::shared_ptr<Texture> computeTexture = getTexture(name);
-			model.second->writeToAndUpdateDescriptorSets(computeTexture, i);
-		}
-	}
-
 	for (uint32_t i = 0; i < m_numSwapChainImages; i++)
 	{
+		// Models
+		for (auto& model : m_modelMap) { model.second->writeToAndUpdateDescriptorSets(i); }
+
 		// Compute
 		{
-			std::shared_ptr<Texture> computeTex = getTexture("compute", i);
-			VkDescriptorImageInfo computeSetInfo =
-				DescriptorUtil::createDescriptorImageInfo(computeTex->getSampler(), computeTex->getImageView(), computeTex->getImageLayout());
-			VkWriteDescriptorSet writeComputeSetInfo =
-				DescriptorUtil::writeDescriptorSet(m_DS_compute[i], 0, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &computeSetInfo);
-
+			std::shared_ptr<Texture2D> computeTex = getTexture("compute", i);
+			VkDescriptorImageInfo computeSetInfo = DescriptorUtil::createDescriptorImageInfo(computeTex->m_sampler, computeTex->m_imageView, computeTex->m_imageLayout);
+			VkWriteDescriptorSet writeComputeSetInfo = DescriptorUtil::writeDescriptorSet(m_DS_compute[i], 0, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &computeSetInfo);
 			vkUpdateDescriptorSets(m_logicalDevice, 1, &writeComputeSetInfo, 0, nullptr);
 		}
 
 		// Time
 		{
-			VkDescriptorBufferInfo timeBufferSetInfo = DescriptorUtil::createDescriptorBufferInfo(getTimeBuffer(i), 0, getTimeBufferSize());
-			VkWriteDescriptorSet writeTimeSetInfo =
-				DescriptorUtil::writeDescriptorSet(m_DS_time[i], 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &timeBufferSetInfo);
-
+			m_timeUniform[i].descriptorInfo = DescriptorUtil::createDescriptorBufferInfo(m_timeUniform[i].ubo.buffer, 0, m_timeUniform[i].ubo.bufferSize);
+			VkWriteDescriptorSet writeTimeSetInfo =	DescriptorUtil::writeDescriptorSet(m_DS_time[i], 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &m_timeUniform[i].descriptorInfo);
 			vkUpdateDescriptorSets(m_logicalDevice, 1, &writeTimeSetInfo, 0, nullptr);
 		}
 	}
-}
-
-std::shared_ptr<Model> Scene::getModel(std::string key)
-{
-	std::unordered_map<std::string, std::shared_ptr<Model>>::const_iterator found = m_modelMap.find(key);
-
-	if (found == m_modelMap.end())
-	{
-		throw std::runtime_error("failed to find the model specified");
-	}
-
-	return found->second;
-}
-
-std::shared_ptr<Texture> Scene::getTexture(std::string key)
-{
-	std::unordered_map<std::string, std::shared_ptr<Texture>>::const_iterator found = m_textureMap.find(key);
-
-	if (found == m_textureMap.end())
-	{
-		throw std::runtime_error("failed to find the texture specified");
-	}
-
-	return found->second;
-}
-std::shared_ptr<Texture> Scene::getTexture(std::string name, unsigned int index)
-{
-	std::string key = name + std::to_string(index);
-	return getTexture(key);
-}
-
-VkBuffer Scene::getTimeBuffer(unsigned int index) const
-{
-	return m_timeBuffers[index];
-}
-uint32_t Scene::getTimeBufferSize() const
-{
-	return static_cast<uint32_t>(m_timeBufferSize);
 }
 
 VkDescriptorSet Scene::getDescriptorSet(DSL_TYPE type, int index, std::string key)
 {
 	switch (type)
 	{
-	case DSL_TYPE::MODEL:
-		return getModel(key)->m_DS_model[index];
-		break;
 	case DSL_TYPE::COMPUTE:
 		return m_DS_compute[index];
 		break;
@@ -294,6 +235,5 @@ VkDescriptorSetLayout Scene::getDescriptorSetLayout(DSL_TYPE key)
 		throw std::runtime_error("no such Descriptor Set Layout Type (DSL_TYPE) exists");
 	}
 
-	assert(("Did not find a Descriptor Set Layout to return", true));
 	return nullptr;
 }

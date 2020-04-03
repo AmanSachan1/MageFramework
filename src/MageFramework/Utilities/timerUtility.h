@@ -1,9 +1,11 @@
 #pragma once
 #include <chrono>
 
+#define TIME_POINT std::chrono::high_resolution_clock::time_point
+
 namespace TimerUtil
 {
-	static std::chrono::high_resolution_clock::time_point startTime;
+	static TIME_POINT startTime;
 	inline void initTimer()
 	{
 		std::cout << "Starting Timer \n";
@@ -12,16 +14,16 @@ namespace TimerUtil
 
 	inline float getTimeElapsedSinceStart()
 	{
-		std::chrono::high_resolution_clock::time_point currentTime = std::chrono::high_resolution_clock::now();
-		std::chrono::duration<float> deltaTime = std::chrono::duration_cast<std::chrono::duration<float>>(currentTime - startTime);
-		return deltaTime.count();
+		TIME_POINT currentTime = std::chrono::high_resolution_clock::now();
+		float deltaTime = std::chrono::duration<float, std::milli>(currentTime - startTime).count();
+		return deltaTime;
 	};
 
 	inline float getTimeElapsedSinceStart(std::chrono::high_resolution_clock::time_point _start)
 	{
-		std::chrono::high_resolution_clock::time_point currentTime = std::chrono::high_resolution_clock::now();
-		std::chrono::duration<float> deltaTime = std::chrono::duration_cast<std::chrono::duration<float>>(currentTime - _start);
-		return deltaTime.count();
+		TIME_POINT currentTime = std::chrono::high_resolution_clock::now();
+		float deltaTime = std::chrono::duration<float, std::milli>(currentTime - _start).count();
+		return deltaTime;
 	}
 
 	// Reference: https://en.wikipedia.org/wiki/Halton_sequence

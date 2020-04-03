@@ -8,8 +8,6 @@ Vulkan Framework for testing out and demoing shader techniques I've been intrigu
 
 
 # To Do List (Features/Tasks/Demos)
-- Support use of push constants (test with tonemap)
-- Texture Arrays
 - Scene Rendering (Multuiple meshes, textures, and shaders. Meshes are stored and rendered from a single buffer using vertex offsets. Use push constants, separate per-model and scene descriptor sets are used to pass data to the shaders).
 - Sky Compute Shader
 - Grass Shaders (Compute, Tesselation and Frag shader)
@@ -58,6 +56,8 @@ render imgui UI to the swapchain
 - [stb](https://github.com/nothings/stb)
 - [tiny_gltf](https://github.com/syoyo/tinygltf)
 - [tiny_obj_loader](https://github.com/tinyobjloader/tinyobjloader)
+- [nlohmann/json](https://github.com/nlohmann/json)
+- [Sacha Willems Vulkan Examples](https://github.com/SaschaWillems/Vulkan)
 
 ### Tested On:
 - Windows 10
