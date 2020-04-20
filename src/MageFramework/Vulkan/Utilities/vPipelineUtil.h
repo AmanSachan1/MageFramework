@@ -2,6 +2,8 @@
 #include <global.h>
 #include <Utilities/generalUtility.h>
 
+#pragma warning( disable : 26812 ) // C26812: Prefer 'enum class' over 'enum' (Enum.3); Because of Vulkan 
+
 namespace VulkanPipelineStructures
 {
 	inline VkVertexInputBindingDescription vertexInputBindingDesc(uint32_t binding, uint32_t stride)

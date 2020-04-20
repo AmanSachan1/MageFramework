@@ -54,6 +54,15 @@ namespace ShaderUtil
 		return l_vertexShaderStageCreateInfo;
 	}
 
+	inline void createRayTracingShaderStageInfo(VkPipelineShaderStageCreateInfo& rayTraceShaderStageInfo,
+		const std::string& shaderName, VkShaderStageFlagBits stage, VkDevice& logicalDevice)
+	{
+		const std::string pathToRayTracingShader = "MageFramework/shaders/" + shaderName + ".spv";
+		VkShaderModule rayTraceModule = ShaderUtil::createShaderModule(pathToRayTracingShader, logicalDevice);
+		// Assign shader module to the appropriate stage in the pipeline
+		rayTraceShaderStageInfo = ShaderUtil::shaderStageCreateInfo(stage, rayTraceModule, "main");
+	}
+
 	inline void createComputeShaderStageInfo(VkPipelineShaderStageCreateInfo& compShaderStageInfo,
 		const std::string shaderName, VkShaderModule& compModule, VkDevice& logicalDevice)
 	{

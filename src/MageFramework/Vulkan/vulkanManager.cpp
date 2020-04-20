@@ -19,8 +19,15 @@ VulkanManager::VulkanManager(GLFWwindow* _window, const char* applicationName)
 	// Create The physical and logical devices required by vulkan
 	// Dictate the type of queues that need to be supported 
 	QueueFlagBits requiredQueues = QueueFlagBit::GraphicsBit | QueueFlagBit::ComputeBit | QueueFlagBit::TransferBit | QueueFlagBit::PresentBit;
+
+	std::vector<const char*> deviceExtensions = {
+		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+		// Ray tracing 
+		VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME,
+		VK_NV_RAY_TRACING_EXTENSION_NAME
+	};
 	// Setup Physical Devices --> Find a GPU that supports Vusurfacelkan
-	pickPhysicalDevice( { VK_KHR_SWAPCHAIN_EXTENSION_NAME }, requiredQueues );
+	pickPhysicalDevice(deviceExtensions, requiredQueues );
 	// Create a Logical Device
 	createLogicalDevice(requiredQueues);
 
@@ -78,13 +85,13 @@ void VulkanManager::initVulkanInstance(const char* applicationName, unsigned int
 	createInfo.pApplicationInfo = &appInfo;
 
 	// Get extensions necessary for Vulkan to interface with GLFW
-	auto extensions = getRequiredExtensions();
+	getRequiredInstanceExtensions();
 	for (unsigned int i = 0; i < additionalExtensionCount; ++i)
 	{
-		extensions.push_back(additionalExtensions[i]);
+		m_instanceExtensions.push_back(additionalExtensions[i]);
 	}
-	createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
-	createInfo.ppEnabledExtensionNames = extensions.data();
+	createInfo.enabledExtensionCount = static_cast<uint32_t>(m_instanceExtensions.size());
+	createInfo.ppEnabledExtensionNames = m_instanceExtensions.data();
 
 	// Specify global validation layers
 	if (ENABLE_VALIDATION)
@@ -539,16 +546,15 @@ void VulkanManager::initDebugReport()
 	}
 }
 
-std::vector<const char*> VulkanManager::getRequiredExtensions()
+void VulkanManager::getRequiredInstanceExtensions()
 {
-	std::vector<const char*> extensions;
-
 	if (ENABLE_VALIDATION)
 	{
-		extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+		m_instanceExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 	}
 
-	return extensions;
+	// For Ray Tracing
+	m_instanceExtensions.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
 }
 
 bool VulkanManager::checkValidationLayerSupport()

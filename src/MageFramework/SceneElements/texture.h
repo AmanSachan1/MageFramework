@@ -27,11 +27,11 @@ public:
 		vkFreeMemory(m_logicalDevice, m_imageMemory, nullptr);
 	}
 
-	void updateDescriptor()
+	void setDescriptorInfo()
 	{
-		m_descriptor.sampler = m_sampler;
-		m_descriptor.imageView = m_imageView;
-		m_descriptor.imageLayout = m_imageLayout;
+		m_descriptorInfo.sampler = m_sampler;
+		m_descriptorInfo.imageView = m_imageView;
+		m_descriptorInfo.imageLayout = m_imageLayout;
 	}
 
 	void createViewSamplerAndUpdateDescriptor(bool isMipMapped, VkSamplerAddressMode samplerAddressMode, VkQueue& queue, VkCommandPool& cmdPool)
@@ -44,7 +44,7 @@ public:
 			VK_SAMPLER_MIPMAP_MODE_LINEAR, 0, 0, static_cast<float>(m_mipLevels), 16, VK_COMPARE_OP_NEVER);
 
 		// Update descriptor image info member that can be used for setting up descriptor sets
-		updateDescriptor();
+		setDescriptorInfo();
 	}
 
 	void createEmptyTexture(
@@ -82,7 +82,7 @@ public:
 	VkImageView m_imageView = VK_NULL_HANDLE;
 	VkSampler m_sampler = VK_NULL_HANDLE;
 
-	VkDescriptorImageInfo m_descriptor;
+	VkDescriptorImageInfo m_descriptorInfo;
 
 protected:
 	VkDevice m_logicalDevice;
@@ -109,14 +109,14 @@ public:
 		VkQueue& queue, VkCommandPool& cmdPool,
 		bool isMipMapped = false,
 		VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL,
-		VkImageUsageFlags usage = VK_IMAGE_USAGE_SAMPLED_BIT); //VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | 
+		VkImageUsageFlags usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT );
 
 	void Texture2D::create2DTexture(
 		ImageLoaderOutput& imgOut, VkQueue& queue, VkCommandPool& cmdPool,
 		bool isMipMapped = false,
 		VkSamplerAddressMode samplerAddressMode = VK_SAMPLER_ADDRESS_MODE_REPEAT,
 		VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL,
-		VkImageUsageFlags usage = VK_IMAGE_USAGE_SAMPLED_BIT);
+		VkImageUsageFlags usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT );
 
 	void creationHelperPart1(ImageLoaderOutput& imgOut, VkQueue& queue, VkCommandPool& cmdPool,
 		bool isMipMapped, VkImageTiling tiling, VkImageUsageFlags usage);

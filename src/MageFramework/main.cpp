@@ -1,6 +1,5 @@
 #pragma once
 #include <global.h>
-#include <forward.h>
 #include <Vulkan/vulkanManager.h>
 
 #include "UIManager.h"
@@ -166,17 +165,29 @@ void GraphicsPlaygroundApplication::initWindow(int width, int height, const char
 void GraphicsPlaygroundApplication::initialize()
 {
 	static constexpr char* applicationName = "Mage Framework";
-	//Loads in the main camera and the scene
-	JSONContents jsonContent = loadingUtil::loadJSON("gltfTestSponza.json");
+	// Loads in the main camera and the scene
+	// JSONContents jsonContent = loadingUtil::loadJSON("gltfTest_box.json");
+	// JSONContents jsonContent = loadingUtil::loadJSON("emptyScene.json");
+	JSONContents jsonContent = loadingUtil::loadJSON("objTestChalet.json");
+	//JSONContents jsonContent = loadingUtil::loadJSON("gltfTest_gltf_and_obj.json");
 	const int window_width = jsonContent.mainCamera.width;
 	const int window_height = jsonContent.mainCamera.height;
+
+	RendererOptions rendererOptions =
+	{
+		RENDER_API::VULKAN, // API
+		RENDER_TYPE::RAYTRACE, //    RASTERIZATION
+		false, false, false, // Anti-Aliasing 
+		false, 1.0f, // Sample Rate Shading
+		true, 16.0f // Anisotropy
+	};
 
 	initWindow(window_width, window_height, applicationName);
 	vulkanManager = std::make_shared<VulkanManager>(window, applicationName);
 
 	TimerUtil::initTimer();
-	camera = std::make_shared<Camera>(vulkanManager, jsonContent.mainCamera, vulkanManager->getSwapChainImageCount(), CameraMode::FLY);
-	renderer = std::make_shared<Renderer>(window, vulkanManager, camera, jsonContent.scene, window_width, window_height);
+	camera = std::make_shared<Camera>(vulkanManager, jsonContent.mainCamera, vulkanManager->getSwapChainImageCount(), CameraMode::FLY, rendererOptions.renderType);
+	renderer = std::make_shared<Renderer>(window, vulkanManager, camera, jsonContent.scene, rendererOptions, window_width, window_height);
 
 	glfwSetWindowSizeCallback(window, InputUtil::resizeCallback);
 	glfwSetFramebufferSizeCallback(window, InputUtil::resizeCallback);

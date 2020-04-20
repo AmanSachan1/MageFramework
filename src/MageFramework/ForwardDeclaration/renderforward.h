@@ -2,6 +2,29 @@
 #include <global.h>
 #include <Vulkan/Utilities/vPipelineUtil.h>
 
+enum class RENDER_API { VULKAN, DX12 };
+enum class RENDER_TYPE { RASTERIZATION, RAYTRACE, HYBRID, PATHTRACE };
+enum class PIPELINE_TYPE { RASTER, RAYTRACE, COMPUTE, POST_PROCESS, COMPOSITE_COMPUTE_ONTO_RASTER };
+enum class POST_PROCESS_TYPE { HIGH_RESOLUTION, TONEMAP, LOW_RESOLUTION };
+enum class DSL_TYPE {
+	COMPUTE, MODEL, TIME, LIGHTS, COMPOSITE_COMPUTE_ONTO_RASTER,
+	POST_PROCESS, BEFOREPOST_FRAME, POST_HRFRAME1, POST_HRFRAME2, POST_LRFRAME1, POST_LRFRAME2
+};
+
+// If these change we need to inform the renderer and recreate everything.
+struct RendererOptions
+{
+	RENDER_API renderAPI;
+	RENDER_TYPE renderType;
+	bool MSAA;  // Geometry Anti-Aliasing
+	bool FXAA;  // Fast-Approximate Anti-Aliasing
+	bool TXAA;	// Temporal Anti-Aliasing
+	bool enableSampleRateShading; // Shading Anti-Aliasing (enables processing more than one sample per fragment)
+	float minSampleShading; // value between 0.0f and 1.0f --> closer to one is smoother
+	bool enableAnisotropy; // Anisotropic filtering -- image sampling will use anisotropic filter
+	float anisotropy; //controls level of anisotropic filtering
+};
+
 struct Vertex
 {
 	glm::vec3 position;
@@ -45,10 +68,3 @@ namespace std
 		}
 	};
 }
-
-struct SwapChainSupportDetails 
-{
-	VkSurfaceCapabilitiesKHR surfaceCapabilities;
-	std::vector<VkSurfaceFormatKHR> surfaceFormats;
-	std::vector<VkPresentModeKHR> presentModes;
-};

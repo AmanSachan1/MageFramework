@@ -1,35 +1,29 @@
 #include "camera.h"
 
 Camera::Camera(std::shared_ptr<VulkanManager> vulkanManager, glm::vec3 eyePos, glm::vec3 lookAtPoint, int width, int height,
-	float foV_vertical, float aspectRatio, float nearClip, float farClip, int numSwapChainImages, CameraMode mode)
+	float foV_vertical, float aspectRatio, float nearClip, float farClip, int numSwapChainImages, CameraMode mode, RENDER_TYPE renderType)
 	: m_vulkanManager(vulkanManager), m_logicalDevice(m_vulkanManager->getLogicalDevice()), m_physicalDevice(m_vulkanManager->getPhysicalDevice()),
-	m_numSwapChainImages(numSwapChainImages), m_mode(mode),
+	m_numSwapChainImages(numSwapChainImages), m_mode(mode), m_renderType(renderType),
 	m_eyePos(eyePos), m_ref(lookAtPoint), m_width(width), m_height(height),
 	m_fovy(foV_vertical), m_aspect(aspectRatio), m_near_clip(nearClip), m_far_clip(farClip)
 {
 	m_worldUp = glm::vec3(0, 1, 0);
 	recomputeAttributes();
 
-	m_uniformBufferSize = sizeof(CameraUBO);
-	m_uniformBuffers.resize(m_numSwapChainImages);
-	m_uniformBufferMemories.resize(m_numSwapChainImages);
-	m_cameraUBOs.resize(m_numSwapChainImages);
-	m_mappedDataUniformBuffers.resize(m_numSwapChainImages);
-
-	BufferUtil::createUniformBuffers(m_logicalDevice, m_physicalDevice, m_numSwapChainImages,
-		m_uniformBuffers, m_uniformBufferMemories, m_uniformBufferSize);
-
+	m_cameraUniforms.resize(m_numSwapChainImages);
 	for (int i = 0; i < numSwapChainImages; i++)
 	{
+		BufferUtil::createMageBuffer(m_logicalDevice, m_physicalDevice,	m_cameraUniforms[i].cameraUB, 
+			sizeof(CameraUniformBlock),	nullptr, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 		updateUniformBuffer(i);
-		vkMapMemory(m_logicalDevice, m_uniformBufferMemories[i], 0, m_uniformBufferSize, 0, &m_mappedDataUniformBuffers[i]);
-		memcpy(m_mappedDataUniformBuffers[i], &m_cameraUBOs[i], (size_t)m_uniformBufferSize);
+		m_cameraUniforms[i].cameraUB.map(m_logicalDevice);
+		m_cameraUniforms[i].cameraUB.copyDataToMappedBuffer(&m_cameraUniforms[i].uniformBlock);
 	}
 }
 
-Camera::Camera(std::shared_ptr<VulkanManager> vulkanManager, JSONItem::Camera& jsonCam, int numSwapChainImages, CameraMode mode)
+Camera::Camera(std::shared_ptr<VulkanManager> vulkanManager, JSONItem::Camera& jsonCam, int numSwapChainImages, CameraMode mode, RENDER_TYPE renderType)
 	: Camera( vulkanManager, jsonCam.eyePos, jsonCam.lookAtPoint, jsonCam.width, jsonCam.height,
-		jsonCam.foV_vertical, jsonCam.aspectRatio, jsonCam.nearClip, jsonCam.farClip, numSwapChainImages, mode)
+		jsonCam.foV_vertical, jsonCam.aspectRatio, jsonCam.nearClip, jsonCam.farClip, numSwapChainImages, mode, renderType)
 {};
 
 Camera::~Camera()
@@ -37,46 +31,44 @@ Camera::~Camera()
 	vkDeviceWaitIdle(m_logicalDevice);
 
 	vkDestroyDescriptorSetLayout(m_logicalDevice, m_DSL_camera, nullptr);
-
 	for (unsigned int i = 0; i < m_numSwapChainImages; i++)
 	{
-		vkUnmapMemory(m_logicalDevice, m_uniformBufferMemories[i]);
-		vkDestroyBuffer(m_logicalDevice, m_uniformBuffers[i], nullptr);
-		vkFreeMemory(m_logicalDevice, m_uniformBufferMemories[i], nullptr);
+		m_cameraUniforms[i].cameraUB.unmap(m_logicalDevice);
+		m_cameraUniforms[i].cameraUB.destroy(m_logicalDevice);
 	}
-}
-
-VkBuffer Camera::getUniformBuffer(unsigned int bufferIndex) const
-{
-	return m_uniformBuffers[bufferIndex];
-}
-uint32_t Camera::getUniformBufferSize() const
-{
-	return static_cast<uint32_t>(sizeof(CameraUBO));
 }
 
 void Camera::updateUniformBuffer(unsigned int bufferIndex)
 {
-	m_cameraUBOs[bufferIndex].view = getView();
-	m_cameraUBOs[bufferIndex].proj = getProj();
+	CameraUniformBlock& l_cameraUBO = m_cameraUniforms[bufferIndex].uniformBlock;
+	l_cameraUBO.view = getView();
+	l_cameraUBO.proj = getProj();
+	
 	//Reason for flipping the y axis: https://matthewwellings.com/blog/the-new-vulkan-coordinate-system/
-	m_cameraUBOs[bufferIndex].proj[1][1] *= -1; // y-coordinate is flipped
+	l_cameraUBO.proj[1][1] *= -1; // y-coordinate is flipped
+	l_cameraUBO.proj[2][2] *= 0.5; // correct depth range
+	l_cameraUBO.proj[2][3] *= 0.5; // correct depth range
 
-	m_cameraUBOs[bufferIndex].eyePos = glm::vec4(m_eyePos, 1.0);
+	l_cameraUBO.viewInverse = glm::inverse(l_cameraUBO.view);
+	l_cameraUBO.projInverse = glm::inverse(l_cameraUBO.proj);
+	l_cameraUBO.eyePos = glm::vec4(m_eyePos, 1.0);
 
-	m_cameraUBOs[bufferIndex].tanFovBy2.y = static_cast<float>(std::abs(std::tan(m_fovy* 0.5 * (PI / 180.0))));
-	m_cameraUBOs[bufferIndex].tanFovBy2.x = m_aspect * m_cameraUBOs[bufferIndex].tanFovBy2.y;
+	l_cameraUBO.tanFovBy2.y = static_cast<float>(std::abs(std::tan(m_fovy* 0.5 * (PI / 180.0))));
+	l_cameraUBO.tanFovBy2.x = m_aspect * l_cameraUBO.tanFovBy2.y;
 }
 void Camera::updateUniformBuffer(Camera* cam, unsigned int dstCamBufferIndex, unsigned int srcCamBufferIndex)
 {
-	m_cameraUBOs[dstCamBufferIndex].view = cam->m_cameraUBOs[srcCamBufferIndex].view;
-	m_cameraUBOs[dstCamBufferIndex].proj = cam->m_cameraUBOs[srcCamBufferIndex].proj;
-	m_cameraUBOs[dstCamBufferIndex].eyePos = cam->m_cameraUBOs[srcCamBufferIndex].eyePos;
-	m_cameraUBOs[dstCamBufferIndex].tanFovBy2 = cam->m_cameraUBOs[srcCamBufferIndex].tanFovBy2;
+	CameraUniformBlock& l_cameraUBO = m_cameraUniforms[dstCamBufferIndex].uniformBlock;
+	l_cameraUBO.view = cam->m_cameraUniforms[srcCamBufferIndex].uniformBlock.view;
+	l_cameraUBO.proj = cam->m_cameraUniforms[srcCamBufferIndex].uniformBlock.proj;
+	l_cameraUBO.viewInverse = cam->m_cameraUniforms[srcCamBufferIndex].uniformBlock.viewInverse;
+	l_cameraUBO.projInverse = cam->m_cameraUniforms[srcCamBufferIndex].uniformBlock.projInverse;
+	l_cameraUBO.eyePos = cam->m_cameraUniforms[srcCamBufferIndex].uniformBlock.eyePos;
+	l_cameraUBO.tanFovBy2 = cam->m_cameraUniforms[srcCamBufferIndex].uniformBlock.tanFovBy2;
 }
 void Camera::copyToGPUMemory(unsigned int bufferIndex)
 {
-	memcpy(m_mappedDataUniformBuffers[bufferIndex], &m_cameraUBOs[bufferIndex], sizeof(CameraUBO));
+	m_cameraUniforms[bufferIndex].cameraUB.copyDataToMappedBuffer(&m_cameraUniforms[bufferIndex].uniformBlock);
 }
 
 void Camera::switchCameraMode()
@@ -225,34 +217,17 @@ void Camera::createDescriptors(VkDescriptorPool descriptorPool)
 	}
 
 	// Descriptor Sets
-	m_DS_camera.resize(m_numSwapChainImages);
 	for (uint32_t i = 0; i < m_numSwapChainImages; i++)
 	{
-		DescriptorUtil::createDescriptorSets(m_logicalDevice, descriptorPool, 1, &m_DSL_camera, &m_DS_camera[i]);
+		DescriptorUtil::createDescriptorSets(m_logicalDevice, descriptorPool, 1, &m_DSL_camera, &m_cameraUniforms[i].DS_camera);
 	}
 }
-
 void Camera::writeToAndUpdateDescriptorSets()
 {
-	uint32_t cameraUniformBufferSize = static_cast<uint32_t>(sizeof(CameraUBO));
 	for (uint32_t i = 0; i < m_numSwapChainImages; i++)
 	{
-		{
-			VkDescriptorBufferInfo cameraBufferSetInfo =
-				DescriptorUtil::createDescriptorBufferInfo(getUniformBuffer(i), 0, cameraUniformBufferSize);
-			VkWriteDescriptorSet writecameraSetInfo =
-				DescriptorUtil::writeDescriptorSet(m_DS_camera[i], 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &cameraBufferSetInfo);
-
-			vkUpdateDescriptorSets(m_logicalDevice, 1, &writecameraSetInfo, 0, nullptr);
-		}
+		VkWriteDescriptorSet writecameraSetInfo = DescriptorUtil::writeDescriptorSet(
+				m_cameraUniforms[i].DS_camera, 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &m_cameraUniforms[i].cameraUB.descriptorInfo);
+		vkUpdateDescriptorSets(m_logicalDevice, 1, &writecameraSetInfo, 0, nullptr);
 	}
-}
-
-VkDescriptorSet Camera::getDescriptorSet(DSL_TYPE type, int index)
-{
-	return m_DS_camera[index];
-}
-VkDescriptorSetLayout Camera::getDescriptorSetLayout(DSL_TYPE key)
-{
-	return m_DSL_camera;
 }

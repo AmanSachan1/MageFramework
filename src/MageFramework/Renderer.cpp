@@ -1,10 +1,15 @@
 #include "Renderer.h"
 
+#include <Vulkan/Utilities/vPipelineUtil.h>
+#include <Vulkan/Utilities/vBufferUtil.h>
+#include <SceneElements/texture.h>
+
 Renderer::Renderer(GLFWwindow* window, 
 	std::shared_ptr<VulkanManager> vulkanManager, 
 	std::shared_ptr<Camera> camera, JSONItem::Scene& scene,
-	uint32_t width, uint32_t height)
-	: m_window(window), m_vulkanManager(vulkanManager), m_camera(camera)
+	RendererOptions& rendererOptions, uint32_t width, uint32_t height)
+	: m_window(window), m_vulkanManager(vulkanManager), 
+	m_camera(camera), m_rendererOptions(rendererOptions)
 {
 	initialize(scene);
 }
@@ -18,26 +23,29 @@ void Renderer::initialize(JSONItem::Scene& scene)
 {
 	const uint32_t numFrames = m_vulkanManager->getSwapChainImageCount();
 	const VkExtent2D windowsExtent = m_vulkanManager->getSwapChainVkExtent();
-	m_rendererBackend = std::make_shared<VulkanRendererBackend>(m_vulkanManager, numFrames, windowsExtent);
+	m_rendererBackend = std::make_shared<VulkanRendererBackend>(m_vulkanManager, m_rendererOptions, numFrames, windowsExtent);
 
 	VkQueue graphicsQueue = m_vulkanManager->getQueue(QueueFlags::Graphics);
 	VkQueue computeQueue = m_vulkanManager->getQueue(QueueFlags::Compute);
 	VkCommandPool computeCmdPool = m_rendererBackend->getComputeCommandPool();
 	VkCommandPool graphicsCmdPool = m_rendererBackend->getGraphicsCommandPool();
-	m_scene = std::make_shared<Scene>(m_vulkanManager, scene, numFrames, windowsExtent, graphicsQueue, graphicsCmdPool, computeQueue, computeCmdPool);
+	m_scene = std::make_shared<Scene>(m_vulkanManager, scene, m_rendererOptions.renderType, numFrames, windowsExtent, 
+		graphicsQueue, graphicsCmdPool, computeQueue, computeCmdPool );
 
-	m_rendererBackend->createSyncObjects();
+  	m_rendererBackend->createSyncObjects();
 	setupDescriptorSets();
-	createAllPipelines();
-	m_rendererBackend->createAllPostProcessEffects(m_scene);
-	writeToAndUpdateDescriptorSets();
-	recordAllCommandBuffers();
 
-	m_rendererOptions = { 
-		RenderAPI::VULKAN, // API
-		false, false, false, // Anti-Aliasing 
-		false, 1.0f, // Sample Rate Shading
-		true, 16.0f	}; // Anisotropy
+	if (m_rendererOptions.renderType == RENDER_TYPE::RASTERIZATION)
+	{
+		createAllPipelines();
+		m_rendererBackend->createAllPostProcessEffects(m_scene);
+		writeToAndUpdateDescriptorSets();
+	}
+	if (m_rendererOptions.renderType == RENDER_TYPE::RAYTRACE)
+	{
+		m_rendererBackend->setupRayTracing(m_camera, m_scene);
+	}
+	m_rendererBackend->recordAllCommandBuffers(m_camera, m_scene);
 
 	m_UI = std::make_shared<UIManager>(m_window, m_vulkanManager, m_rendererOptions);
 }
@@ -60,13 +68,20 @@ void Renderer::recreate()
 	m_rendererBackend->createRenderPassesAndFrameResources();
 	m_rendererBackend->createSyncObjects();
 
-	createAllPipelines();
-	m_rendererBackend->createAllPostProcessEffects(m_scene);	
-	writeToAndUpdateDescriptorSets();
+	if (m_rendererOptions.renderType == RENDER_TYPE::RASTERIZATION)
+	{
+		createAllPipelines();
+		m_rendererBackend->createAllPostProcessEffects(m_scene);
+		writeToAndUpdateDescriptorSets();
+	}
+	if (m_rendererOptions.renderType == RENDER_TYPE::RAYTRACE)
+	{
+		m_rendererBackend->setupRayTracing(m_camera, m_scene);
+	}
 
 	m_rendererBackend->recreateCommandBuffers();
-	recordAllCommandBuffers();
-
+	m_rendererBackend->recordAllCommandBuffers(m_camera, m_scene);
+	
 	m_UI->resize(m_window);
 }
 void Renderer::cleanup()
@@ -84,8 +99,17 @@ void Renderer::renderLoop(float prevFrameTime)
 	acquireNextSwapChainImage();
 	m_rendererBackend->submitCommandBuffers();
 
-	VkSemaphore waitSemaphore = m_rendererBackend->getpostProcessFinishedVkSemaphore(m_vulkanManager->getIndex());
-	VkSemaphore signalSemaphore = m_vulkanManager->getRenderFinishedVkSemaphore();
+	VkSemaphore waitSemaphore;
+	if (m_rendererOptions.renderType == RENDER_TYPE::RASTERIZATION)
+	{
+		waitSemaphore = m_rendererBackend->getpostProcessFinishedVkSemaphore(m_vulkanManager->getIndex());
+	}
+	if (m_rendererOptions.renderType == RENDER_TYPE::RAYTRACE)
+	{
+		waitSemaphore = m_rendererBackend->m_rayTracingOperationsFinishedSemaphores[m_vulkanManager->getIndex()];
+	}
+	
+ 	VkSemaphore signalSemaphore = m_vulkanManager->getRenderFinishedVkSemaphore();
 	m_UI->submitDrawCommands(waitSemaphore, signalSemaphore);
 	presentCurrentImageToSwapChainImage();
 }
@@ -125,56 +149,20 @@ void Renderer::presentCurrentImageToSwapChainImage()
 }
 
 
-void Renderer::recordAllCommandBuffers()
-{
-	const uint32_t numClearValues = 2;
-	std::array<VkClearValue, numClearValues> clearValues = {};
-	clearValues[0].color = { 0.0f, 0.0f, 0.0f, 1.0f };
-	clearValues[1].depthStencil = { 1.0f, 0 };
-
-	const VkRect2D renderArea = Util::createRectangle(m_vulkanManager->getSwapChainVkExtent());
-	const unsigned int numCommandBuffers = m_vulkanManager->getSwapChainImageCount();
-	unsigned int i = 0;
-	for (; i < numCommandBuffers; i++)
-	{
-		VkCommandBuffer computeCmdBuffer = m_rendererBackend->getComputeCommandBuffer(i);
-		VkCommandBuffer graphicsCmdBuffer = m_rendererBackend->getGraphicsCommandBuffer(i);
-		VkCommandBuffer postProcessCmdBuffer = m_rendererBackend->getPostProcessCommandBuffer(i);
-
-		VulkanCommandUtil::beginCommandBuffer(computeCmdBuffer);
-		m_rendererBackend->recordCommandBuffer_ComputeCmds(i, computeCmdBuffer, m_scene);
-		VulkanCommandUtil::endCommandBuffer(computeCmdBuffer);
-		
-		VulkanCommandUtil::beginCommandBuffer(graphicsCmdBuffer);
-		m_rendererBackend->recordCommandBuffer_GraphicsCmds(i, graphicsCmdBuffer, m_scene, m_camera, renderArea, numClearValues, clearValues.data());
-		VulkanCommandUtil::endCommandBuffer(graphicsCmdBuffer);
-		
-		VulkanCommandUtil::beginCommandBuffer(postProcessCmdBuffer);
-		m_rendererBackend->recordCommandBuffer_PostProcessCmds(i, postProcessCmdBuffer, m_scene, renderArea, numClearValues, clearValues.data());
-		VulkanCommandUtil::endCommandBuffer(postProcessCmdBuffer);
-	}
-}
-
-
 void Renderer::setupDescriptorSets()
 {
 	// --- Create Descriptor Pool ---
-	{
-		std::vector<VkDescriptorPoolSize> poolSizes = {};
-		m_camera->expandDescriptorPool(poolSizes);
-		m_scene->expandDescriptorPool(poolSizes);
-		m_rendererBackend->expandDescriptorPool(poolSizes);
-		m_rendererBackend->createDescriptorPool(poolSizes);
-	}
-
-	VkDescriptorPool descriptorPool = m_rendererBackend->getDescriptorPool();
+	std::vector<VkDescriptorPoolSize> poolSizes = {};
+	m_camera->expandDescriptorPool(poolSizes);
+	m_scene->expandDescriptorPool(poolSizes);
+	m_rendererBackend->expandDescriptorPool(poolSizes);
+	m_rendererBackend->createDescriptorPool(poolSizes);
 
 	// --- Create Descriptor Set Layouts and the associated Descriptor Sets ---
-	{
-		m_camera->createDescriptors(descriptorPool);
-		m_scene->createDescriptors(descriptorPool);
-		m_rendererBackend->createDescriptors(descriptorPool);
-	}
+	VkDescriptorPool descriptorPool = m_rendererBackend->getDescriptorPool();
+	m_camera->createDescriptors(descriptorPool);
+	m_scene->createDescriptors(descriptorPool);
+	m_rendererBackend->createDescriptors(descriptorPool);
 }
 void Renderer::writeToAndUpdateDescriptorSets()
 {	
@@ -199,7 +187,7 @@ void Renderer::createAllPipelines()
 {
 	std::vector<VkDescriptorSetLayout> computeDSL = { m_scene->getDescriptorSetLayout(DSL_TYPE::COMPUTE) };
 	std::vector<VkDescriptorSetLayout> compositeComputeOntoRasterDSL = { m_rendererBackend->getDescriptorSetLayout(DSL_TYPE::COMPOSITE_COMPUTE_ONTO_RASTER)};
-	std::vector<VkDescriptorSetLayout> rasterizationDSL = { m_camera->getDescriptorSetLayout(DSL_TYPE::CURRENT_FRAME_CAMERA),
+	std::vector<VkDescriptorSetLayout> rasterizationDSL = { m_camera->m_DSL_camera,
 															m_scene->getDescriptorSetLayout(DSL_TYPE::MODEL)};
 	
 	DescriptorSetLayouts allDSLs = { computeDSL, compositeComputeOntoRasterDSL, rasterizationDSL };

@@ -12,6 +12,8 @@ layout (set = 0, binding = 0) uniform CameraUBO
 {
 	mat4 view;
 	mat4 proj;
+	mat4 viewInverse;
+	mat4 projInverse;
 	vec4 eye;
 	vec2 tanFovBy2;
 };

@@ -109,7 +109,7 @@ inline void VulkanRendererBackend::createDepthResources()
 	// Reddit Discussion here: https://www.reddit.com/r/vulkan/comments/9at7rz/api_without_secrets_the_practical_approach_to/e542onj/
 
 	FrameResourcesUtil::createDepthAttachment(m_logicalDevice, m_physicalDevice,
-		m_graphicsQueue, m_graphicsCommandPool, m_depth, m_depthFormat, m_windowExtents);
+		m_graphicsQueue, m_graphicsCmdPool, m_depth, m_depthFormat, m_windowExtents);
 }
 inline void VulkanRendererBackend::createFrameBuffers(
 	const VkImageLayout& layoutBeforeImageCreation, 
@@ -132,7 +132,7 @@ inline void VulkanRendererBackend::createFrameBuffers(
 		m_rasterRPI.imageSetInfo.resize(m_numSwapChainImages);
 		m_rasterRPI.extents = m_windowExtents;
 
-		FrameResourcesUtil::createFrameBufferAttachments(m_logicalDevice, m_physicalDevice, m_graphicsQueue, m_graphicsCommandPool,
+		FrameResourcesUtil::createFrameBufferAttachments(m_logicalDevice, m_physicalDevice, m_graphicsQueue, m_graphicsCmdPool,
 			m_numSwapChainImages, m_rasterRPI.color, m_rasterRPI.sampler, m_highResolutionRenderFormat,
 			layoutBeforeImageCreation, layoutToTransitionImageToAfterCreation, m_windowExtents, frameBufferUsage);
 
@@ -160,7 +160,7 @@ inline void VulkanRendererBackend::createFrameBuffers(
 		m_compositeComputeOntoRasterRPI.imageSetInfo.resize(m_numSwapChainImages);
 		m_compositeComputeOntoRasterRPI.extents = m_windowExtents;
 
-		FrameResourcesUtil::createFrameBufferAttachments(m_logicalDevice, m_physicalDevice, m_graphicsQueue, m_graphicsCommandPool,
+		FrameResourcesUtil::createFrameBufferAttachments(m_logicalDevice, m_physicalDevice, m_graphicsQueue, m_graphicsCmdPool,
 			m_numSwapChainImages, m_compositeComputeOntoRasterRPI.color, m_compositeComputeOntoRasterRPI.sampler, m_highResolutionRenderFormat,
 			layoutBeforeImageCreation, layoutToTransitionImageToAfterCreation, m_windowExtents, frameBufferUsage);
 

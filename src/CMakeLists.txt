@@ -20,7 +20,10 @@ function(buildSource SAMPLE_NAME)
 		${SAMPLE_NAME}/Shaders/PostProcessEffects/*.geom
 		${SAMPLE_NAME}/Shaders/PostProcessEffects/*.comp
 		${SAMPLE_NAME}/Shaders/PostProcessEffects/*.tese
-		${SAMPLE_NAME}/Shaders/PostProcessEffects/*.tesc )
+		${SAMPLE_NAME}/Shaders/PostProcessEffects/*.tesc
+		${SAMPLE_NAME}/Shaders/RayTracing/*.rgen
+		${SAMPLE_NAME}/Shaders/RayTracing/*.rchit
+		${SAMPLE_NAME}/Shaders/RayTracing/*.rmiss )
 	file(GLOB_RECURSE COMMON_SHADER_SOURCES
 		${SAMPLE_NAME}/Shaders/Common/*.vert
 		${SAMPLE_NAME}/Shaders/Common/*.frag
@@ -35,11 +38,19 @@ function(buildSource SAMPLE_NAME)
 		${SAMPLE_NAME}/Shaders/PostProcessEffects/*.comp
 		${SAMPLE_NAME}/Shaders/PostProcessEffects/*.tese
 		${SAMPLE_NAME}/Shaders/PostProcessEffects/*.tesc )
+	file(GLOB_RECURSE RAYTRACING_SHADER_SOURCES
+		${SAMPLE_NAME}/Shaders/RayTracing/*.rgen
+		${SAMPLE_NAME}/Shaders/RayTracing/*.rchit
+		${SAMPLE_NAME}/Shaders/RayTracing/*.rmiss )
 
 	file(GLOB UTILITY_SOURCES 
 		${SAMPLE_NAME}/Utilities/*.cpp 
 		${SAMPLE_NAME}/Utilities/*.h 
 		${SAMPLE_NAME}/Utilities/*.inl)
+	file(GLOB FORWARD_DECLARATION_SOURCES 
+		${SAMPLE_NAME}/ForwardDeclaration/*.cpp 
+		${SAMPLE_NAME}/ForwardDeclaration/*.h 
+		${SAMPLE_NAME}/ForwardDeclaration/*.inl)
 
 	file(GLOB VULKAN_SOURCES 
 		${SAMPLE_NAME}/Vulkan/*.cpp 
@@ -57,10 +68,13 @@ function(buildSource SAMPLE_NAME)
 	
 	SET(MAIN_CPP ${SAMPLE_NAME}/main.cpp)
 	source_group("Source" FILES ${SAMPLE_SOURCES})
+	source_group("Source\\SceneElements" FILES ${SCENE_ELEMENTS_SOURCES})
+
 	source_group("Source\\Shaders" FILES ${COMMON_SHADER_SOURCES})
 	source_group("Source\\Shaders\\PostProcessEffects" FILES ${POSTPROCESS_SHADER_SOURCES})
-	source_group("Source\\SceneElements" FILES ${SCENE_ELEMENTS_SOURCES})
+	source_group("Source\\Shaders\\RayTracing" FILES ${RAYTRACING_SHADER_SOURCES})
 	
+	source_group("Source\\ForwardDeclaration" FILES ${FORWARD_DECLARATION_SOURCES})
 	source_group("Source\\Utilities" FILES ${UTILITY_SOURCES})
 
 	source_group("Source\\Vulkan" FILES ${VULKAN_SOURCES})
@@ -71,7 +85,9 @@ function(buildSource SAMPLE_NAME)
 		add_executable(${SAMPLE_NAME} ${MAIN_CPP} 
 			${SAMPLE_SOURCES}
 			${SCENE_ELEMENTS_SOURCES}
-			${ALL_SHADER_SOURCES} 
+			${ALL_SHADER_SOURCES}
+			${RAYTRACING_SHADER_SOURCES}
+			${FORWARD_DECLARATION_SOURCES} 	
 			${UTILITY_SOURCES} 			
 			${VULKAN_SOURCES} 
 			${VULKAN_RENDERER_BACKEND_SOURCES} 
@@ -81,7 +97,9 @@ function(buildSource SAMPLE_NAME)
 		add_executable(${SAMPLE_NAME} ${MAIN_CPP} 
 			${SAMPLE_SOURCES}
 			${SCENE_ELEMENTS_SOURCES}
-			${ALL_SHADER_SOURCES} 
+			${ALL_SHADER_SOURCES}
+			${RAYTRACING_SHADER_SOURCES}
+			${FORWARD_DECLARATION_SOURCES} 	
 			${UTILITY_SOURCES} 			
 			${VULKAN_SOURCES} 
 			${VULKAN_RENDERER_BACKEND_SOURCES} 
@@ -90,7 +108,7 @@ function(buildSource SAMPLE_NAME)
 	endif(WIN32)
 
 	foreach(SHADER_SOURCE ${ALL_SHADER_SOURCES})
-		set(SHADER_DIR ${CMAKE_CURRENT_BINARY_DIR}/${SAMPLE_NAME}/shaders)
+		set(SHADER_DIR ${CMAKE_CURRENT_BINARY_DIR}/${SAMPLE_NAME}/Shaders)
 		if(WIN32)
 			get_filename_component(fname ${SHADER_SOURCE} NAME)
 			add_custom_target(${SAMPLE_NAME}_${fname}.spv

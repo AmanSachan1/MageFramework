@@ -22,17 +22,28 @@ struct TimeUniformBlock
 
 struct TimeUniform
 {
-	UniformBufferObject ubo;
 	TimeUniformBlock uniformBlock;
-	VkDescriptorBufferInfo descriptorInfo;
+	mageVKBuffer timeBuffer;
+};
+
+struct LightsUniformBlock
+{
+	glm::vec4 lightPos;
+};
+
+struct LightsUniform
+{
+	LightsUniformBlock uniformBlock;
+	mageVKBuffer lightBuffer;
 };
 
 class Scene 
 {
 public:
 	Scene() = delete;
-	Scene(std::shared_ptr<VulkanManager> vulkanManager, JSONItem::Scene& scene, uint32_t numSwapChainImages, VkExtent2D windowExtents,
-		VkQueue& graphicsQueue, VkCommandPool& graphicsCommandPool,	VkQueue& computeQueue, VkCommandPool& computeCommandPool);
+	Scene(std::shared_ptr<VulkanManager> vulkanManager, JSONItem::Scene& scene,
+		RENDER_TYPE renderType, uint32_t numSwapChainImages, VkExtent2D windowExtents,
+		VkQueue& graphicsQueue, VkCommandPool& graphicsCommandPool, VkQueue& computeQueue, VkCommandPool& computeCommandPool);
 	~Scene();
 
 	void cleanup() {} //specifically clean up resources that are recreated on frame resizing
@@ -43,6 +54,10 @@ public:
 	// Time
 	void initializeTimeUBO(uint32_t currentImageIndex);
 	void updateTimeUBO(uint32_t currentImageIndex);
+
+	// Lights
+	void initializeLightsUBO(uint32_t currentImageIndex);
+	void updateLightsUBO(uint32_t currentImageIndex);
 
 	// Descriptor Sets
 	void expandDescriptorPool(std::vector<VkDescriptorPoolSize>& poolSizes);
@@ -74,6 +89,9 @@ public:
 public:
 	std::unordered_map<std::string, std::shared_ptr<Model>> m_modelMap;
 	std::unordered_map<std::string, std::shared_ptr<Texture2D>> m_textureMap;
+	
+	std::vector<TimeUniform> m_timeUniform; // Time	
+	std::vector<LightsUniform> m_lightsUniform; // Lights
 
 private:
 	std::shared_ptr<VulkanManager> m_vulkanManager;
@@ -81,18 +99,19 @@ private:
 	VkPhysicalDevice m_physicalDevice;
 	VkQueue	m_graphicsQueue;
 	VkQueue	m_computeQueue;
-	VkCommandPool m_graphicsCommandPool;
-	VkCommandPool m_computeCommandPool;
+	VkCommandPool m_graphicsCmdPool;
+	VkCommandPool m_computeCmdPool;
 	uint32_t m_numSwapChainImages;
-	
-	// Time
-	std::chrono::high_resolution_clock::time_point m_prevtime;
-	std::vector<TimeUniform> m_timeUniform;
+	RENDER_TYPE m_renderType;
 
+	std::chrono::high_resolution_clock::time_point m_prevtime;
+	
 	// Descriptor Set Stuff
 	VkDescriptorSetLayout m_DSL_model;
 	VkDescriptorSetLayout m_DSL_compute;
 	VkDescriptorSetLayout m_DSL_time;
+	VkDescriptorSetLayout m_DSL_lights;
 	std::vector<VkDescriptorSet> m_DS_compute;
 	std::vector<VkDescriptorSet> m_DS_time;
+	std::vector<VkDescriptorSet> m_DS_lights;
 };

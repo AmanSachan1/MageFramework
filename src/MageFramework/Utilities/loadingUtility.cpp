@@ -172,15 +172,6 @@ bool loadingUtil::loadObj(std::vector<Vertex>& vertices, std::vector<uint32_t>& 
 		return false;
 	}
 
-#ifndef NDEBUG
-	std::cout << "\nAn obj file was loaded" << std::endl;
-	std::cout << "# of vertices  : " << (attrib.vertices.size() / 3) << std::endl;
-	std::cout << "# of normals   : " << (attrib.normals.size() / 3) << std::endl;
-	std::cout << "# of texcoords : " << (attrib.texcoords.size() / 2) << std::endl;
-	std::cout << "# of shapes    : " << shapes.size() << std::endl;
-	std::cout << "# of materials : " << materials.size() << std::endl;
-#endif
-
 	std::unordered_map<Vertex, uint32_t> uniqueVertices = {};
 	//Assumption: obj files are consistent for all attributes, i.e. attributes exist for all elements or for none of them
 	const bool hasPosition = attrib.vertices.size() > 0;
@@ -249,6 +240,17 @@ bool loadingUtil::loadObj(std::vector<Vertex>& vertices, std::vector<uint32_t>& 
 		textures.push_back(texture);
 	}
 
+#ifndef NDEBUG
+	std::cout << "\nAn obj file was loaded" << std::endl;
+	std::cout << "# of triangles  : " << (vertices.size() / 3) << std::endl;
+	std::cout << "# of vertices  : " << vertices.size() << std::endl;
+	std::cout << "# of indices   : " << indices.size() << std::endl;
+	
+	std::cout << "# of shapes    : " << shapes.size() << std::endl;
+	std::cout << "# of textures  : " << textures.size() << std::endl;
+	std::cout << "# of materials : " << materials.size() << std::endl;
+#endif
+
 	return true;
 }
 
@@ -298,8 +300,12 @@ bool loadingUtil::loadGLTF(std::vector<Vertex>& vertices, std::vector<uint32_t>&
 
 #ifndef NDEBUG
 	std::cout << "\nA gltf file was loaded" << std::endl;
-	std::cout << "# of vertices  : " << (vertices.size() * 3) << std::endl;
-	std::cout << "# of triangles  : " << (vertices.size()) << std::endl;
+	std::cout << "# of triangles  : " << (vertices.size() / 3) << std::endl;
+	std::cout << "# of vertices   : " << vertices.size() << std::endl;
+	std::cout << "# of indices    : " << indices.size() << std::endl;
+	
+	std::cout << "# of textures   : " << textures.size() << std::endl;
+	std::cout << "# of materials  : " << materials.size() << std::endl;
 #endif
 
 	// Total number of descriptors
@@ -317,7 +323,7 @@ void loadingUtil::convertObjToNodeStructure(Indices& indices,
 	const std::string filename, glm::mat4& transform, uint32_t& uboCount, unsigned int numFrames,
 	VkDevice& logicalDevice, VkPhysicalDevice& pDevice, VkQueue& graphicsQueue, VkCommandPool& commandPool)
 {
-	std::shared_ptr<vkMaterial> material = std::make_shared<vkMaterial>(logicalDevice, pDevice);
+	std::shared_ptr<vkMaterial> material = std::make_shared<vkMaterial>(filename, logicalDevice, pDevice);
 	material->activeTextures.reset();
 	material->baseColorTexture = textures[0];
 	material->activeTextures[0] = true;
@@ -409,7 +415,7 @@ void readTinygltfMaterials(tinygltf::Model& gltfModel, std::vector<std::shared_p
 {
 	for (tinygltf::Material& mat : gltfModel.materials) 
 	{
-		std::shared_ptr<vkMaterial> material = std::make_shared<vkMaterial>(logicalDevice, pDevice);
+		std::shared_ptr<vkMaterial> material = std::make_shared<vkMaterial>(mat.name, logicalDevice, pDevice);
 		material->activeTextures.reset();
 		
 		if (mat.values.find("baseColorTexture") != mat.values.end())
@@ -530,7 +536,8 @@ void readTinygltfMesh(tinygltf::Model& gltfModel, tinygltf::Mesh& gltfMesh,
 				if (bufferNormals) { vert.normal = glm::normalize(glm::make_vec3(&bufferNormals[v*3])); }
 				else { vert.normal = glm::vec3(0.0f, 0.0f, 0.0f); }
 
-				vert.uv = bufferTexCoords ? glm::make_vec2(&bufferTexCoords[v*2]) : glm::vec2(0.0f);
+				if (bufferTexCoords) { vert.uv = glm::make_vec2(&bufferTexCoords[v * 2]); }
+				else { vert.uv = glm::vec2(0.0f); }
 
 				vertices.push_back(vert);
 			}

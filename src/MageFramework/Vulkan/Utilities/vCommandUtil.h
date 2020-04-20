@@ -29,7 +29,8 @@ namespace VulkanCommandUtil
 		}
 	}
 
-	inline void allocateCommandBuffers(VkDevice& logicalDevice, VkCommandPool& cmdPool, uint32_t cmdBufferCount, VkCommandBuffer* cmdBufferPointer)
+	inline void allocateCommandBuffers(VkDevice& logicalDevice, VkCommandPool& cmdPool, uint32_t cmdBufferCount, VkCommandBuffer* cmdBufferPointer,
+		VkCommandBufferLevel level = VK_COMMAND_BUFFER_LEVEL_PRIMARY)
 	{
 		// Specify the command pool and number of buffers to allocate
 
@@ -40,7 +41,7 @@ namespace VulkanCommandUtil
 		VkCommandBufferAllocateInfo allocInfo = {};
 		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 		allocInfo.commandPool = cmdPool;
-		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		allocInfo.level = level;
 		allocInfo.commandBufferCount = cmdBufferCount;
 
 		if (vkAllocateCommandBuffers(logicalDevice, &allocInfo, cmdBufferPointer) != VK_SUCCESS)
@@ -52,6 +53,30 @@ namespace VulkanCommandUtil
 	inline void allocateCommandBuffers(VkDevice& logicalDevice, VkCommandPool& cmdPool, std::vector<VkCommandBuffer>& cmdBuffers)
 	{
 		allocateCommandBuffers(logicalDevice, cmdPool, (uint32_t)cmdBuffers.size(), cmdBuffers.data());
+	}
+
+	inline VkCommandBuffer createCommandBuffer(VkDevice& logicalDevice, VkCommandPool& cmdPool,
+		VkCommandBufferLevel level = VK_COMMAND_BUFFER_LEVEL_PRIMARY, bool begin = false,
+		VkCommandBufferUsageFlags flags = VK_COMMAND_BUFFER_USAGE_FLAG_BITS_MAX_ENUM)
+	{
+		VkCommandBuffer cmdBuffer;
+		allocateCommandBuffers(logicalDevice, cmdPool, 1, &cmdBuffer, VK_COMMAND_BUFFER_LEVEL_PRIMARY);
+		
+		if (begin)
+		{
+			// Begin Single Command Buffer
+			VkCommandBufferBeginInfo beginInfo = {};
+			beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+			beginInfo.flags = flags;
+			beginInfo.pInheritanceInfo = nullptr; // Optional
+
+			if (vkBeginCommandBuffer(cmdBuffer, &beginInfo) != VK_SUCCESS)
+			{
+				throw std::runtime_error("failed to begin recording command buffer!");
+			}
+		}
+
+		return cmdBuffer;
 	}
 
 	inline void beginCommandBuffer(VkCommandBuffer& cmdBuffer)
@@ -115,7 +140,7 @@ namespace VulkanCommandUtil
 		}
 	}
 
-	inline void submitToQueue(VkQueue& queue, uint32_t cmdBufferCount, const VkCommandBuffer& cmdBuffer)
+	inline void submitToQueue(uint32_t cmdBufferCount, const VkCommandBuffer& cmdBuffer, VkQueue& queue, VkDevice& logicalDevice)
 	{
 		VkSubmitInfo submitInfo = {};
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -129,11 +154,20 @@ namespace VulkanCommandUtil
 		// A fence would allow you to schedule multiple transfers simultaneously and wait for all of them complete, 
 		// instead of executing one at a time. That may give the driver more opportunities to optimize.
 
-		if (vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS)
+		// Create fence to ensure that the command buffer has finished executing
+		//VkFenceCreateInfo fenceInfo = { VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, 0 };
+		//VkFence fence;
+		//vkCreateFence(logicalDevice, &fenceInfo, nullptr, &fence);
+
+		VkResult res = vkQueueSubmit(queue, 1, &submitInfo, nullptr);
+		if (res != VK_SUCCESS)
 		{
 			throw std::runtime_error("failed to submit command buffer to queue!");
 		}
 
+		// Wait for the fence to signal that command buffer has finished executing
+		//vkWaitForFences(logicalDevice, 1, &fence, VK_TRUE, DEFAULT_FENCE_TIMEOUT);
+		//vkDestroyFence(logicalDevice, fence, nullptr);
 		vkQueueWaitIdle(queue);
 	}
 
@@ -166,7 +200,7 @@ namespace VulkanCommandUtil
 	inline void endAndSubmitSingleTimeCommand(VkDevice& logicalDevice, VkQueue& queue, VkCommandPool& cmdPool, VkCommandBuffer& cmdBuffer)
 	{
 		endCommandBuffer(cmdBuffer);
-		submitToQueue(queue, 1, cmdBuffer);
+		submitToQueue(1, cmdBuffer, queue, logicalDevice);
 		vkFreeCommandBuffers(logicalDevice, cmdPool, 1, &cmdBuffer);
 	}
 

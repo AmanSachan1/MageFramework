@@ -14,65 +14,80 @@ inline void VulkanRendererBackend::createCommandPoolsAndBuffers()
 	// Because one of the drawing commands involves binding the right VkFramebuffer, we'll actually have to 
 	// record a command buffer for every image in the swap chain once again.
 
-	VulkanCommandUtil::createCommandPool(m_logicalDevice, m_computeCommandPool, m_vulkanManager->getQueueIndex(QueueFlags::Compute));
-	VulkanCommandUtil::createCommandPool(m_logicalDevice, m_graphicsCommandPool, m_vulkanManager->getQueueIndex(QueueFlags::Graphics));
+	VulkanCommandUtil::createCommandPool(m_logicalDevice, m_computeCmdPool, m_vulkanManager->getQueueIndex(QueueFlags::Compute));
+	VulkanCommandUtil::createCommandPool(m_logicalDevice, m_graphicsCmdPool, m_vulkanManager->getQueueIndex(QueueFlags::Graphics));
 	recreateCommandBuffers();
 }
 inline void VulkanRendererBackend::recreateCommandBuffers()
 {
 	m_computeCommandBuffers.resize(m_numSwapChainImages);
-	m_graphicsCommandBuffers.resize(m_numSwapChainImages);	
+	m_graphicsCommandBuffers.resize(m_numSwapChainImages);
+	m_rayTracingCommandBuffers.resize(m_numSwapChainImages);
 	m_postProcessCommandBuffers.resize(m_numSwapChainImages);
 
-	VulkanCommandUtil::allocateCommandBuffers(m_logicalDevice, m_computeCommandPool, m_computeCommandBuffers);
-	VulkanCommandUtil::allocateCommandBuffers(m_logicalDevice, m_graphicsCommandPool, m_graphicsCommandBuffers);
-	VulkanCommandUtil::allocateCommandBuffers(m_logicalDevice, m_graphicsCommandPool, m_postProcessCommandBuffers);
+	VulkanCommandUtil::allocateCommandBuffers(m_logicalDevice, m_computeCmdPool, m_computeCommandBuffers);
+	VulkanCommandUtil::allocateCommandBuffers(m_logicalDevice, m_graphicsCmdPool, m_graphicsCommandBuffers);
+	VulkanCommandUtil::allocateCommandBuffers(m_logicalDevice, m_graphicsCmdPool, m_rayTracingCommandBuffers);
+	VulkanCommandUtil::allocateCommandBuffers(m_logicalDevice, m_graphicsCmdPool, m_postProcessCommandBuffers);
 }
 inline void VulkanRendererBackend::submitCommandBuffers()
 {
-	VkSemaphore waitSemaphores[] = { m_vulkanManager->getImageAvailableVkSemaphore() };
-	// We want to wait with writing colors to the image until it's available, so we're specifying the stage of the graphics pipeline 
-	// that writes to the color attachment. That means that theoretically the implementation can already start executing our vertex 
-	// shader and such while the image is not available yet.
-	VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-	VkSemaphore signalSemaphores[] = { m_vulkanManager->getRenderFinishedVkSemaphore() };
+	// We don't want to write to resources like images and buffers if they are currently in use, and hence not available. Thus we specify 
+	// the stage of a pipeline that we can write to resources in.
+	// e.g In a graphics pipeline we qould want to wait with writing colors to the render image until it's available, so we
+	// specify the 'VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT' stage, as the stage we should wait on until the image is available for writing
+	// That means that theoretically the implementation can already start executing our vertex shader and such while the image is not available yet.
+	
+	// There is a fence attached to the submission of commands to the graphics queue. Since the fence is a CPU-GPU synchronization
+	// it will wait  here until the frame is deemed available, meaning the other queues (in this case only the compute queue) 
+	// dont have to create they're own fences that they need to keep track of.
+	// The inflight fence basically tells us when a frame has finished rendering, and the submitToQueueSynced function 
+	// signals the fence, informing it and thus us of the same.
+
+	uint32_t index = m_vulkanManager->getIndex();
 	VkFence inFlightFence = m_vulkanManager->getInFlightFence();
 
 	//	Submit Commands
 	{
-		// There is a fence attached to the submission of commands to the graphics queue. Since the fence is a CPU-GPU synchronization
-		// it will wait  here until the frame is deemed available, meaning the other queues (in this case only the compute queue) 
-		// dont have to create they're own fences that they need to keep track of.
-		// The inflight fence basically tells us when a frame has finished rendering, and the submitToQueueSynced function 
-		// signals the fence, informing it and thus us of the same.
+		if (m_rendererOptions.renderType == RENDER_TYPE::RASTERIZATION)
+		{
+			// Graphics Command Buffer Synchronization
+			VkSemaphore waitSemaphores_graphics[] = { m_vulkanManager->getImageAvailableVkSemaphore() };
+			VkPipelineStageFlags waitStages_graphics[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+			VkSemaphore signalSemaphores_graphics[] = { m_forwardRenderOperationsFinishedSemaphores[index] };
 
-		uint32_t index = m_vulkanManager->getIndex();
-		
-		// Graphics Command Buffer Synchronization
-		VkSemaphore waitSemaphores_graphics[] = { m_vulkanManager->getImageAvailableVkSemaphore() };
-		VkPipelineStageFlags waitStages_graphics[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-		VkSemaphore signalSemaphores_graphics[] = { m_forwardRenderOperationsFinishedSemaphores[index] };
-		VkFence inFlightFence_graphics = m_vulkanManager->getInFlightFence();
+			// Compute Command Buffer Synchronization
+			VkSemaphore waitSemaphores_compute[] = { m_forwardRenderOperationsFinishedSemaphores[index] };
+			VkPipelineStageFlags waitStages_compute[] = { VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT };
+			VkSemaphore signalSemaphores_compute[] = { m_computeOperationsFinishedSemaphores[index] };
 
-		// Compute Command Buffer Synchronization
-		VkSemaphore waitSemaphores_compute[] = { m_forwardRenderOperationsFinishedSemaphores[index] };
-		VkPipelineStageFlags waitStages_compute[] = { VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT };
-		VkSemaphore signalSemaphores_compute[] = { m_computeOperationsFinishedSemaphores[index] };
+			// Post Process Command Buffer Synchronization
+			VkSemaphore waitSemaphores_postProcess[] = { m_forwardRenderOperationsFinishedSemaphores[index] };// , m_computeOperationsFinishedSemaphores[index] }; //
+			VkPipelineStageFlags waitStages_postProcess[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+			VkSemaphore signalSemaphores_postProcess[] = { m_postProcessFinishedSemaphores[index] };
 
-		// Post Process Command Buffer Synchronization
-		VkSemaphore waitSemaphores_postProcess[] = { m_forwardRenderOperationsFinishedSemaphores[index] };// , m_computeOperationsFinishedSemaphores[index] }; //
-		VkPipelineStageFlags waitStages_postProcess[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-		VkSemaphore signalSemaphores_postProcess[] = { m_postProcessFinishedSemaphores[index] };
-		
-		VulkanCommandUtil::submitToQueueSynced(	m_graphicsQueue, 1, &m_graphicsCommandBuffers[index],
-			1, waitSemaphores_graphics, waitStages_graphics, 1, signalSemaphores_graphics, inFlightFence_graphics);
-		
-		//VulkanCommandUtil::submitToQueueSynced(m_computeQueue, 1, &m_computeCommandBuffers[index],
-		//	1, waitSemaphores_compute, waitStages_compute, 1, signalSemaphores_compute, nullptr);
-		VulkanCommandUtil::submitToQueueSynced(m_computeQueue, 1, &m_computeCommandBuffers[index], 0, nullptr, waitStages_compute, 1, signalSemaphores_compute, nullptr);
+			VulkanCommandUtil::submitToQueueSynced(m_graphicsQueue, 1, &m_graphicsCommandBuffers[index],
+				1, waitSemaphores_graphics, waitStages_graphics, 1, signalSemaphores_graphics, inFlightFence);
 
-		VulkanCommandUtil::submitToQueueSynced(	m_graphicsQueue, 1, &m_postProcessCommandBuffers[index],
-			1, waitSemaphores_postProcess, waitStages_postProcess, 1, signalSemaphores_postProcess, nullptr);
+			//VulkanCommandUtil::submitToQueueSynced(m_computeQueue, 1, &m_computeCommandBuffers[index],
+			//	1, waitSemaphores_compute, waitStages_compute, 1, signalSemaphores_compute, nullptr);
+			VulkanCommandUtil::submitToQueueSynced(m_computeQueue, 1, &m_computeCommandBuffers[index], 
+				0, nullptr, waitStages_compute, 0, nullptr, nullptr);
+
+			VulkanCommandUtil::submitToQueueSynced(m_graphicsQueue, 1, &m_postProcessCommandBuffers[index],
+				1, waitSemaphores_postProcess, waitStages_postProcess, 1, signalSemaphores_postProcess, nullptr);
+		}
+
+		if (m_rendererOptions.renderType == RENDER_TYPE::RAYTRACE)
+		{
+			// Ray Tracing Command Buffer Synchronization
+			VkSemaphore waitSemaphores_rayTracing[] = { m_vulkanManager->getImageAvailableVkSemaphore() };
+			VkPipelineStageFlags waitStages_rayTracing[] = { VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_NV };
+			VkSemaphore signalSemaphores_rayTracing[] = { m_rayTracingOperationsFinishedSemaphores[index] };
+
+			VulkanCommandUtil::submitToQueueSynced(m_graphicsQueue, 1, &m_rayTracingCommandBuffers[index],
+				1, waitSemaphores_rayTracing, waitStages_rayTracing, 1, signalSemaphores_rayTracing, inFlightFence);
+		}
 	}
 }
 
@@ -90,6 +105,7 @@ inline void VulkanRendererBackend::createSyncObjects()
 
 	// Create Semaphores
 	m_forwardRenderOperationsFinishedSemaphores.resize(m_numSwapChainImages);
+	m_rayTracingOperationsFinishedSemaphores.resize(m_numSwapChainImages);
 	m_computeOperationsFinishedSemaphores.resize(m_numSwapChainImages);
 	m_postProcessFinishedSemaphores.resize(m_numSwapChainImages);
 
@@ -99,6 +115,7 @@ inline void VulkanRendererBackend::createSyncObjects()
 	for (uint32_t i = 0; i < m_numSwapChainImages; i++)
 	{
 		if (vkCreateSemaphore(m_logicalDevice, &semaphoreInfo, nullptr, &m_forwardRenderOperationsFinishedSemaphores[i]) != VK_SUCCESS ||
+			vkCreateSemaphore(m_logicalDevice, &semaphoreInfo, nullptr, &m_rayTracingOperationsFinishedSemaphores[i]) != VK_SUCCESS ||
 			vkCreateSemaphore(m_logicalDevice, &semaphoreInfo, nullptr, &m_computeOperationsFinishedSemaphores[i]) != VK_SUCCESS ||
 			vkCreateSemaphore(m_logicalDevice, &semaphoreInfo, nullptr, &m_postProcessFinishedSemaphores[i]) != VK_SUCCESS)
 		{
@@ -107,6 +124,46 @@ inline void VulkanRendererBackend::createSyncObjects()
 	}
 }
 
+inline void VulkanRendererBackend::recordAllCommandBuffers(std::shared_ptr<Camera> camera, std::shared_ptr<Scene> scene)
+{
+	const uint32_t numClearValues = 2;
+	std::array<VkClearValue, numClearValues> clearValues = {};
+	clearValues[0].color = { 0.0f, 0.0f, 0.0f, 1.0f };
+	clearValues[1].depthStencil = { 1.0f, 0 };
+
+	const VkRect2D renderArea = Util::createRectangle(m_vulkanManager->getSwapChainVkExtent());
+	const unsigned int numCommandBuffers = m_vulkanManager->getSwapChainImageCount();
+	for (unsigned int i = 0; i < numCommandBuffers; i++)
+	{
+		VkCommandBuffer computeCmdBuffer = m_computeCommandBuffers[i];
+		VkCommandBuffer rayTracingCmdBuffer = m_rayTracingCommandBuffers[i];
+		VkCommandBuffer graphicsCmdBuffer = m_graphicsCommandBuffers[i];
+		VkCommandBuffer postProcessCmdBuffer = m_postProcessCommandBuffers[i];
+		
+		if (m_rendererOptions.renderType == RENDER_TYPE::RAYTRACE)
+		{
+			VulkanCommandUtil::beginCommandBuffer(rayTracingCmdBuffer);
+			recordCommandBuffer_rayTracingCmds(i, rayTracingCmdBuffer, camera, scene);
+			VulkanCommandUtil::endCommandBuffer(rayTracingCmdBuffer);
+		}
+
+		if (m_rendererOptions.renderType == RENDER_TYPE::RASTERIZATION)
+		{
+			VulkanCommandUtil::beginCommandBuffer(computeCmdBuffer);
+			recordCommandBuffer_ComputeCmds(i, computeCmdBuffer, scene);
+			VulkanCommandUtil::endCommandBuffer(computeCmdBuffer);
+
+			VulkanCommandUtil::beginCommandBuffer(graphicsCmdBuffer);
+			recordCommandBuffer_GraphicsCmds(i, graphicsCmdBuffer, scene, camera, renderArea, numClearValues, clearValues.data());
+			VulkanCommandUtil::endCommandBuffer(graphicsCmdBuffer);
+			
+			VulkanCommandUtil::beginCommandBuffer(postProcessCmdBuffer);
+			recordCommandBuffer_PostProcessCmds(i, postProcessCmdBuffer, scene, renderArea, numClearValues, clearValues.data());
+			recordCommandBuffer_FinalCmds(i, postProcessCmdBuffer);
+			VulkanCommandUtil::endCommandBuffer(postProcessCmdBuffer);
+		}
+	}
+}
 inline void VulkanRendererBackend::recordCommandBuffer_ComputeCmds(
 	unsigned int frameIndex, VkCommandBuffer& ComputeCmdBuffer, std::shared_ptr<Scene> scene)
 {
@@ -121,13 +178,79 @@ inline void VulkanRendererBackend::recordCommandBuffer_ComputeCmds(
 		const uint32_t numBlocksY = (texture->m_height + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
 		const uint32_t numBlocksZ = 1;
 		
-		const VkPipeline l_computeP = getPipeline(PIPELINE_TYPE::COMPUTE);
-		const VkPipelineLayout l_computePL = getPipelineLayout(PIPELINE_TYPE::COMPUTE);
 		const VkDescriptorSet DS_compute = scene->getDescriptorSet(DSL_TYPE::COMPUTE, frameIndex);
 
-		vkCmdBindPipeline(ComputeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, l_computeP);
-		vkCmdBindDescriptorSets(ComputeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, l_computePL, 0, 1, &DS_compute, 0, nullptr);
+		vkCmdBindPipeline(ComputeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_compute_P);
+		vkCmdBindDescriptorSets(ComputeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_compute_PL, 0, 1, &DS_compute, 0, nullptr);
 		vkCmdDispatch(ComputeCmdBuffer, numBlocksX, numBlocksY, numBlocksZ); // Dispatch the Compute Kernel
+	}
+}
+
+inline void VulkanRendererBackend::recordCommandBuffer_rayTracingCmds(
+	unsigned int frameIndex, VkCommandBuffer& rayTracingCmdBuffer, std::shared_ptr<Camera> camera, std::shared_ptr<Scene> scene)
+{
+	uint32_t width = m_vulkanManager->getSwapChainVkExtent().width;
+	uint32_t height = m_vulkanManager->getSwapChainVkExtent().height;
+	const unsigned int numCommandBuffers = m_vulkanManager->getSwapChainImageCount();
+	VkImageSubresourceRange subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+
+	for (unsigned int i = 0; i < numCommandBuffers; i++)
+	{
+		{
+			// Dispatch the ray tracing commands
+			vkCmdBindPipeline(rayTracingCmdBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, m_rayTrace_P);
+			vkCmdBindDescriptorSets(rayTracingCmdBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, m_rayTrace_PL, 0, 1, &m_DS_rayTrace[i], 0, 0);
+
+			// Calculate shader binding offsets, which is pretty straight forward in our example 
+			VkDeviceSize bindingOffsetRayGenShader = m_rayTracingProperties.shaderGroupHandleSize * INDEX_RAYGEN;
+			VkDeviceSize bindingOffsetMissShader = m_rayTracingProperties.shaderGroupHandleSize * INDEX_MISS;
+			VkDeviceSize bindingOffsetHitShader = m_rayTracingProperties.shaderGroupHandleSize * INDEX_CLOSEST_HIT;
+			VkDeviceSize bindingStride = m_rayTracingProperties.shaderGroupHandleSize;
+
+			vkCmdTraceRaysNV(rayTracingCmdBuffer,
+				m_shaderBindingTable.buffer, bindingOffsetRayGenShader,              // Ray Gen Shader Binding
+				m_shaderBindingTable.buffer, bindingOffsetMissShader, bindingStride, // Miss Shader Binding
+				m_shaderBindingTable.buffer, bindingOffsetHitShader, bindingStride,  // Hit Shader Binding
+				VK_NULL_HANDLE, 0, 0,                                              // Callable Shader Binding
+				width, height, 1);
+		}
+
+		{
+			VkFormat srcImgFormat = m_rayTracedImages[i]->m_format;
+			VkImage& srcImage = m_rayTracedImages[i]->m_image;
+
+			VkImageLayout srcImageLayoutInitial = VK_IMAGE_LAYOUT_GENERAL;
+			VkImageLayout srcImageLayoutForTransition = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+
+			VkImageLayout swapChainImageLayoutInitial = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+			VkImageLayout swapChainImageLayoutBeforeUIPass = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+			const uint32_t mipLevels = 1;
+			// Pre-copy Transitions
+			{
+				// Transition Ray Tracing result image into VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
+				ImageUtil::transitionImageLayout(m_logicalDevice, m_graphicsQueue, m_graphicsCmdPool, rayTracingCmdBuffer,
+					srcImage, srcImgFormat, srcImageLayoutInitial, srcImageLayoutForTransition, mipLevels);
+
+				// Transition swapchain to VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+				m_vulkanManager->transitionSwapChainImageLayout(i,
+					swapChainImageLayoutInitial, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, rayTracingCmdBuffer, m_graphicsCmdPool);
+			}
+
+			// Copy last post process pass's image into the swapchain image
+			VkExtent2D windowExtents = { width, height };
+			m_vulkanManager->copyImageToSwapChainImage(i, srcImage, rayTracingCmdBuffer, m_graphicsCmdPool, windowExtents);
+
+			// Post-copy Transitions
+			{
+				ImageUtil::transitionImageLayout(m_logicalDevice, m_graphicsQueue, m_graphicsCmdPool, rayTracingCmdBuffer,
+					srcImage, srcImgFormat, srcImageLayoutForTransition, srcImageLayoutInitial, mipLevels);
+
+				// Transition swapchain to the VkImageLayout expected by our UI manager
+				m_vulkanManager->transitionSwapChainImageLayout(i,
+					VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, swapChainImageLayoutBeforeUIPass, rayTracingCmdBuffer, m_graphicsCmdPool);
+			}
+		}
 	}
 }
 inline void VulkanRendererBackend::recordCommandBuffer_GraphicsCmds(
@@ -151,9 +274,7 @@ inline void VulkanRendererBackend::recordCommandBuffer_GraphicsCmds(
 
 	// Model Rendering Pipeline
 	{
-		const VkPipeline l_rasterP = getPipeline(PIPELINE_TYPE::RASTER);
-		const VkPipelineLayout l_rasterPL = getPipelineLayout(PIPELINE_TYPE::RASTER);
-		const VkDescriptorSet DS_camera = camera->getDescriptorSet(DSL_TYPE::CURRENT_FRAME_CAMERA, frameIndex);
+		const VkDescriptorSet DS_camera = camera->getDescriptorSet(frameIndex);
 
 		VulkanCommandUtil::beginRenderPass(graphicsCmdBuffer,
 			m_rasterRPI.renderPass, m_rasterRPI.frameBuffers[frameIndex],
@@ -163,16 +284,13 @@ inline void VulkanRendererBackend::recordCommandBuffer_GraphicsCmds(
 		{	
 			// Actual commands for the renderPass
 			std::shared_ptr<Model> model = scene->getModel(element.first);
-			model->recordDrawCmds(frameIndex, DS_camera, l_rasterP, l_rasterPL, graphicsCmdBuffer);
+			model->recordDrawCmds(frameIndex, DS_camera, m_rasterization_P, m_rasterization_PL, graphicsCmdBuffer);
 		}
 		vkCmdEndRenderPass(graphicsCmdBuffer);
 	}
 
 	// Composite Pipeline
 	{
-		const VkPipeline l_compositeComputeOntoRasterP = getPipeline(PIPELINE_TYPE::COMPOSITE_COMPUTE_ONTO_RASTER);
-		const VkPipelineLayout l_compositeComputeOntoRasterPL = getPipelineLayout(PIPELINE_TYPE::COMPOSITE_COMPUTE_ONTO_RASTER);
-
 		const VkDescriptorSet DS_compositeComputeOntoRaster = getDescriptorSet(DSL_TYPE::COMPOSITE_COMPUTE_ONTO_RASTER, frameIndex);
 
 		// Actual commands for the renderPass
@@ -181,14 +299,15 @@ inline void VulkanRendererBackend::recordCommandBuffer_GraphicsCmds(
 				m_compositeComputeOntoRasterRPI.renderPass, m_compositeComputeOntoRasterRPI.frameBuffers[frameIndex],
 				renderArea, clearValueCount, clearValues);
 
-			vkCmdBindDescriptorSets(graphicsCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, l_compositeComputeOntoRasterPL, 0, 1, &DS_compositeComputeOntoRaster, 0, nullptr);
-			vkCmdBindPipeline(graphicsCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, l_compositeComputeOntoRasterP);
+			vkCmdBindDescriptorSets(graphicsCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_compositeComputeOntoRaster_PL, 0, 1, &DS_compositeComputeOntoRaster, 0, nullptr);
+			vkCmdBindPipeline(graphicsCmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_compositeComputeOntoRaster_P);
 			vkCmdDraw(graphicsCmdBuffer, 3, 1, 0, 0);
 
 			vkCmdEndRenderPass(graphicsCmdBuffer);
 		}
 	}
 }
+
 inline void VulkanRendererBackend::recordCommandBuffer_PostProcessCmds(
 	unsigned int frameIndex, VkCommandBuffer& postProcessCmdBuffer, std::shared_ptr<Scene> scene,
 	VkRect2D renderArea, uint32_t clearValueCount, const VkClearValue* clearValues)
@@ -228,8 +347,6 @@ inline void VulkanRendererBackend::recordCommandBuffer_PostProcessCmds(
 			vkCmdEndRenderPass(postProcessCmdBuffer);
 		}
 	}
-
-	recordCommandBuffer_FinalCmds(frameIndex, postProcessCmdBuffer);
 }
 inline void VulkanRendererBackend::recordCommandBuffer_FinalCmds(
 	unsigned int frameIndex, VkCommandBuffer& cmdBuffer)
@@ -253,15 +370,15 @@ inline void VulkanRendererBackend::recordCommandBuffer_FinalCmds(
 		// Pre-copy Transitions
 		{
 			// Transition Last post process pass's result image into VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
-			ImageUtil::transitionImageLayout(m_logicalDevice, m_graphicsQueue, m_graphicsCommandPool, cmdBuffer,
+			ImageUtil::transitionImageLayout(m_logicalDevice, m_graphicsQueue, m_graphicsCmdPool, cmdBuffer,
 				srcImage, m_lowResolutionRenderFormat, srcImageLayoutInitial, srcImageLayoutForTransition, mipLevels);
 
 			// Transition swapchain to VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
-			m_vulkanManager->transitionSwapChainImageLayout(frameIndex, swapChainImageLayoutInitial, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, cmdBuffer, m_graphicsCommandPool);
+			m_vulkanManager->transitionSwapChainImageLayout(frameIndex, swapChainImageLayoutInitial, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, cmdBuffer, m_graphicsCmdPool);
 		}
 
 		// Copy last post process pass's image into the swapchain image
-		m_vulkanManager->copyImageToSwapChainImage(frameIndex, srcImage, cmdBuffer, m_graphicsCommandPool, m_windowExtents);
+		m_vulkanManager->copyImageToSwapChainImage(frameIndex, srcImage, cmdBuffer, m_graphicsCmdPool, m_windowExtents);
 
 		// Post-copy Transitions
 		{
@@ -271,12 +388,12 @@ inline void VulkanRendererBackend::recordCommandBuffer_FinalCmds(
 			const VkAccessFlags dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
 			const VkPipelineStageFlags dstStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
 			
-			ImageUtil::transitionImageLayout(m_logicalDevice, m_graphicsQueue, m_graphicsCommandPool, cmdBuffer,
+			ImageUtil::transitionImageLayout(m_logicalDevice, m_graphicsQueue, m_graphicsCmdPool, cmdBuffer,
 				srcImage, m_lowResolutionRenderFormat, srcImageLayoutForTransition, srcImageLayoutInitial, mipLevels,
 				srcAccessMask, dstAccessMask, srcStageMask, dstStageMask);
 
 			// Transition swapchain to the VkImageLayout expected by our UI manager
-			m_vulkanManager->transitionSwapChainImageLayout(frameIndex, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, swapChainImageLayoutBeforeUIPass, cmdBuffer, m_graphicsCommandPool);
+			m_vulkanManager->transitionSwapChainImageLayout(frameIndex, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, swapChainImageLayoutBeforeUIPass, cmdBuffer, m_graphicsCmdPool);
 		}
 	}
 }

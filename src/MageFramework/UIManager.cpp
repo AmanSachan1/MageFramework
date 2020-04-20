@@ -141,8 +141,8 @@ void UIManager::submitDrawCommands(VkSemaphore& waitSemaphore, VkSemaphore& sign
 	VulkanCommandUtil::endCommandBuffer(m_UICommandBuffers[cmdBufferIndex]);
 
 	VkPipelineStageFlags waitStages_UI[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-	//VulkanCommandUtil::submitToQueueSynced(m_queue, 1, &m_UICommandBuffers[cmdBufferIndex], 1, &waitSemaphore, waitStages_UI, 1, &signalSemaphore, nullptr);
-	VulkanCommandUtil::submitToQueueSynced(m_queue, 1, &m_UICommandBuffers[cmdBufferIndex], 0, nullptr, waitStages_UI, 1, &signalSemaphore, nullptr);
+	VulkanCommandUtil::submitToQueueSynced(m_queue, 1, &m_UICommandBuffers[cmdBufferIndex], 1, &waitSemaphore, waitStages_UI, 1, &signalSemaphore, nullptr);
+	//VulkanCommandUtil::submitToQueueSynced(m_queue, 1, &m_UICommandBuffers[cmdBufferIndex], 0, nullptr, waitStages_UI, 1, &signalSemaphore, nullptr);
 }
 
 
@@ -370,10 +370,10 @@ void UIManager::createRenderPass()
 }
 void UIManager::createFrameBuffers()
 {
-	uint32_t numSwapChainImages = m_vulkanManager->getSwapChainImageCount();
-	VkImageView frameBufferColorAttachment[1];
-	VkFormat swapChainImageFormat = m_vulkanManager->getSwapChainImageFormat();
 	VkExtent2D extents = m_vulkanManager->getSwapChainVkExtent();
+	uint32_t numSwapChainImages = m_vulkanManager->getSwapChainImageCount();
+	VkFormat swapChainImageFormat = m_vulkanManager->getSwapChainImageFormat();
+	VkImageView frameBufferColorAttachment[1];
 
 	m_UIFrameBuffers.resize(numSwapChainImages);
 	for (uint32_t i = 0; i < numSwapChainImages; i++)

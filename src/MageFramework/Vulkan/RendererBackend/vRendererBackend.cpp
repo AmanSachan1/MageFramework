@@ -1,9 +1,10 @@
 #include "Vulkan/RendererBackend/vRendererBackend.h"
 
-VulkanRendererBackend::VulkanRendererBackend(std::shared_ptr<VulkanManager> vulkanManager, int numSwapChainImages, VkExtent2D windowExtents) :
+VulkanRendererBackend::VulkanRendererBackend(std::shared_ptr<VulkanManager> vulkanManager, 
+	RendererOptions& rendererOptions, int numSwapChainImages, VkExtent2D windowExtents) :
 	m_vulkanManager(vulkanManager), m_logicalDevice(vulkanManager->getLogicalDevice()), m_physicalDevice(vulkanManager->getPhysicalDevice()),
 	m_graphicsQueue(vulkanManager->getQueue(QueueFlags::Graphics)), m_computeQueue(vulkanManager->getQueue(QueueFlags::Compute)),
-	m_numSwapChainImages(numSwapChainImages), m_windowExtents(windowExtents)
+	m_rendererOptions(rendererOptions), m_numSwapChainImages(numSwapChainImages), m_windowExtents(windowExtents)
 {
 	m_highResolutionRenderFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
 	m_lowResolutionRenderFormat = m_vulkanManager->getSwapChainImageFormat();
@@ -17,14 +18,15 @@ VulkanRendererBackend::~VulkanRendererBackend()
 	vkDeviceWaitIdle(m_logicalDevice);
 
 	// Destroy Command Pools
-	vkDestroyCommandPool(m_logicalDevice, m_graphicsCommandPool, nullptr);
-	vkDestroyCommandPool(m_logicalDevice, m_computeCommandPool, nullptr);
+	vkDestroyCommandPool(m_logicalDevice, m_graphicsCmdPool, nullptr);
+	vkDestroyCommandPool(m_logicalDevice, m_computeCmdPool, nullptr);
 
 	// Descriptor Pool
 	vkDestroyDescriptorPool(m_logicalDevice, m_descriptorPool, nullptr);
 	// Descriptor Set Layouts
+	vkDestroyDescriptorSetLayout(m_logicalDevice, m_DSL_rayTrace, nullptr); 
 	vkDestroyDescriptorSetLayout(m_logicalDevice, m_DSL_compositeComputeOntoRaster, nullptr);
-	//vkDestroyDescriptorSetLayout(m_logicalDevice, m_DSL_compute, nullptr);
+
 	for (int i = 0; i < m_postProcessDescriptorsSpecific.size(); i++)
 	{
 		vkDestroyDescriptorSetLayout(m_logicalDevice, m_postProcessDescriptorsSpecific[i].postProcess_DSL, nullptr);
@@ -33,26 +35,38 @@ VulkanRendererBackend::~VulkanRendererBackend()
 	{
 		vkDestroyDescriptorSetLayout(m_logicalDevice, m_postProcessDescriptorsCommon[i].postProcess_DSL, nullptr);
 	}
+
+
+	if (m_rendererOptions.renderType == RENDER_TYPE::RAYTRACE)
+	{
+		destroyRayTracing();
+	}	
 }
 void VulkanRendererBackend::cleanup()
 {
 	// Command Buffers
-	vkFreeCommandBuffers(m_logicalDevice, m_graphicsCommandPool, static_cast<uint32_t>(m_graphicsCommandBuffers.size()), m_graphicsCommandBuffers.data());
-	vkFreeCommandBuffers(m_logicalDevice, m_computeCommandPool, static_cast<uint32_t>(m_computeCommandBuffers.size()), m_computeCommandBuffers.data());
-	vkFreeCommandBuffers(m_logicalDevice, m_graphicsCommandPool, static_cast<uint32_t>(m_postProcessCommandBuffers.size()), m_postProcessCommandBuffers.data());
+	vkFreeCommandBuffers(m_logicalDevice, m_computeCmdPool, static_cast<uint32_t>(m_computeCommandBuffers.size()), m_computeCommandBuffers.data());
+	vkFreeCommandBuffers(m_logicalDevice, m_graphicsCmdPool, static_cast<uint32_t>(m_graphicsCommandBuffers.size()), m_graphicsCommandBuffers.data());
+	vkFreeCommandBuffers(m_logicalDevice, m_graphicsCmdPool, static_cast<uint32_t>(m_rayTracingCommandBuffers.size()), m_rayTracingCommandBuffers.data());
+	vkFreeCommandBuffers(m_logicalDevice, m_graphicsCmdPool, static_cast<uint32_t>(m_postProcessCommandBuffers.size()), m_postProcessCommandBuffers.data());
 
 	// Sync Objects
 	const uint32_t numFrames = m_vulkanManager->getSwapChainImageCount();
 	for (size_t i = 0; i < numFrames; i++)
 	{
 		vkDestroySemaphore(m_logicalDevice, m_forwardRenderOperationsFinishedSemaphores[i], nullptr);
+		vkDestroySemaphore(m_logicalDevice, m_rayTracingOperationsFinishedSemaphores[i], nullptr);
 		vkDestroySemaphore(m_logicalDevice, m_computeOperationsFinishedSemaphores[i], nullptr);
 		vkDestroySemaphore(m_logicalDevice, m_postProcessFinishedSemaphores[i], nullptr);
 	}
 
 	cleanupPipelines();
 	cleanupRenderPassesAndFrameResources();
-	cleanupPostProcess();
+
+	if (m_rendererOptions.renderType == RENDER_TYPE::RASTERIZATION)
+	{
+		cleanupPostProcess();
+	}	
 }
 
 
@@ -178,6 +192,12 @@ void VulkanRendererBackend::expandDescriptorPool(std::vector<VkDescriptorPoolSiz
 	poolSizes.push_back({ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, m_numSwapChainImages }); // compute image
 	poolSizes.push_back({ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, m_numSwapChainImages }); // geomRenderPass image
 
+	// RAY TRACING
+	poolSizes.push_back({ VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV, m_numSwapChainImages }); // ray Tracing acceleration structures
+	poolSizes.push_back({ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, m_numSwapChainImages }); // rayTraced Image
+	poolSizes.push_back({ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2*m_numSwapChainImages }); // Camera & Lights UBO
+	poolSizes.push_back({ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2*m_numSwapChainImages }); // Vertex and Index Buffers
+
 	expandDescriptorPool_PostProcess(poolSizes);
 }
 void VulkanRendererBackend::createDescriptorPool(std::vector<VkDescriptorPoolSize>& poolSizes)
@@ -219,6 +239,7 @@ void VulkanRendererBackend::createDescriptors(VkDescriptorPool descriptorPool)
 
 	createDescriptors_PostProcess_Common(descriptorPool);
 	createDescriptors_PostProcess_Specific(descriptorPool);
+	createDescriptors_rayTracing(descriptorPool);
 }
 void VulkanRendererBackend::writeToAndUpdateDescriptorSets(DescriptorSetDependencies& descSetDependencies)
 {
@@ -254,50 +275,6 @@ void VulkanRendererBackend::writeToAndUpdateDescriptorSets(DescriptorSetDependen
 //===============================================================================================
 
 // Getters
-VkPipeline VulkanRendererBackend::getPipeline(PIPELINE_TYPE type, int postProcessIndex)
-{
-	switch (type)
-	{
-	case PIPELINE_TYPE::RASTER:
-		return m_rasterization_P;
-		break;
-	case PIPELINE_TYPE::COMPOSITE_COMPUTE_ONTO_RASTER:
-		return m_compositeComputeOntoRaster_P;
-		break;
-	case PIPELINE_TYPE::COMPUTE:
-		return m_compute_P;
-		break;
-	case PIPELINE_TYPE::POST_PROCESS:
-		return m_postProcess_Ps[postProcessIndex];
-		break;
-	default:
-		throw std::runtime_error("no such Descriptor Set Layout Type (DSL_TYPE) exists");
-	}
-
-	return nullptr;
-}
-VkPipelineLayout VulkanRendererBackend::getPipelineLayout(PIPELINE_TYPE type, int postProcessIndex)
-{
-	switch (type)
-	{
-	case PIPELINE_TYPE::RASTER:
-		return m_rasterization_PL;
-		break;
-	case PIPELINE_TYPE::COMPOSITE_COMPUTE_ONTO_RASTER:
-		return m_compositeComputeOntoRaster_PL;
-		break;
-	case PIPELINE_TYPE::COMPUTE:
-		return m_compute_PL;
-		break;
-	case PIPELINE_TYPE::POST_PROCESS:
-		return m_postProcess_PLs[postProcessIndex];
-		break;
-	default:
-		throw std::runtime_error("no such Descriptor Set Layout Type (DSL_TYPE) exists");
-	}
-
-	return nullptr;
-}
 VkDescriptorSet VulkanRendererBackend::getDescriptorSet(DSL_TYPE type, int frameIndex, int postProcessIndex)
 {
 	switch (type)

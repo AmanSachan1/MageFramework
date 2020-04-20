@@ -1,0 +1,85 @@
+#version 460
+#extension GL_NV_ray_tracing : require
+
+layout(binding = 0, set = 0) uniform accelerationStructureNV topLevelAS;
+layout(binding = 1, set = 0, rgba8) uniform image2D rayTracedImage;
+layout(binding = 2, set = 0) uniform CameraUBO
+{
+    mat4 view;
+    mat4 proj;
+    mat4 viewInverse;
+    mat4 projInverse;
+    vec4 eye;
+    vec2 tanFovBy2;
+} cam;
+
+struct RayPayload {
+    vec3 color;
+    float distance;
+    vec3 normal;
+    float reflector;
+};
+layout(location = 0) rayPayloadNV RayPayload rayPayload;
+
+// Max recursion depth is passed via a specialization constant
+layout (constant_id = 0) const int MAX_RECURSION_DEPTH = 0;
+
+void main() 
+{
+    const vec2 pixelCenter = vec2(gl_LaunchIDNV.xy) + vec2(0.5);
+    const vec2 uv = pixelCenter/vec2(gl_LaunchSizeNV.xy);
+
+    // Compute ndc space point from screenspace point // [0,1] to [-1,1] range conversion
+    vec2 NDC_Space_Point = uv * 2.0f - 1.0f; 
+    
+    vec4 target = cam.projInverse * vec4(NDC_Space_Point, 1.0f, 1.0f) ;
+    target = target / target.w; 
+    vec4 direction = cam.viewInverse*vec4(normalize(target.xyz - cam.eye.xyz), 0.0f) ;
+
+    const uint rayFlags = gl_RayFlagsOpaqueNV;
+    const uint cullMask = 0xff;
+    const uint sbtRecordOffset = 0;
+    const uint sbtRecordStride = 0;
+    const uint missIndex = 0;
+    const float tmin = 0.001f;
+    const float tmax = 10000.0f;
+    const int payloadLocation = 0;
+
+    vec3 outColor = vec3(0.0);
+    vec3 rayOrigin = cam.eye.xyz;
+    vec3 rayDirection = direction.xyz;
+
+    traceNV(topLevelAS, rayFlags, cullMask, 
+        sbtRecordOffset, sbtRecordStride, missIndex,
+        rayOrigin, tmin, rayDirection, tmax, payloadLocation);
+
+    imageStore(rayTracedImage, ivec2(gl_LaunchIDNV.xy), vec4(outColor, 1.0f));
+}
+
+
+
+/*
+    for (int i = 0; i < MAX_RECURSION_DEPTH; i++) 
+    {
+
+
+        vec3 hitColor = rayPayload.color;
+
+        if (rayPayload.distance < 0.0f) 
+        {
+            outColor += hitColor;
+            break;
+        } 
+        else if (rayPayload.reflector == 1.0f) 
+        {
+            const vec3 hitPos = rayOrigin + rayDirection * rayPayload.distance;
+            rayOrigin = hitPos + rayPayload.normal * 0.001f;
+            rayDirection = reflect(rayDirection, rayPayload.normal);
+        } 
+        else 
+        {
+            outColor += hitColor;
+            break;
+        }
+    }
+*/

@@ -14,10 +14,9 @@ class Model
 public:
 	Model() = delete;
 	Model(std::shared_ptr<VulkanManager> vulkanManager, VkQueue& graphicsQueue, VkCommandPool& commandPool, unsigned int numSwapChainImages, 
-		const JSONItem::Model& jsonModel, bool isMipMapped = false);
+		const JSONItem::Model& jsonModel, bool isMipMapped = false, RENDER_TYPE renderType = RENDER_TYPE::RASTERIZATION);
 	~Model();
 
-	bool LoadModel(const JSONItem::Model& jsonModel, VkQueue& graphicsQueue, VkCommandPool& commandPool);
 	void updateUniformBuffer(uint32_t currentImageIndex);
 
 	// Descriptor Sets
@@ -29,6 +28,9 @@ public:
 	void recordDrawCmds(unsigned int frameIndex, const VkDescriptorSet& DS_camera,
 		const VkPipeline& rasterP, const VkPipelineLayout& rasterPL, VkCommandBuffer& graphicsCmdBuffer);
 
+private:
+	bool LoadModel(const JSONItem::Model& jsonModel, VkQueue& graphicsQueue, VkCommandPool& commandPool);
+
 public:
 	Vertices m_vertices;
 	Indices m_indices;
@@ -36,6 +38,9 @@ public:
 	std::vector<std::shared_ptr<vkMaterial>> m_materials;
 	std::vector<std::shared_ptr<vkNode>> m_nodes;
 	std::vector<std::shared_ptr<vkNode>> m_linearNodes;
+
+	// RayTracing
+	VkGeometryNV m_rayTracingGeom;
 
 private:
 	VkDevice m_logicalDevice;
@@ -46,4 +51,5 @@ private:
 	uint32_t m_uboCount;
 
 	bool m_areTexturesMipMapped;
+	RENDER_TYPE m_renderType;
 };

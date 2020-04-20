@@ -9,19 +9,16 @@ enum AlphaMode { ALPHAMODE_OPAQUE, ALPHAMODE_MASK, ALPHAMODE_BLEND };
 
 struct Vertices
 {
+	uint32_t numVertices;
 	std::vector<Vertex> vertexArray;
-	VkBuffer buffer;
-	VkDeviceMemory bufferMemory;
-	VkDeviceSize bufferSize;
+	mageVKBuffer vertexBuffer;
 };
 
 struct Indices
 {
 	uint32_t numIndices;
 	std::vector<uint32_t> indexArray;
-	VkBuffer buffer;
-	VkDeviceMemory bufferMemory;
-	VkDeviceSize bufferSize;
+	mageVKBuffer indexBuffer;
 };
 
 struct MeshUniformBlock
@@ -31,13 +28,13 @@ struct MeshUniformBlock
 
 struct MeshUniform
 {
-	UniformBufferObject ubo;
+	mageVKBuffer meshUB; // mesh Uniform Buffer
 	MeshUniformBlock uniformBlock;
-	VkDescriptorBufferInfo descriptorInfo;
 };
 
 struct MaterialUniformBlock
 {
+	unsigned long activeTextureFlags; // shader storage for std::bitset<7> activeTextures;
 	int alphaMode;
 	float alphaCutoff;
 	float metallicFactor;
@@ -48,22 +45,6 @@ struct MaterialUniformBlock
 		: alphaMode(ALPHAMODE_OPAQUE), alphaCutoff (1.0f),
 		metallicFactor (1.0f), roughnessFactor (1.0f), baseColorFactor (glm::vec4(1.0f, 1.0f, 1.0f,1.0f))
 	{};
-};
-
-// Every primitive in a mesh shares the same MeshUniformBlock but has its own material and hence it's own textures 
-struct MaterialDescriptorInfo
-{
-	VkDescriptorBufferInfo uniformdescriptorInfo;
-
-	VkDescriptorImageInfo baseColorDescriptorInfo;
-	VkDescriptorImageInfo normalDescriptorInfo;
-	
-	VkDescriptorImageInfo occlusionDescriptorInfo;
-	VkDescriptorImageInfo emissiveDescriptorInfo;
-
-	VkDescriptorImageInfo metallicRoughnessDescriptorInfo;
-	VkDescriptorImageInfo specularGlossinessDescriptorInfo;
-	VkDescriptorImageInfo diffuseTextureDescriptorInfo;
 };
 
 //-------------------------------------------------------------
@@ -100,9 +81,10 @@ struct vkMesh
 		for (unsigned int i = 0; i < numFrames; i++)
 		{
 			this->meshUniform[i].uniformBlock.modelMat = matrix;
-			BufferUtil::createUniformBuffer(this->logicalDevice, this->pDevice, meshUniform[i].ubo.buffer, meshUniform[i].ubo.memory, sizeof(MeshUniformBlock));
-			vkMapMemory(logicalDevice, meshUniform[i].ubo.memory, 0, sizeof(meshUniform[i].uniformBlock), 0, &meshUniform[i].ubo.mappedData);
-			meshUniform[i].descriptorInfo = { meshUniform[i].ubo.buffer, 0, sizeof(meshUniform[i].uniformBlock) };
+			BufferUtil::createMageBuffer(this->logicalDevice, this->pDevice, meshUniform[i].meshUB, 
+				sizeof(MeshUniformBlock), nullptr, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+			meshUniform[i].meshUB.map(this->logicalDevice);
+			meshUniform[i].meshUB.setDescriptorInfo();
 		}
 	};
 
@@ -111,14 +93,13 @@ struct vkMesh
 		const unsigned int numUniforms = static_cast<unsigned int>(meshUniform.size());
 		for (unsigned int i = 0; i < numUniforms; i++)
 		{
-			vkDestroyBuffer(logicalDevice, meshUniform[i].ubo.buffer, nullptr);
-			vkFreeMemory(logicalDevice, meshUniform[i].ubo.memory, nullptr);
+			meshUniform[i].meshUB.destroy(this->logicalDevice);
 		}
 	}
 
 	void updateUniform(glm::mat4& m, unsigned int frameIndex)
 	{
-		memcpy(this->meshUniform[frameIndex].ubo.mappedData, &m, sizeof(glm::mat4));
+		meshUniform[frameIndex].meshUB.copyDataToMappedBuffer(&m);
 	}
 };
 
@@ -127,6 +108,9 @@ struct vkMesh
 //--------------------------------------------------------------------
 struct vkMaterial
 {
+	std::string name;
+	VkDevice logicalDevice;
+
 	std::bitset<7> activeTextures;
 	std::shared_ptr<Texture2D> baseColorTexture;
 	std::shared_ptr<Texture2D> normalTexture;
@@ -137,21 +121,26 @@ struct vkMaterial
 	//std::shared_ptr<Texture2D> specularGlossinessTexture;
 	//std::shared_ptr<Texture2D> diffuseTexture;
 
-	UniformBufferObject ubo;
+	mageVKBuffer materialUB; // material Uniform Buffer
 	MaterialUniformBlock uniformBlock;
-	MaterialDescriptorInfo materialDescriptor;
-
-	vkMaterial(VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice)
+	
+	vkMaterial(const std::string& name, VkDevice& logicalDevice, VkPhysicalDevice& physicalDevice)
 	{
+		this->name = name;
+		this->logicalDevice = logicalDevice;
 		uniformBlock = MaterialUniformBlock();
-		BufferUtil::createUniformBuffer(logicalDevice, physicalDevice, ubo.buffer, ubo.memory, sizeof(MaterialUniformBlock));
-		vkMapMemory(logicalDevice, ubo.memory, 0, sizeof(uniformBlock), 0, &ubo.mappedData);
-		materialDescriptor.uniformdescriptorInfo = { ubo.buffer, 0, sizeof(uniformBlock) };
+		BufferUtil::createMageBuffer(logicalDevice, physicalDevice, materialUB, sizeof(MaterialUniformBlock), nullptr, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+		materialUB.map(logicalDevice);
+		materialUB.setDescriptorInfo();
+	}
+	~vkMaterial()
+	{
+		materialUB.destroy(this->logicalDevice);
 	}
 
 	void updateUniform()
 	{
-		memcpy(this->ubo.mappedData, &uniformBlock, sizeof(uniformBlock));
+		materialUB.copyDataToMappedBuffer(&uniformBlock);
 	}
 };
 
@@ -171,31 +160,30 @@ struct vkPrimitive
 
 	void writeToAndUpdateNodeDescriptorSet(std::shared_ptr<vkMesh> mesh, uint32_t index, VkDevice& logicalDevice)
 	{
-		VkDescriptorBufferInfo meshDescInfo = mesh->meshUniform[index].descriptorInfo;
 		std::vector<VkWriteDescriptorSet> writePrimitiveDescriptorSet = {
-			DescriptorUtil::writeDescriptorSet(descriptorSets[index], 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &meshDescInfo),
-			DescriptorUtil::writeDescriptorSet(descriptorSets[index], 1, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &material->materialDescriptor.uniformdescriptorInfo),
-			DescriptorUtil::writeDescriptorSet(descriptorSets[index], 2, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &material->materialDescriptor.baseColorDescriptorInfo)
+			DescriptorUtil::writeDescriptorSet(descriptorSets[index], 0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &mesh->meshUniform[index].meshUB.descriptorInfo),
+			DescriptorUtil::writeDescriptorSet(descriptorSets[index], 1, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &material->materialUB.descriptorInfo),
+			DescriptorUtil::writeDescriptorSet(descriptorSets[index], 2, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &material->baseColorTexture->m_descriptorInfo)
 		};
 
 		if (material->activeTextures[1]) {
 			writePrimitiveDescriptorSet.push_back(
-				DescriptorUtil::writeDescriptorSet(descriptorSets[index], 3, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &material->materialDescriptor.normalDescriptorInfo)
+				DescriptorUtil::writeDescriptorSet(descriptorSets[index], 3, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &material->normalTexture->m_descriptorInfo)
 			);
 		}
 		if (material->activeTextures[2]) {
 			writePrimitiveDescriptorSet.push_back(
-				DescriptorUtil::writeDescriptorSet(descriptorSets[index], 4, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &material->materialDescriptor.metallicRoughnessDescriptorInfo)
+				DescriptorUtil::writeDescriptorSet(descriptorSets[index], 4, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &material->metallicRoughnessTexture->m_descriptorInfo)
 			);
 		}
 		if (material->activeTextures[3]) {
 			writePrimitiveDescriptorSet.push_back(
-				DescriptorUtil::writeDescriptorSet(descriptorSets[index], 5, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &material->materialDescriptor.emissiveDescriptorInfo)
+				DescriptorUtil::writeDescriptorSet(descriptorSets[index], 5, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &material->emissiveTexture->m_descriptorInfo)
 			);
 		}
 		if (material->activeTextures[4]) {
 			writePrimitiveDescriptorSet.push_back(
-				DescriptorUtil::writeDescriptorSet(descriptorSets[index], 6, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &material->materialDescriptor.occlusionDescriptorInfo)
+				DescriptorUtil::writeDescriptorSet(descriptorSets[index], 6, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &material->occlusionTexture->m_descriptorInfo)
 			);
 		}
 

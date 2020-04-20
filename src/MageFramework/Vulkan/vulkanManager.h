@@ -1,11 +1,10 @@
 #pragma once
 #include <global.h>
-#include <forward.h>
 #include <Vulkan/Utilities/vSwapChainUtil.h>
 #include <Vulkan/Utilities/vImageUtil.h>
 #include <Vulkan/Utilities/vDeviceUtil.h>
 
-#ifdef DEBUG_GRAPHICS_PLAYGROUND
+#ifdef DEBUG_MAGE_FRAMEWORK
 static const bool ENABLE_VALIDATION = true;
 #else
 static const bool ENABLE_VALIDATION = false;
@@ -100,7 +99,10 @@ private:
 	// Queues are required to submit commands
 	Queues m_queues;
 	QueueFamilyIndices m_queueFamilyIndices;
+
+	// Extensions
 	std::vector<const char*> m_deviceExtensions;
+	std::vector<const char*> m_instanceExtensions;
 
 	SwapChainSupportDetails m_swapChainSupport;
 	VkSurfaceFormatKHR m_surfaceFormat;
@@ -155,8 +157,8 @@ private:
 	void initDebugReport();
 	bool checkValidationLayerSupport();
 
-	// Get the required list of extensions based on whether validation layers are enabled
-	std::vector<const char*> getRequiredExtensions();
+	// Get the required list of extensions for the VkInstance
+	void getRequiredInstanceExtensions();
 
 	// Callback function to allow messages from validation layers to be received
 	VkResult createDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger);

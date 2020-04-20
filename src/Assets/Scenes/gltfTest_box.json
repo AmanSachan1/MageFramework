@@ -17,14 +17,14 @@
 		"models" : 
 		[
 			{
-				"name" : "Sponza",
-				"meshPath" : "Sponza/Sponza.gltf",
+				"name" : "BoxTextured",
+				"meshPath" : "BoxTextured/BoxTextured.gltf",
 				"material" : "matteDragon",
 				"transform" : 
 				{
-					"translate" : { "x": 20.0, "y": 0.0, "z": 0.0 },
+					"translate" : { "x": 0.0, "y": 0.0, "z": 0.0 },
 					"rotate"    : { "x": 0.0, "y": 0.0, "z": 0.0 },
-					"scale"     : { "x": 0.005, "y": 0.005, "z": 0.005 }
+					"scale"     : { "x": 1.0, "y": 1.0, "z": 1.0 }
 				}
 			}
 		]

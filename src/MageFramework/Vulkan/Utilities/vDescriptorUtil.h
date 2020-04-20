@@ -133,6 +133,20 @@ namespace DescriptorUtil
 		return l_descriptorWrite;
 	}
 
+	inline VkWriteDescriptorSet writeDescriptorSet(
+		VkDescriptorSet dstSet, uint32_t dstBinding, uint32_t descriptorCount, VkDescriptorType descriptorType,
+		const void* pNext)
+	{
+		VkWriteDescriptorSet l_descriptorWrite = {};
+		l_descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		l_descriptorWrite.pNext = pNext;
+		l_descriptorWrite.dstSet = dstSet;
+		l_descriptorWrite.dstBinding = dstBinding;
+		l_descriptorWrite.descriptorCount = descriptorCount;
+		l_descriptorWrite.descriptorType = descriptorType;
+		return l_descriptorWrite;
+	}
+
 	inline PostProcessDescriptors createImgSamplerDescriptor(int serialIndex, std::string descriptorName, uint32_t numFrames,
 		VkDescriptorPool descriptorPool, VkDevice& logicalDevice)
 	{

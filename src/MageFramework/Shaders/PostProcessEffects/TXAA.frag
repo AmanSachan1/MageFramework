@@ -11,6 +11,8 @@ layout (set = 1, binding = 0) uniform CameraUBO
 {
     mat4 view;
     mat4 proj;
+    mat4 viewInverse;
+	mat4 projInverse;
     vec4 eye;
     vec2 tanFovBy2;
 } camera;
@@ -19,6 +21,8 @@ layout (set = 2, binding = 0) uniform CameraOldUBO
 {
     mat4 view;
     mat4 proj;
+    mat4 viewInverse;
+	mat4 projInverse;
     vec4 eye;
     vec2 tanFovBy2;
 } cameraOld;

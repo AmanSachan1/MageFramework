@@ -1,6 +1,8 @@
 #pragma once
 #include <global.h>
 
+#pragma warning( disable : 26812 ) // C26812: Prefer 'enum class' over 'enum' (Enum.3); Because of Vulkan 
+
 namespace Util
 {
 	inline VkViewport createViewport(float width, float height, float minDepth = 0.0f, float maxDepth = 1.0f, float x = 0.0f, float y = 1.0f)

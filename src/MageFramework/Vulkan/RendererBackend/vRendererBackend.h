@@ -41,7 +41,8 @@ class VulkanRendererBackend
 {
 public:
 	VulkanRendererBackend() = delete;
-	VulkanRendererBackend(std::shared_ptr<VulkanManager> vulkanManager, int numSwapChainImages, VkExtent2D windowExtents);
+	VulkanRendererBackend(std::shared_ptr<VulkanManager> vulkanManager,
+		RendererOptions& rendererOptions, int numSwapChainImages, VkExtent2D windowExtents);
 	~VulkanRendererBackend();
 	void cleanup();
 
@@ -65,6 +66,9 @@ public:
 	void recreateCommandBuffers();
 	void submitCommandBuffers();
 
+	void recordAllCommandBuffers(std::shared_ptr<Camera> m_camera, std::shared_ptr<Scene> m_scene);
+	void recordCommandBuffer_rayTracingCmds(
+		unsigned int frameIndex, VkCommandBuffer& rayTracingCmdBuffer, std::shared_ptr<Camera> m_camera, std::shared_ptr<Scene> m_scene);
 	void recordCommandBuffer_ComputeCmds(
 		unsigned int frameIndex, VkCommandBuffer& ComputeCmdBuffer, std::shared_ptr<Scene> scene);
 	void recordCommandBuffer_GraphicsCmds(
@@ -78,17 +82,12 @@ public:
 
 
 	// Getters
-	VkPipeline getPipeline(PIPELINE_TYPE type, int postProcessIndex = 0);
-	VkPipelineLayout getPipelineLayout(PIPELINE_TYPE type, int postProcessIndex = 0);
 	VkDescriptorSet getDescriptorSet(DSL_TYPE type, int frameIndex, int postProcessIndex = 0);
 	VkDescriptorSetLayout getDescriptorSetLayout(DSL_TYPE type, int postProcessIndex = 0);
 	const VkDescriptorPool getDescriptorPool() const { return m_descriptorPool; }
-	const VkCommandBuffer getComputeCommandBuffer(uint32_t index) const { return m_computeCommandBuffers[index]; }
-	const VkCommandBuffer getGraphicsCommandBuffer(uint32_t index) const { return m_graphicsCommandBuffers[index]; }
-	const VkCommandBuffer getPostProcessCommandBuffer(uint32_t index) const { return m_postProcessCommandBuffers[index]; }
 	VkSemaphore getpostProcessFinishedVkSemaphore(uint32_t index) const { return m_postProcessFinishedSemaphores[index]; }
-	const VkCommandPool getComputeCommandPool() const { return m_computeCommandPool; }
-	const VkCommandPool getGraphicsCommandPool() const { return m_graphicsCommandPool; }
+	const VkCommandPool getComputeCommandPool() const { return m_computeCmdPool; }
+	const VkCommandPool getGraphicsCommandPool() const { return m_graphicsCmdPool; }
 
 	// Setters
 	void setWindowExtents(VkExtent2D windowExtent) { m_windowExtents = windowExtent; }
@@ -116,11 +115,37 @@ private:
 	
 	// Pipelines
 	void createComputePipeline(VkPipeline& computePipeline, VkPipelineLayout computePipelineLayout, const std::string &pathToShader);
+public:
+	void createRayTracePipeline(std::vector<VkDescriptorSetLayout>& rayTraceDSL);
+private:
 	void createRasterizationRenderPipeline(std::vector<VkDescriptorSetLayout>& rasterizationDSL);
 	void createCompositeComputeOntoRasterPipeline(std::vector<VkDescriptorSetLayout>&  compositeDSL);
 
 	// Command Buffers
 	void createCommandPoolsAndBuffers();
+
+
+	// Ray Tracing
+public:
+	void setupRayTracing(std::shared_ptr<Camera> camera, std::shared_ptr<Scene> scene);
+	void cleanupRayTracing();
+	void destroyRayTracing();
+private:
+	void createDescriptors_rayTracing(VkDescriptorPool descriptorPool);
+	void writeToAndUpdateDescriptorSets_rayTracing(std::shared_ptr<Camera> camera, std::shared_ptr<Scene> scene);
+
+	void createStorageImages();
+	void createScene_RayTracing(std::shared_ptr<Scene> scene);
+	void submitRayTracingCommandBuffers();
+
+	void getRayTracingFunctionPointers();
+	void createBottomLevelAccelerationStructure(uint32_t geometryCount, const VkGeometryNV* geometries);
+	void createTopLevelAccelerationStructure();
+	void buildAccelerationStructures(mageVKBuffer& scratchBuffer, mageVKBuffer& instanceBuffer, uint32_t geometryCount, const VkGeometryNV* geometries);
+
+	void createShaderBindingTable();
+	VkDeviceSize copyShaderIdentifier(uint8_t* data, const uint8_t* shaderHandleStorage, uint32_t groupIndex);
+	
 
 	// Post Process
 	void expandDescriptorPool_PostProcess(std::vector<VkDescriptorPoolSize>& poolSizes);
@@ -128,7 +153,7 @@ private:
 	void createDescriptors_PostProcess_Specific(VkDescriptorPool descriptorPool);
 	void writeToAndUpdateDescriptorSets_PostProcess_Common();
 	void writeToAndUpdateDescriptorSets_PostProcess_Specific();
-	
+
 	void prePostProcess();
 	void addPostProcessPass(std::string effectName, std::vector<VkDescriptorSetLayout>& effectDSL, 
 		POST_PROCESS_TYPE postType,	PostProcessRPI& postRPI);
@@ -147,6 +172,7 @@ private:
 	inline DSL_TYPE chooseLowResInput();
 
 private:
+	RendererOptions m_rendererOptions;
 	std::shared_ptr<VulkanManager> m_vulkanManager;
 	VkDevice m_logicalDevice;
 	VkPhysicalDevice m_physicalDevice;
@@ -161,19 +187,21 @@ private:
 	// --- Descriptor Sets ---
 	VkDescriptorSetLayout m_DSL_compositeComputeOntoRaster;
 	std::vector<VkDescriptorSet> m_DS_compositeComputeOntoRaster;
-	VkDescriptorSetLayout m_DSL_compute;
-	std::vector<VkDescriptorSet> m_DS_compute;
+	VkDescriptorSetLayout m_DSL_rayTrace;
+	std::vector<VkDescriptorSet> m_DS_rayTrace;
 	
 	// --- Pipelines ---
 	// Pipelines -- P
+	VkPipeline m_rayTrace_P;
 	VkPipeline m_rasterization_P;
 	VkPipeline m_compositeComputeOntoRaster_P;
 	VkPipeline m_compute_P;
 	// Pipeline Layouts -- PLs
+	VkPipelineLayout m_rayTrace_PL;
 	VkPipelineLayout m_rasterization_PL;
 	VkPipelineLayout m_compositeComputeOntoRaster_PL;
 	VkPipelineLayout m_compute_PL;	
-
+		
 	// --- Frame Buffer Attachments --- 
 	// Depth is going to be common to the scene across render passes as well
 	FrameBufferAttachment m_depth;
@@ -198,21 +226,42 @@ private:
 	
 
 	// --- Command Buffers and Memory Pools --- 
-	// Need a command pool for every type of queue you use
-	VkCommandPool m_graphicsCommandPool;
-	VkCommandPool m_computeCommandPool;
-	std::vector<VkCommandBuffer> m_graphicsCommandBuffers;
+	// Need a command pool for every type of queue you use	
+	VkCommandPool m_computeCmdPool;
 	std::vector<VkCommandBuffer> m_computeCommandBuffers;
+	VkCommandPool m_graphicsCmdPool;
+	std::vector<VkCommandBuffer> m_graphicsCommandBuffers;
+	std::vector<VkCommandBuffer> m_rayTracingCommandBuffers;	
 	std::vector<VkCommandBuffer> m_postProcessCommandBuffers;
 
 	// Synchronization
 	std::vector<VkSemaphore> m_forwardRenderOperationsFinishedSemaphores;
+public:
+	std::vector<VkSemaphore> m_rayTracingOperationsFinishedSemaphores;
+private:
 	std::vector<VkSemaphore> m_computeOperationsFinishedSemaphores;
 	std::vector<VkSemaphore> m_postProcessFinishedSemaphores;
 
 	// --- Queues --- 
 	VkQueue m_graphicsQueue;
 	VkQueue m_computeQueue;
+
+	// --- Ray Tracing ---
+	PFN_vkCreateAccelerationStructureNV vkCreateAccelerationStructureNV;
+	PFN_vkDestroyAccelerationStructureNV vkDestroyAccelerationStructureNV;
+	PFN_vkBindAccelerationStructureMemoryNV vkBindAccelerationStructureMemoryNV;
+	PFN_vkGetAccelerationStructureHandleNV vkGetAccelerationStructureHandleNV;
+	PFN_vkGetAccelerationStructureMemoryRequirementsNV vkGetAccelerationStructureMemoryRequirementsNV;
+	PFN_vkCmdBuildAccelerationStructureNV vkCmdBuildAccelerationStructureNV;
+	PFN_vkCreateRayTracingPipelinesNV vkCreateRayTracingPipelinesNV;
+	PFN_vkGetRayTracingShaderGroupHandlesNV vkGetRayTracingShaderGroupHandlesNV;
+	PFN_vkCmdTraceRaysNV vkCmdTraceRaysNV;
+
+	VkPhysicalDeviceRayTracingPropertiesNV m_rayTracingProperties{};
+	std::vector<std::shared_ptr<Texture2D>> m_rayTracedImages;
+	AccelerationStructure m_bottomLevelAS;
+	AccelerationStructure m_topLevelAS;
+	mageVKBuffer m_shaderBindingTable;
 };
 
 #pragma once
@@ -220,3 +269,5 @@ private:
 #include <Vulkan/RendererBackend/vRendererBackend_Pipelines.inl>
 #include <Vulkan/RendererBackend/vRendererBackend_RenderPasses.inl>
 #include <Vulkan/RendererBackend/vRendererBackend_PostProcess.inl>
+#include <Vulkan/RendererBackend/vRendererBackend_Rasterization.inl>
+#include <Vulkan/RendererBackend/vRendererBackend_RayTracing.inl>

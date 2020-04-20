@@ -81,7 +81,7 @@ inline void VulkanRendererBackend::prePostProcess()
 	{
 		VkImageLayout oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		VkImageLayout newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;// VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; //VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
-		m_vulkanManager->transitionSwapChainImageLayout_SingleTimeCommand(index, oldLayout, newLayout, m_graphicsCommandPool);
+		m_vulkanManager->transitionSwapChainImageLayout_SingleTimeCommand(index, oldLayout, newLayout, m_graphicsCmdPool);
 	}
 
 	// Create the framebuffer attachments used by more than one post process pass
@@ -99,11 +99,11 @@ inline void VulkanRendererBackend::prePostProcess()
 			m_fbaHighRes[j].resize(m_numSwapChainImages);
 			m_fbaLowRes[j].resize(m_numSwapChainImages);
 
-			FrameResourcesUtil::createFrameBufferAttachments(m_logicalDevice, m_physicalDevice, m_graphicsQueue, m_graphicsCommandPool,
+			FrameResourcesUtil::createFrameBufferAttachments(m_logicalDevice, m_physicalDevice, m_graphicsQueue, m_graphicsCmdPool,
 				m_numSwapChainImages, m_fbaHighRes[j], m_highResolutionRenderFormat,
 				layoutBeforeImageCreation, layoutToTransitionImageToAfterCreation, m_windowExtents, frameBufferUsage);
 
-			FrameResourcesUtil::createFrameBufferAttachments(m_logicalDevice, m_physicalDevice, m_graphicsQueue, m_graphicsCommandPool,
+			FrameResourcesUtil::createFrameBufferAttachments(m_logicalDevice, m_physicalDevice, m_graphicsQueue, m_graphicsCmdPool,
 				m_numSwapChainImages, m_fbaLowRes[j], m_lowResolutionRenderFormat,
 				layoutBeforeImageCreation, layoutToTransitionImageToAfterCreation, m_windowExtents, frameBufferUsage);
 		}
