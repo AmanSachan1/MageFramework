@@ -1,23 +1,17 @@
 #pragma once
 #include <Vulkan/RendererBackend/vRendererBackend.h>
 
-inline void VulkanRendererBackend::setupRayTracing(std::shared_ptr<Camera> camera, std::shared_ptr<Scene> scene)
+inline void VulkanRendererBackend::cleanupRayTracing()
 {
-	getRayTracingFunctionPointers();
-	createScene_RayTracing(scene);
-	createStorageImages(); // Create StorageImage for RayTraced Image
-
-	std::vector<VkDescriptorSetLayout> l_rayTraceDSL = { m_DSL_rayTrace };
-	createRayTracePipeline(l_rayTraceDSL);
-	createShaderBindingTable();
-	writeToAndUpdateDescriptorSets_rayTracing(camera, scene);
+	for (auto rayTracedImage : m_rayTracedImages)
+	{
+		rayTracedImage.reset();
+	}
 }
 inline void VulkanRendererBackend::destroyRayTracing()
 {	
-	vkFreeMemory(m_logicalDevice, m_bottomLevelAS.memory, nullptr);
-	vkDestroyAccelerationStructureNV(m_logicalDevice, m_bottomLevelAS.accelerationStructure, nullptr);
-	vkFreeMemory(m_logicalDevice, m_topLevelAS.memory, nullptr);
-	vkDestroyAccelerationStructureNV(m_logicalDevice, m_topLevelAS.accelerationStructure, nullptr);
+	vkFreeMemory(m_logicalDevice, m_topLevelAS.m_memory, nullptr);
+	vkDestroyAccelerationStructureNV(m_logicalDevice, m_topLevelAS.m_accelerationStructure, nullptr);
 
 	m_shaderBindingTable.destroy(m_logicalDevice);
 }
@@ -68,15 +62,10 @@ inline void VulkanRendererBackend::writeToAndUpdateDescriptorSets_rayTracing(std
 		std::vector<VkWriteDescriptorSet> writeRayTracingDescriptorSets;
 
 		{
-			VkWriteDescriptorSetAccelerationStructureNV descriptorAccelerationStructureInfo{};
-			descriptorAccelerationStructureInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_NV;
-			descriptorAccelerationStructureInfo.accelerationStructureCount = 1;
-			descriptorAccelerationStructureInfo.pAccelerationStructures = &m_topLevelAS.accelerationStructure;
-
 			// The specialized acceleration structure descriptor has to be chained
 			// Which is why we are using the pNext variable of the descriptor set
 			VkWriteDescriptorSet accelerationStructureWrite = DescriptorUtil::writeDescriptorSet(
-				m_DS_rayTrace[i], 0, 1, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV, &descriptorAccelerationStructureInfo);
+				m_DS_rayTrace[i], 0, 1, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV, &m_topLevelAS.m_descriptorSetInfo);
 			writeRayTracingDescriptorSets.push_back(accelerationStructureWrite);
 		}
 		{
@@ -126,53 +115,19 @@ inline void VulkanRendererBackend::createStorageImages()
 			m_graphicsQueue, m_graphicsCmdPool, false,
 			VK_SAMPLER_ADDRESS_MODE_REPEAT,
 			VK_IMAGE_TILING_OPTIMAL,
-			VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT);
+			VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
 	}
 }
-inline void VulkanRendererBackend::createScene_RayTracing(std::shared_ptr<Scene> scene)
+
+inline void VulkanRendererBackend::createAndBuildAccelerationStructures(std::shared_ptr<Scene> scene)
 {
-	std::vector<VkGeometryNV> geometries;
-	//for (auto& model : scene->m_modelMap)
-	{
-		std::shared_ptr<Model> model = scene->m_modelMap.begin()->second;
-		geometries.push_back(model->m_rayTracingGeom);
-	}
 	// Create the Bottom Level Acceleration Structure containing all of the various geometry in the scene
-	const uint32_t geometryCount = static_cast<uint32_t>(geometries.size());
-	createBottomLevelAccelerationStructure(geometryCount, geometries.data());
+	createAllBottomLevelAccelerationStructures(scene);
 
-	// Create the Top Level Acceleration Structure containing the geometry
-	{
-		// Single instance with a 3x4 transform matrix for the ray traced triangle
-		mageVKBuffer instanceBuffer, scratchBuffer;
-		glm::mat3x4 transform = {
-			1.0f, 0.0f, 0.0f, 0.0f,
-			0.0f, 1.0f, 0.0f, 0.0f,
-			0.0f, 0.0f, 1.0f, 0.0f,
-		};
+	createGeometryInstancesForTLAS(scene);
+	createTopLevelAccelerationStructure(false);
 
-		std::array<GeometryInstance, 2> geometryInstances{};
-		// First geometry instance is used for the scene hit and miss shaders
-		geometryInstances[0].transform = transform;
-		geometryInstances[0].instanceId = 0;
-		geometryInstances[0].mask = 0xff;
-		geometryInstances[0].instanceOffset = 0;
-		geometryInstances[0].flags = VK_GEOMETRY_INSTANCE_TRIANGLE_CULL_DISABLE_BIT_NV;
-		geometryInstances[0].accelerationStructureHandle = m_bottomLevelAS.handle;
-		// Second geometry instance is used for the shadow hit and miss shaders
-		geometryInstances[1].transform = transform;
-		geometryInstances[1].instanceId = 1;
-		geometryInstances[1].mask = 0xff;
-		geometryInstances[1].instanceOffset = 2;
-		geometryInstances[1].flags = VK_GEOMETRY_INSTANCE_TRIANGLE_CULL_DISABLE_BIT_NV;
-		geometryInstances[1].accelerationStructureHandle = m_bottomLevelAS.handle;
-
-		BufferUtil::createMageBuffer(m_logicalDevice, m_physicalDevice, instanceBuffer,
-			geometryInstances.size() * sizeof(GeometryInstance), geometryInstances.data(), VK_BUFFER_USAGE_RAY_TRACING_BIT_NV);
-
-		createTopLevelAccelerationStructure();
-		buildAccelerationStructures(scratchBuffer, instanceBuffer, static_cast<uint32_t>(geometries.size()), geometries.data());
-	}
+	buildAccelerationStructures(scene, m_topLevelAS.m_geometryInstances);
 }
 
 
@@ -199,134 +154,95 @@ inline void VulkanRendererBackend::getRayTracingFunctionPointers()
 	vkGetRayTracingShaderGroupHandlesNV = reinterpret_cast<PFN_vkGetRayTracingShaderGroupHandlesNV>(vkGetDeviceProcAddr(logicalDevice, "vkGetRayTracingShaderGroupHandlesNV"));
 	vkCmdTraceRaysNV = reinterpret_cast<PFN_vkCmdTraceRaysNV>(vkGetDeviceProcAddr(logicalDevice, "vkCmdTraceRaysNV"));
 }
-inline void VulkanRendererBackend::createBottomLevelAccelerationStructure(uint32_t geometryCount, const VkGeometryNV* geometries)
+inline void VulkanRendererBackend::createAllBottomLevelAccelerationStructures(std::shared_ptr<Scene> scene)
 {
-	VkAccelerationStructureInfoNV accelerationStructureInfo{};
-	accelerationStructureInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_INFO_NV;
-	accelerationStructureInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_NV;
-	accelerationStructureInfo.instanceCount = 0;
-	accelerationStructureInfo.geometryCount = geometryCount;
-	accelerationStructureInfo.pGeometries = geometries;
+	for (auto& modelElement : scene->m_modelMap)
+	{
+		auto model = modelElement.second;
 
-	VkAccelerationStructureCreateInfoNV accelerationStructureCI{};
-	accelerationStructureCI.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_NV;
-	accelerationStructureCI.info = accelerationStructureInfo;
-	VK_CHECK_RESULT(vkCreateAccelerationStructureNV(m_logicalDevice, &accelerationStructureCI, nullptr, &m_bottomLevelAS.accelerationStructure));
+		// Create the Bottom Level Acceleration Structure containing all of the various geometry in the scene
+		model->m_bottomLevelAS.initInfo(VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_NV, 0, 0, 1, &(model->m_rayTracingGeom));
 
-	VkAccelerationStructureMemoryRequirementsInfoNV memoryRequirementsInfo{};
-	memoryRequirementsInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_INFO_NV;
-	memoryRequirementsInfo.type = VK_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_TYPE_OBJECT_NV;
-	memoryRequirementsInfo.accelerationStructure = m_bottomLevelAS.accelerationStructure;
-
-	VkMemoryRequirements2 memoryRequirements2{};
-	vkGetAccelerationStructureMemoryRequirementsNV(m_logicalDevice, &memoryRequirementsInfo, &memoryRequirements2);
-
-	VkMemoryAllocateInfo memoryAllocateInfo = {};
-	memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	memoryAllocateInfo.allocationSize = memoryRequirements2.memoryRequirements.size;
-	memoryAllocateInfo.memoryTypeIndex = BufferUtil::findMemoryType(m_physicalDevice,
-		memoryRequirements2.memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-	VK_CHECK_RESULT(vkAllocateMemory(m_logicalDevice, &memoryAllocateInfo, nullptr, &m_bottomLevelAS.memory));
-
-	VkBindAccelerationStructureMemoryInfoNV accelerationStructureMemoryInfo{};
-	accelerationStructureMemoryInfo.sType = VK_STRUCTURE_TYPE_BIND_ACCELERATION_STRUCTURE_MEMORY_INFO_NV;
-	accelerationStructureMemoryInfo.accelerationStructure = m_bottomLevelAS.accelerationStructure;
-	accelerationStructureMemoryInfo.memory = m_bottomLevelAS.memory;
-	VK_CHECK_RESULT(vkBindAccelerationStructureMemoryNV(m_logicalDevice, 1, &accelerationStructureMemoryInfo));
-
-	VK_CHECK_RESULT(vkGetAccelerationStructureHandleNV(m_logicalDevice, m_bottomLevelAS.accelerationStructure, sizeof(uint64_t), &m_bottomLevelAS.handle));
+		AccelerationUtil::createAndGetHandle_AS(m_logicalDevice, m_physicalDevice, model->m_bottomLevelAS,
+			vkCreateAccelerationStructureNV, vkGetAccelerationStructureMemoryRequirementsNV,
+			vkBindAccelerationStructureMemoryNV, vkGetAccelerationStructureHandleNV);
+	}
 }
-inline void VulkanRendererBackend::createTopLevelAccelerationStructure()
+inline void VulkanRendererBackend::createGeometryInstancesForTLAS(std::shared_ptr<Scene> scene)
 {
-	VkAccelerationStructureInfoNV accelerationStructureInfo{};
-	accelerationStructureInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_INFO_NV;
-	accelerationStructureInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_NV;
-	accelerationStructureInfo.instanceCount = 1;
-	accelerationStructureInfo.geometryCount = 0;
+	// Hit group 0: triangles
+	// Hit group 2: shadows
+	uint32_t l_instanceId = 0;
 
-	VkAccelerationStructureCreateInfoNV accelerationStructureCI{};
-	accelerationStructureCI.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_NV;
-	accelerationStructureCI.info = accelerationStructureInfo;
-	VK_CHECK_RESULT(vkCreateAccelerationStructureNV(m_logicalDevice, &accelerationStructureCI, nullptr, &m_topLevelAS.accelerationStructure));
+	for (auto& modelElement : scene->m_modelMap)
+	{
+		std::shared_ptr<Model> model = modelElement.second;
 
-	VkAccelerationStructureMemoryRequirementsInfoNV memoryRequirementsInfo{};
-	memoryRequirementsInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_INFO_NV;
-	memoryRequirementsInfo.type = VK_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_TYPE_OBJECT_NV;
-	memoryRequirementsInfo.accelerationStructure = m_topLevelAS.accelerationStructure;
+		// First geometry instance is used for the scene hit and miss shaders
+		GeometryInstance tempGeomInstance1;
+		tempGeomInstance1.transform = model->getMatrix_3x4();
+		tempGeomInstance1.instanceId = l_instanceId;
+		tempGeomInstance1.mask = 0xff;
+		tempGeomInstance1.instanceOffset = 0;
+		tempGeomInstance1.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_CULL_DISABLE_BIT_NV;
+		tempGeomInstance1.accelerationStructureHandle = model->m_bottomLevelAS.m_handle;
+		m_topLevelAS.m_geometryInstances.push_back(tempGeomInstance1);
+		// Second geometry instance is used for the shadow hit and miss shaders
+		GeometryInstance tempGeomInstance2;
+		tempGeomInstance2.transform = model->getMatrix_3x4();
+		tempGeomInstance2.instanceId = l_instanceId + 1;
+		tempGeomInstance2.mask = 0xff;
+		tempGeomInstance2.instanceOffset = 2;
+		tempGeomInstance2.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_CULL_DISABLE_BIT_NV;
+		tempGeomInstance2.accelerationStructureHandle = model->m_bottomLevelAS.m_handle;
+		m_topLevelAS.m_geometryInstances.push_back(tempGeomInstance2);
 
-	VkMemoryRequirements2 memoryRequirements2{};
-	vkGetAccelerationStructureMemoryRequirementsNV(m_logicalDevice, &memoryRequirementsInfo, &memoryRequirements2);
+		l_instanceId += 2;
+	}
+}
+inline void VulkanRendererBackend::createTopLevelAccelerationStructure(bool allowUpdate)
+{
+	const VkBuildAccelerationStructureFlagsNV flags = allowUpdate? 
+		VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_NV
+		: VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_NV;
 
-	VkMemoryAllocateInfo memoryAllocateInfo = {};
-	memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	memoryAllocateInfo.allocationSize = memoryRequirements2.memoryRequirements.size;
-	memoryAllocateInfo.memoryTypeIndex = BufferUtil::findMemoryType(m_physicalDevice, 
-		memoryRequirements2.memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-	VK_CHECK_RESULT(vkAllocateMemory(m_logicalDevice, &memoryAllocateInfo, nullptr, &m_topLevelAS.memory));
+	m_topLevelAS.initInfo(VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_NV, flags, 
+		static_cast<uint32_t>(m_topLevelAS.m_geometryInstances.size()), 0, nullptr);
 
-	VkBindAccelerationStructureMemoryInfoNV accelerationStructureMemoryInfo{};
-	accelerationStructureMemoryInfo.sType = VK_STRUCTURE_TYPE_BIND_ACCELERATION_STRUCTURE_MEMORY_INFO_NV;
-	accelerationStructureMemoryInfo.accelerationStructure = m_topLevelAS.accelerationStructure;
-	accelerationStructureMemoryInfo.memory = m_topLevelAS.memory;
-	VK_CHECK_RESULT(vkBindAccelerationStructureMemoryNV(m_logicalDevice, 1, &accelerationStructureMemoryInfo));
-
-	VK_CHECK_RESULT(vkGetAccelerationStructureHandleNV(m_logicalDevice, m_topLevelAS.accelerationStructure, sizeof(uint64_t), &m_topLevelAS.handle));
+	AccelerationUtil::createAndGetHandle_AS(m_logicalDevice, m_physicalDevice, m_topLevelAS, 
+		vkCreateAccelerationStructureNV, vkGetAccelerationStructureMemoryRequirementsNV,
+		vkBindAccelerationStructureMemoryNV, vkGetAccelerationStructureHandleNV);
 }
 inline void VulkanRendererBackend::buildAccelerationStructures(
-mageVKBuffer& scratchBuffer, mageVKBuffer& instanceBuffer, 
-	uint32_t geometryCount, const VkGeometryNV* geometries)
+	std::shared_ptr<Scene> scene, std::vector<GeometryInstance>& geometryInstances)
 {
-	// Building an Acceleration Structur requires some scratch space to store temporary information
-	VkAccelerationStructureMemoryRequirementsInfoNV memoryRequirementsInfo{};
-	memoryRequirementsInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_INFO_NV;
-	memoryRequirementsInfo.type = VK_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_TYPE_BUILD_SCRATCH_NV;
+	mageVKBuffer scratchBuffer, instanceBuffer;
+	VkDeviceSize scratchBufferSize = getScratchBufferSize(scene);
 
-	VkMemoryRequirements2 memReqBottomLevelAS;
-	memoryRequirementsInfo.accelerationStructure = m_bottomLevelAS.accelerationStructure;
-	vkGetAccelerationStructureMemoryRequirementsNV(m_logicalDevice, &memoryRequirementsInfo, &memReqBottomLevelAS);
-
-	VkMemoryRequirements2 memReqTopLevelAS;
-	memoryRequirementsInfo.accelerationStructure = m_topLevelAS.accelerationStructure;
-	vkGetAccelerationStructureMemoryRequirementsNV(m_logicalDevice, &memoryRequirementsInfo, &memReqTopLevelAS);
-
-	const VkDeviceSize scratchBufferSize = std::max(memReqBottomLevelAS.memoryRequirements.size, memReqTopLevelAS.memoryRequirements.size);
 	BufferUtil::createMageBuffer(m_logicalDevice, m_physicalDevice, scratchBuffer, scratchBufferSize, nullptr,
 		VK_BUFFER_USAGE_RAY_TRACING_BIT_NV, VK_SHARING_MODE_EXCLUSIVE, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
+	BufferUtil::createMageBuffer(m_logicalDevice, m_physicalDevice, instanceBuffer,
+		geometryInstances.size() * sizeof(GeometryInstance), geometryInstances.data(), VK_BUFFER_USAGE_RAY_TRACING_BIT_NV);
+
 	VkCommandBuffer cmdBuffer;
+	VulkanCommandUtil::beginSingleTimeCommand(m_logicalDevice, m_graphicsCmdPool, cmdBuffer);
+
+	// Build All Bottom Level Acceleration Structure (BLAS)
+	for (auto& modelElement : scene->m_modelMap)
 	{
-		VulkanCommandUtil::allocateCommandBuffers(m_logicalDevice, m_graphicsCmdPool, 1, &cmdBuffer, VK_COMMAND_BUFFER_LEVEL_PRIMARY);
-
-		// Begin Single Command Buffer
-		VkCommandBufferBeginInfo beginInfo = {};
-		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-		VK_CHECK_RESULT(vkBeginCommandBuffer(cmdBuffer, &beginInfo));
-	}
-
-
-	VkMemoryBarrier memoryBarrier = {};
-	memoryBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-	memoryBarrier.srcAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_NV | VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_NV;
-	memoryBarrier.dstAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_NV | VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_NV;
-
-	// Build Bottom Level Acceleration Structure (BLAS)
-	{
-		VkAccelerationStructureInfoNV buildInfo{};
-		buildInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_INFO_NV;
-		buildInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_NV;
-		buildInfo.geometryCount = geometryCount;
-		buildInfo.pGeometries = geometries;
+		auto model = modelElement.second;
 		
 		VkBuffer l_instanceData = VK_NULL_HANDLE;
 		VkDeviceSize l_instanceOffset = 0;
 		VkBool32 l_update = VK_FALSE;
-		VkAccelerationStructureNV l_dst = m_bottomLevelAS.accelerationStructure;
+		VkAccelerationStructureNV l_dst = model->m_bottomLevelAS.m_accelerationStructure;
 		VkAccelerationStructureNV l_src = VK_NULL_HANDLE;
 		VkDeviceSize l_scratchOffset = 0;
 
 		vkCmdBuildAccelerationStructureNV(
 			cmdBuffer,
-			&buildInfo,
+			&(model->m_bottomLevelAS.m_buildInfo),
 			l_instanceData,
 			l_instanceOffset,
 			l_update,
@@ -335,30 +251,20 @@ mageVKBuffer& scratchBuffer, mageVKBuffer& instanceBuffer,
 			scratchBuffer.buffer,
 			l_scratchOffset);
 
-		vkCmdPipelineBarrier(cmdBuffer,
-			VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_NV,
-			VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_NV,
-			0, 1, &memoryBarrier, 0, 0, 0, 0);
+		vAccelerationStructure::addMemoryBarrier(cmdBuffer);
 	}
 
 	// Build Top Level Acceleration Structure (TLAS)
 	{
-		VkAccelerationStructureInfoNV buildInfo{};
-		buildInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_INFO_NV;
-		buildInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_NV;
-		buildInfo.geometryCount = 0;
-		buildInfo.pGeometries = 0;
-		buildInfo.instanceCount = 1;
-		
 		VkDeviceSize l_instanceOffset = 0;
 		VkBool32 l_update = VK_FALSE;
-		VkAccelerationStructureNV l_dst = m_topLevelAS.accelerationStructure;
+		VkAccelerationStructureNV l_dst = m_topLevelAS.m_accelerationStructure;
 		VkAccelerationStructureNV l_src = VK_NULL_HANDLE;
 		VkDeviceSize l_scratchOffset = 0;
 
 		vkCmdBuildAccelerationStructureNV(
 			cmdBuffer,
-			&buildInfo,
+			&(m_topLevelAS.m_buildInfo),
 			instanceBuffer.buffer,
 			l_instanceOffset,
 			l_update,
@@ -367,10 +273,7 @@ mageVKBuffer& scratchBuffer, mageVKBuffer& instanceBuffer,
 			scratchBuffer.buffer,
 			l_scratchOffset);
 
-		vkCmdPipelineBarrier(cmdBuffer,
-			VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_NV,
-			VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_NV,
-			0, 1, &memoryBarrier, 0, 0, 0, 0);
+		vAccelerationStructure::addMemoryBarrier(cmdBuffer);
 	}
 
 	VulkanCommandUtil::endAndSubmitSingleTimeCommand(m_logicalDevice, m_graphicsQueue, m_graphicsCmdPool, cmdBuffer);
@@ -382,30 +285,32 @@ mageVKBuffer& scratchBuffer, mageVKBuffer& instanceBuffer,
 
 inline void VulkanRendererBackend::createShaderBindingTable()
 {
-	const uint32_t sbtSize = m_rayTracingProperties.shaderGroupHandleSize * NUM_SHADER_GROUPS;
+	m_sbtSize = m_rayTracingProperties.shaderGroupHandleSize * NUM_SHADER_GROUPS;
 
 	// Create buffer for the shader binding table, without mapping data
 	BufferUtil::createMageBuffer(m_logicalDevice, m_physicalDevice, m_shaderBindingTable,
-		sbtSize, nullptr, VK_BUFFER_USAGE_RAY_TRACING_BIT_NV,
+		m_sbtSize, nullptr, VK_BUFFER_USAGE_RAY_TRACING_BIT_NV,
 		VK_SHARING_MODE_EXCLUSIVE, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
+	mapShaderBindingTable();
+}
+inline void VulkanRendererBackend::mapShaderBindingTable()
+{
 	// Create Mapped Data for Shader Binding Table Buffer
-	{
-		m_shaderBindingTable.map(m_logicalDevice);
+	m_shaderBindingTable.map(m_logicalDevice);
 
-		uint8_t* data = static_cast<uint8_t*>(m_shaderBindingTable.mappedData);
-		// Get shader identifiers
-		auto shaderHandleStorage = new uint8_t[sbtSize];
-		vkGetRayTracingShaderGroupHandlesNV(m_logicalDevice, m_rayTrace_P, 0, NUM_SHADER_GROUPS, sbtSize, shaderHandleStorage);
-		// Copy the shader identifiers to the shader binding table
-		data += copyShaderIdentifier(data, shaderHandleStorage, INDEX_RAYGEN);
-		data += copyShaderIdentifier(data, shaderHandleStorage, INDEX_MISS);
-		data += copyShaderIdentifier(data, shaderHandleStorage, INDEX_SHADOW_MISS);
-		data += copyShaderIdentifier(data, shaderHandleStorage, INDEX_CLOSEST_HIT);
-		data += copyShaderIdentifier(data, shaderHandleStorage, INDEX_SHADOW_HIT);
+	uint8_t* data = static_cast<uint8_t*>(m_shaderBindingTable.mappedData);
+	// Get shader identifiers
+	auto shaderHandleStorage = new uint8_t[m_sbtSize];
+	vkGetRayTracingShaderGroupHandlesNV(m_logicalDevice, m_rayTrace_P, 0, NUM_SHADER_GROUPS, m_sbtSize, shaderHandleStorage);
+	// Copy the shader identifiers to the shader binding table
+	data += copyShaderIdentifier(data, shaderHandleStorage, INDEX_RAYGEN);
+	data += copyShaderIdentifier(data, shaderHandleStorage, INDEX_MISS);
+	data += copyShaderIdentifier(data, shaderHandleStorage, INDEX_SHADOW_MISS);
+	data += copyShaderIdentifier(data, shaderHandleStorage, INDEX_CLOSEST_HIT);
+	data += copyShaderIdentifier(data, shaderHandleStorage, INDEX_SHADOW_HIT);
 
-		m_shaderBindingTable.unmap(m_logicalDevice);
-	}
+	m_shaderBindingTable.unmap(m_logicalDevice);
 }
 inline VkDeviceSize VulkanRendererBackend::copyShaderIdentifier(uint8_t* data, const uint8_t* shaderHandleStorage, uint32_t groupIndex)
 {
@@ -413,4 +318,30 @@ inline VkDeviceSize VulkanRendererBackend::copyShaderIdentifier(uint8_t* data, c
 	memcpy(data, shaderHandleStorage + groupIndex * shaderGroupHandleSize, shaderGroupHandleSize);
 	data += shaderGroupHandleSize;
 	return shaderGroupHandleSize;
+}
+inline VkDeviceSize VulkanRendererBackend::getScratchBufferSize(std::shared_ptr<Scene> scene)
+{
+	// Building an Acceleration Structur requires some scratch space to store temporary information
+	VkAccelerationStructureMemoryRequirementsInfoNV memoryRequirementsInfo{};
+	memoryRequirementsInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_INFO_NV;
+	memoryRequirementsInfo.type = VK_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_TYPE_BUILD_SCRATCH_NV;
+
+	VkMemoryRequirements2 memReqTopLevelAS;
+	memoryRequirementsInfo.accelerationStructure = m_topLevelAS.m_accelerationStructure;
+	vkGetAccelerationStructureMemoryRequirementsNV(m_logicalDevice, &memoryRequirementsInfo, &memReqTopLevelAS);
+
+	VkDeviceSize scratchBufferSize = memReqTopLevelAS.memoryRequirements.size;
+
+	for (auto& modelElement : scene->m_modelMap)
+	{
+		auto model = modelElement.second;
+
+		VkMemoryRequirements2 memReqBottomLevelAS;
+		memoryRequirementsInfo.accelerationStructure = model->m_bottomLevelAS.m_accelerationStructure;
+		vkGetAccelerationStructureMemoryRequirementsNV(m_logicalDevice, &memoryRequirementsInfo, &memReqBottomLevelAS);
+
+		scratchBufferSize = std::max(memReqBottomLevelAS.memoryRequirements.size, scratchBufferSize);
+	}
+	
+	return scratchBufferSize;
 }

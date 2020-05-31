@@ -14,7 +14,6 @@ inline void VulkanRendererBackend::cleanupRenderPassesAndFrameResources()
 	for (uint32_t i = 0; i < m_numSwapChainImages; i++)
 	{
 		// Destroy Framebuffers
-		vkDestroyFramebuffer(m_logicalDevice, m_compositeComputeOntoRasterRPI.frameBuffers[i], nullptr);
 		vkDestroyFramebuffer(m_logicalDevice, m_rasterRPI.frameBuffers[i], nullptr);
 
 		// Destroy the color attachments
@@ -23,20 +22,13 @@ inline void VulkanRendererBackend::cleanupRenderPassesAndFrameResources()
 			vkDestroyImage(m_logicalDevice, m_rasterRPI.color[i].image, nullptr);
 			vkDestroyImageView(m_logicalDevice, m_rasterRPI.color[i].view, nullptr);
 			vkFreeMemory(m_logicalDevice, m_rasterRPI.color[i].memory, nullptr);
-
-			// m_compositeComputeOntoRasterRPI.color
-			vkDestroyImage(m_logicalDevice, m_compositeComputeOntoRasterRPI.color[i].image, nullptr);
-			vkDestroyImageView(m_logicalDevice, m_compositeComputeOntoRasterRPI.color[i].view, nullptr);
-			vkFreeMemory(m_logicalDevice, m_compositeComputeOntoRasterRPI.color[i].memory, nullptr);
 		}
 	}
 
 	// Destroy Samplers
 	vkDestroySampler(m_logicalDevice, m_rasterRPI.sampler, nullptr);
-	vkDestroySampler(m_logicalDevice, m_compositeComputeOntoRasterRPI.sampler, nullptr);
 
 	// Destroy Renderpasses
-	vkDestroyRenderPass(m_logicalDevice, m_compositeComputeOntoRasterRPI.renderPass, nullptr);
 	vkDestroyRenderPass(m_logicalDevice, m_rasterRPI.renderPass, nullptr);
 }
 inline void VulkanRendererBackend::createRenderPasses(const VkImageLayout& beforeRenderPassExecuted, const VkImageLayout& afterRenderPassExecuted)
@@ -76,29 +68,6 @@ inline void VulkanRendererBackend::createRenderPasses(const VkImageLayout& befor
 					VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT));
 		}
 		RenderPassUtil::renderPassCreationHelper(m_logicalDevice, m_rasterRPI.renderPass,
-			m_highResolutionRenderFormat, m_depthFormat, beforeRenderPassExecuted, afterRenderPassExecuted, subpassDependencies);
-	}
-
-	// --- Raster + Compute Composite Render Pass --- 
-	// Composites previous Passes and renders result onto swapchain. 
-	// It is the last pass before the UI render pass, which also renders to the swapchain image.
-	// Has to exist, other passes are optional
-	{
-		std::vector<VkSubpassDependency> subpassDependencies;
-		{
-			// Transition from tasks before this render pass (including runs through other pipelines before it, hence bottom of pipe)
-			subpassDependencies.push_back(
-				RenderPassUtil::subpassDependency(VK_SUBPASS_EXTERNAL, 0,
-					VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_ACCESS_MEMORY_READ_BIT,
-					VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT));
-
-			//Transition from actual subpass to tasks after the renderpass
-			subpassDependencies.push_back(
-				RenderPassUtil::subpassDependency(0, VK_SUBPASS_EXTERNAL,
-					VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-					VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_ACCESS_MEMORY_READ_BIT));
-		}
-		RenderPassUtil::renderPassCreationHelper(m_logicalDevice, m_compositeComputeOntoRasterRPI.renderPass,
 			m_highResolutionRenderFormat, m_depthFormat, beforeRenderPassExecuted, afterRenderPassExecuted, subpassDependencies);
 	}
 }
@@ -149,34 +118,6 @@ inline void VulkanRendererBackend::createFrameBuffers(
 			m_rasterRPI.imageSetInfo[i].imageLayout = layoutAfterRenderPassExecuted;
 			m_rasterRPI.imageSetInfo[i].imageView = m_rasterRPI.color[i].view;
 			m_rasterRPI.imageSetInfo[i].sampler = m_rasterRPI.sampler;
-		}
-	}
-
-	// Composite Raster pass with Compute passes
-	{
-		// The framebuffers used for presentation are special and will be managed by the VulkanPresentation class, we just reference them here.
-		m_compositeComputeOntoRasterRPI.frameBuffers.resize(m_numSwapChainImages);
-		m_compositeComputeOntoRasterRPI.color.resize(m_numSwapChainImages);
-		m_compositeComputeOntoRasterRPI.imageSetInfo.resize(m_numSwapChainImages);
-		m_compositeComputeOntoRasterRPI.extents = m_windowExtents;
-
-		FrameResourcesUtil::createFrameBufferAttachments(m_logicalDevice, m_physicalDevice, m_graphicsQueue, m_graphicsCmdPool,
-			m_numSwapChainImages, m_compositeComputeOntoRasterRPI.color, m_compositeComputeOntoRasterRPI.sampler, m_highResolutionRenderFormat,
-			layoutBeforeImageCreation, layoutToTransitionImageToAfterCreation, m_windowExtents, frameBufferUsage);
-
-		const uint32_t numAttachments = 2;
-		for (uint32_t i = 0; i < m_numSwapChainImages; i++)
-		{
-			std::array<VkImageView, numAttachments> attachments = { m_compositeComputeOntoRasterRPI.color[i].view, m_depth.view };
-
-			FrameResourcesUtil::createFrameBuffer(m_logicalDevice,
-				m_compositeComputeOntoRasterRPI.frameBuffers[i], m_compositeComputeOntoRasterRPI.renderPass,
-				m_windowExtents, numAttachments, attachments.data());
-
-			// Fill a descriptor for later use in a descriptor set 
-			m_compositeComputeOntoRasterRPI.imageSetInfo[i].imageLayout = layoutAfterRenderPassExecuted;
-			m_compositeComputeOntoRasterRPI.imageSetInfo[i].imageView = m_compositeComputeOntoRasterRPI.color[i].view;
-			m_compositeComputeOntoRasterRPI.imageSetInfo[i].sampler = m_compositeComputeOntoRasterRPI.sampler;
 		}
 	}
 }

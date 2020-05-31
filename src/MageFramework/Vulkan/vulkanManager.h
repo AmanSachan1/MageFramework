@@ -40,7 +40,9 @@ public:
 	void advanceCurrentFrameIndex();
 
 	// Fences
-	void waitForAndResetInFlightFence();
+	void waitForFrameInFlightFence();
+	void waitForImageInFlightFence();
+	void resetFrameInFlightFence();
 
 	// Image Transitions
 	void transitionSwapChainImageLayout(uint32_t index, VkImageLayout oldLayout, VkImageLayout newLayout, VkCommandBuffer& graphicsCmdBuffer, VkCommandPool& graphicsCmdPool);
@@ -68,16 +70,53 @@ public:
 	const VkFormat getSwapChainImageFormat() const { return m_swapChainImageFormat; }
 	const uint32_t getSwapChainImageCount() const { return static_cast<uint32_t>(m_swapChainImages.size()); }
 	const VkExtent2D getSwapChainVkExtent() const { return m_swapChainExtent; }
-	const uint32_t getIndex() const { return m_imageIndex; }
+	const uint32_t getFrameIndex() const { return m_currentFrame; }
+	const uint32_t getImageIndex() const { return m_currentImage; }
 
-	VkSemaphore getImageAvailableVkSemaphore() const { return m_imageAvailableSemaphores[m_currentFrameIndex]; }
-	VkSemaphore getRenderFinishedVkSemaphore() const { return m_renderFinishedSemaphores[m_currentFrameIndex]; }
-	VkFence getInFlightFence() const { return m_inFlightFences[m_currentFrameIndex]; }
+	VkSemaphore getImageAvailableVkSemaphore() const { return m_imageAvailableSemaphores[m_currentFrame]; }
+	VkSemaphore getRenderFinishedVkSemaphore() const { return m_renderFinishedSemaphores[m_currentFrame]; }
+	VkFence getInFlightFence() const { return m_framesInFlight[m_currentFrame]; }
 
 	const VkSurfaceFormatKHR getSurfaceFormat() const { return m_surfaceFormat; }
 	const VkPresentModeKHR getPresentMode() const { return m_presentMode; }
 
-	
+private:
+	void initVulkanInstance(const char* applicationName, unsigned int additionalExtensionCount = 0, const char** additionalExtensions = nullptr);
+	void pickPhysicalDevice(std::vector<const char*> deviceExtensions, QueueFlagBits& requiredQueues);
+	void createLogicalDevice(QueueFlagBits requiredQueues);
+
+	//-----------------------------------------
+	// Helper Functions -- Vulkan Presentation
+	//-----------------------------------------
+	// Creates SwapChain and store a handle to the images that make up the swapchain
+	void createSwapChain(GLFWwindow* window);
+	void createSwapChainImageViews();
+	void createSyncObjects();
+
+	//------------------------------------
+	// Helper Functions -- Vulkan Devices
+	//------------------------------------
+	bool isPhysicalDeviceSuitable(VkPhysicalDevice device, std::vector<const char*> deviceExtensions,
+		QueueFlagBits requiredQueues, VkSurfaceKHR vkSurface = VK_NULL_HANDLE);
+	SwapChainSupportDetails querySwapChainSupport();
+
+	//-------------------------------------
+	// Helper Functions -- Vulkan Instance
+	//-------------------------------------
+	void initDebugReport();
+	bool checkValidationLayerSupport();
+
+	// Get the required list of extensions for the VkInstance
+	void getRequiredInstanceExtensions();
+
+	// Callback function to allow messages from validation layers to be received
+	VkResult createDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger);
+	void destroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator);
+
+	static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+		VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);
+
+
 private:
 	//-------------------------
 	// Vulkan Instance related
@@ -118,52 +157,17 @@ private:
 
 	VkFormat m_swapChainImageFormat;
 	VkExtent2D m_swapChainExtent;
-	uint32_t m_imageIndex = 0;
-	uint32_t m_currentFrameIndex = 0;
+	uint32_t m_currentFrame = 0;
+	uint32_t m_currentImage;
 
 	std::vector<VkSemaphore> m_imageAvailableSemaphores;
 	std::vector<VkSemaphore> m_renderFinishedSemaphores;
-	std::vector<VkFence> m_inFlightFences;
+	std::vector<VkFence> m_framesInFlight;
+	std::vector<VkFence> m_imagesInFlight;
 
 	//----------
 	// Settings
 	//----------
 	// MSAA
 	VkSampleCountFlagBits m_msaaSamples = VK_SAMPLE_COUNT_1_BIT;
-
-private:
-	void initVulkanInstance(const char* applicationName, unsigned int additionalExtensionCount = 0, const char** additionalExtensions = nullptr);
-	void pickPhysicalDevice(std::vector<const char*> deviceExtensions, QueueFlagBits& requiredQueues);
-	void createLogicalDevice(QueueFlagBits requiredQueues);
-
-	//-----------------------------------------
-	// Helper Functions -- Vulkan Presentation
-	//-----------------------------------------
-	// Creates SwapChain and store a handle to the images that make up the swapchain
-	void createSwapChain(GLFWwindow* window);
-	void createSwapChainImageViews();
-	void createSyncObjects();
-
-	//------------------------------------
-	// Helper Functions -- Vulkan Devices
-	//------------------------------------
-	bool isPhysicalDeviceSuitable(VkPhysicalDevice device, std::vector<const char*> deviceExtensions,
-		QueueFlagBits requiredQueues, VkSurfaceKHR vkSurface = VK_NULL_HANDLE);
-	SwapChainSupportDetails querySwapChainSupport();
-
-	//-------------------------------------
-	// Helper Functions -- Vulkan Instance
-	//-------------------------------------
-	void initDebugReport();
-	bool checkValidationLayerSupport();
-
-	// Get the required list of extensions for the VkInstance
-	void getRequiredInstanceExtensions();
-
-	// Callback function to allow messages from validation layers to be received
-	VkResult createDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger);
-	void destroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator);
-
-	static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-		VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);
 };

@@ -71,9 +71,18 @@ inline void VulkanRendererBackend::prePostProcess()
 	m_prePostProcessInput.resize(m_numSwapChainImages);
 	for (uint32_t i = 0; i < m_numSwapChainImages; i++)
 	{
-		m_prePostProcessInput[i].imageLayout = m_compositeComputeOntoRasterRPI.imageSetInfo[i].imageLayout;
-		m_prePostProcessInput[i].imageView = m_compositeComputeOntoRasterRPI.imageSetInfo[i].imageView;
-		m_prePostProcessInput[i].sampler = m_postProcessSampler;
+		if (m_rendererOptions.renderType == RENDER_TYPE::RASTERIZATION)
+		{
+			m_prePostProcessInput[i].imageLayout = m_rasterRPI.imageSetInfo[i].imageLayout;
+			m_prePostProcessInput[i].imageView = m_rasterRPI.imageSetInfo[i].imageView;
+			m_prePostProcessInput[i].sampler = m_postProcessSampler;
+		}
+		if (m_rendererOptions.renderType == RENDER_TYPE::RAYTRACE)
+		{
+			m_prePostProcessInput[i].imageLayout = m_rayTracedImages[i]->m_imageLayout;
+			m_prePostProcessInput[i].imageView = m_rayTracedImages[i]->m_imageView;
+			m_prePostProcessInput[i].sampler = m_postProcessSampler;
+		}
 	}
 
 	// Transition swapchain images to VK_IMAGE_LAYOUT_PRESENT_SRC_KHR for consistency during later transitions

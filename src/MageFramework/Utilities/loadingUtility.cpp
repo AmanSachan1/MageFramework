@@ -22,17 +22,17 @@
 // Helpers
 void readTinygltfImages( tinygltf::Model& gltfModel, std::vector<std::shared_ptr<Texture2D>>& textures, 
 	VkDevice& logicalDevice, VkPhysicalDevice& pDevice, VkQueue& graphicsQueue, VkCommandPool& commandPool );
-void readTinygltfMaterials( tinygltf::Model& gltfModel, std::vector<std::shared_ptr<vkMaterial>>& materials, std::vector<std::shared_ptr<Texture2D>>& textures,
+void readTinygltfMaterials( tinygltf::Model& gltfModel, std::vector<vkMaterial*>& materials, std::vector<std::shared_ptr<Texture2D>>& textures,
 	VkDevice& logicalDevice, VkPhysicalDevice& pDevice );
 
 void readTinygltfMesh( tinygltf::Model& gltfModel, tinygltf::Mesh& gltfMesh,
-	std::shared_ptr<vkNode> newNode, std::vector<std::shared_ptr<vkMaterial>>& materials,
+	vkNode* newNode, std::vector<vkMaterial*>& materials,
 	std::vector<uint32_t>& indexBuffer, std::vector<Vertex>& vertexBuffer,
 	unsigned int numFrames, VkDevice& logicalDevice, VkPhysicalDevice& pDevice );
 
 void readTinygltfNode( tinygltf::Node& gltfNode, uint32_t nodeIndex, tinygltf::Model& gltfModel, glm::mat4& transform,
-	std::shared_ptr<vkNode> parent, std::vector<std::shared_ptr<vkMaterial>>& materials,
-	std::vector<std::shared_ptr<vkNode>>& nodes, std::vector<std::shared_ptr<vkNode>>& linearNodes,
+	vkNode* parent, std::vector<vkMaterial*>& materials,
+	std::vector<vkNode*>& nodes, std::vector<vkNode*>& linearNodes,
 	std::vector<uint32_t>& indexBuffer, std::vector<Vertex>& vertexBuffer,
 	unsigned int numFrames, VkDevice& logicalDevice, VkPhysicalDevice& pDevice );
 
@@ -193,19 +193,22 @@ bool loadingUtil::loadObj(std::vector<Vertex>& vertices, std::vector<uint32_t>& 
 			vertex.position = {
 				static_cast<const float>(attrib.vertices[3 * index.vertex_index + 0]),
 				static_cast<const float>(attrib.vertices[3 * index.vertex_index + 1]),
-				static_cast<const float>(attrib.vertices[3 * index.vertex_index + 2])
+				static_cast<const float>(attrib.vertices[3 * index.vertex_index + 2]),
+				0.0f
 			};
 
 			if (hasUV)
 			{
 				vertex.uv = {
 					static_cast<const float>(attrib.texcoords[2 * index.texcoord_index + 0]),
-					static_cast<const float>(1.0f - attrib.texcoords[2 * index.texcoord_index + 1])
+					static_cast<const float>(1.0f - attrib.texcoords[2 * index.texcoord_index + 1]),
+					0.0f,
+					0.0f
 				};
 			}
 			else
 			{
-				vertex.uv = glm::vec2(0.0f);
+				vertex.uv = glm::vec4(0.0f);
 			}
 
 			if (hasNormal)
@@ -213,12 +216,13 @@ bool loadingUtil::loadObj(std::vector<Vertex>& vertices, std::vector<uint32_t>& 
 				vertex.normal = {
 					static_cast<const float>(attrib.normals[3 * index.normal_index + 0]),
 					static_cast<const float>(attrib.normals[3 * index.normal_index + 1]),
-					static_cast<const float>(attrib.normals[3 * index.normal_index + 2])
+					static_cast<const float>(attrib.normals[3 * index.normal_index + 2]),
+					0.0f
 				};
 			}
 			else
 			{
-				vertex.normal = glm::vec3(0.0f, 0.0f, 0.0f);
+				vertex.normal = glm::vec4(0.0f);
 			}
 			
 			if (uniqueVertices.count(vertex) == 0)
@@ -255,9 +259,9 @@ bool loadingUtil::loadObj(std::vector<Vertex>& vertices, std::vector<uint32_t>& 
 }
 
 bool loadingUtil::loadGLTF(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices,
-	std::vector<std::shared_ptr<Texture2D>>& textures, std::vector<std::shared_ptr<vkMaterial>>& materials,
-	std::vector<std::shared_ptr<vkNode>>& nodes, std::vector<std::shared_ptr<vkNode>>& linearNodes, 
-	const std::string filename, glm::mat4& transform, uint32_t& uboCount, unsigned int numFrames,
+	std::vector<std::shared_ptr<Texture2D>>& textures, std::vector<vkMaterial*>& materials,
+	std::vector<vkNode*>& nodes, std::vector<vkNode*>& linearNodes, 
+	const std::string filename, glm::mat4& transform, uint32_t& primitiveCount, uint32_t& materialCount, unsigned int numFrames,
 	VkDevice& logicalDevice, VkPhysicalDevice& pDevice, VkQueue& graphicsQueue, VkCommandPool& commandPool)
 {
 	tinygltf::Model gltfModel;
@@ -298,6 +302,13 @@ bool loadingUtil::loadGLTF(std::vector<Vertex>& vertices, std::vector<uint32_t>&
 		}
 	}
 
+	// Total number of descriptors
+	for (auto node : linearNodes)
+	{
+		primitiveCount += static_cast<uint32_t>(node->mesh->primitives.size());
+	}
+	materialCount = static_cast<uint32_t>(materials.size());
+
 #ifndef NDEBUG
 	std::cout << "\nA gltf file was loaded" << std::endl;
 	std::cout << "# of triangles  : " << (vertices.size() / 3) << std::endl;
@@ -306,28 +317,22 @@ bool loadingUtil::loadGLTF(std::vector<Vertex>& vertices, std::vector<uint32_t>&
 	
 	std::cout << "# of textures   : " << textures.size() << std::endl;
 	std::cout << "# of materials  : " << materials.size() << std::endl;
+	std::cout << "# of primitives : " << primitiveCount << std::endl;
 #endif
-
-	// Total number of descriptors
-	for (auto node : linearNodes) 
-	{
-		if (node->mesh) { uboCount++; }
-	}
 
 	return res;
 }
 
-void loadingUtil::convertObjToNodeStructure(Indices& indices,
-	std::vector<std::shared_ptr<Texture2D>>& textures, std::vector<std::shared_ptr<vkMaterial>>& materials,
-	std::vector<std::shared_ptr<vkNode>>& nodes, std::vector<std::shared_ptr<vkNode>>& linearNodes,
-	const std::string filename, glm::mat4& transform, uint32_t& uboCount, unsigned int numFrames,
+void loadingUtil::convertObjToNodeStructure(Vertices& vertices, Indices& indices,
+	std::vector<std::shared_ptr<Texture2D>>& textures, std::vector<vkMaterial*>& materials,
+	std::vector<vkNode*>& nodes, std::vector<vkNode*>& linearNodes,
+	const std::string filename, glm::mat4& transform, uint32_t& primitiveCount, uint32_t& materialCount, unsigned int numFrames,
 	VkDevice& logicalDevice, VkPhysicalDevice& pDevice, VkQueue& graphicsQueue, VkCommandPool& commandPool)
 {
-	std::shared_ptr<vkMaterial> material = std::make_shared<vkMaterial>(filename, logicalDevice, pDevice);
+	vkMaterial* material = new vkMaterial(filename, logicalDevice, pDevice);
 	material->activeTextures.reset();
 	material->baseColorTexture = textures[0];
 	material->activeTextures[0] = true;
-	materials.push_back(material);
 
 	// We are assuming any model loaded as an Obj file has one baseColor texture
 	// If a second texture exists we assume it's a normal texture 
@@ -338,16 +343,18 @@ void loadingUtil::convertObjToNodeStructure(Indices& indices,
 	}
 	materials.push_back(material);
 
-	std::shared_ptr<vkNode> newNode = std::make_shared<vkNode>(0, nullptr, filename,
+	vkNode* newNode = new vkNode(0, nullptr, filename,
 		glm::vec3(1.0f), glm::quat(glm::vec4(0.0)), glm::vec3(1.0f), glm::mat4(1.0f), transform);
 
 	uint32_t indexCount = static_cast<uint32_t>(indices.indexArray.size());
-	std::shared_ptr<vkMesh> newMesh = std::make_shared<vkMesh>(filename, glm::mat4(1.0f), numFrames, logicalDevice, pDevice);
-	std::shared_ptr<vkPrimitive> newPrimitive = std::make_shared<vkPrimitive>(0, indexCount, materials[0]);
+	uint32_t vertexCount = static_cast<uint32_t>(vertices.vertexArray.size());
+	vkMesh* newMesh = new vkMesh(filename, glm::mat4(1.0f), numFrames, logicalDevice, pDevice);
+	vkPrimitive* newPrimitive = new vkPrimitive(0, indexCount, 0, vertexCount, materials[0]);
 	newMesh->primitives.push_back(newPrimitive);
 	newNode->mesh = newMesh;
 
-	uboCount = 1;
+	primitiveCount = 1;
+	materialCount = static_cast<uint32_t>(materials.size());
 	nodes.push_back(newNode);
 	linearNodes.push_back(newNode);
 }
@@ -410,12 +417,12 @@ void readTinygltfImages( tinygltf::Model& gltfModel, std::vector<std::shared_ptr
 	}
 }
 
-void readTinygltfMaterials(tinygltf::Model& gltfModel, std::vector<std::shared_ptr<vkMaterial>>& materials, std::vector<std::shared_ptr<Texture2D>>& textures,
+void readTinygltfMaterials(tinygltf::Model& gltfModel, std::vector<vkMaterial*>& materials, std::vector<std::shared_ptr<Texture2D>>& textures,
 	VkDevice& logicalDevice, VkPhysicalDevice& pDevice)
 {
 	for (tinygltf::Material& mat : gltfModel.materials) 
 	{
-		std::shared_ptr<vkMaterial> material = std::make_shared<vkMaterial>(mat.name, logicalDevice, pDevice);
+		vkMaterial* material = new vkMaterial(mat.name, logicalDevice, pDevice);
 		material->activeTextures.reset();
 		
 		if (mat.values.find("baseColorTexture") != mat.values.end())
@@ -485,11 +492,11 @@ void readTinygltfMaterials(tinygltf::Model& gltfModel, std::vector<std::shared_p
 }
 
 void readTinygltfMesh(tinygltf::Model& gltfModel, tinygltf::Mesh& gltfMesh,
-	std::shared_ptr<vkNode> newNode, std::vector<std::shared_ptr<vkMaterial>>& materials,
+	vkNode* newNode, std::vector<vkMaterial*>& materials,
 	std::vector<uint32_t>& indices, std::vector<Vertex>& vertices,
 	unsigned int numFrames, VkDevice& logicalDevice, VkPhysicalDevice& pDevice)
 {
-	std::shared_ptr<vkMesh> newMesh = std::make_shared<vkMesh>(gltfMesh.name, glm::mat4(1.0f), numFrames, logicalDevice, pDevice);
+	vkMesh* newMesh = new vkMesh(gltfMesh.name, glm::mat4(1.0f), numFrames, logicalDevice, pDevice);
 	for (size_t i = 0; i < gltfMesh.primitives.size(); i++)
 	{
 		const tinygltf::Primitive primitive = gltfMesh.primitives[i];
@@ -500,6 +507,7 @@ void readTinygltfMesh(tinygltf::Model& gltfModel, tinygltf::Mesh& gltfMesh,
 		uint32_t indexStart = static_cast<uint32_t>(indices.size());
 		uint32_t vertexStart = static_cast<uint32_t>(vertices.size());
 		uint32_t indexCount = 0;
+		uint32_t vertexCount = 0;
 
 		// Vertices
 		{
@@ -528,16 +536,17 @@ void readTinygltfMesh(tinygltf::Model& gltfModel, tinygltf::Mesh& gltfMesh,
 				bufferTexCoords = reinterpret_cast<const float*>(&(gltfModel.buffers[uvView.buffer].data[uvAccessor.byteOffset + uvView.byteOffset]));
 			}
 
+			vertexCount = static_cast<uint32_t>(posAccessor.count);
 			for (size_t v = 0; v < posAccessor.count; v++) 
 			{
 				Vertex vert{};
-				vert.position = glm::make_vec3(&bufferPos[v * 3]);
+				vert.position = glm::vec4(glm::make_vec3(&bufferPos[v * 3]), 0.0f);
 
-				if (bufferNormals) { vert.normal = glm::normalize(glm::make_vec3(&bufferNormals[v*3])); }
-				else { vert.normal = glm::vec3(0.0f, 0.0f, 0.0f); }
+				if (bufferNormals) { vert.normal = glm::vec4(glm::normalize(glm::make_vec3(&bufferNormals[v*3])), 0.0f); }
+				else { vert.normal = glm::vec4(0.0f); }
 
-				if (bufferTexCoords) { vert.uv = glm::make_vec2(&bufferTexCoords[v * 2]); }
-				else { vert.uv = glm::vec2(0.0f); }
+				if (bufferTexCoords) { vert.uv = glm::vec4(glm::make_vec2(&bufferTexCoords[v * 2]), 0.0f, 0.0f); }
+				else { vert.uv = glm::vec4(0.0f); }
 
 				vertices.push_back(vert);
 			}
@@ -587,20 +596,20 @@ void readTinygltfMesh(tinygltf::Model& gltfModel, tinygltf::Mesh& gltfMesh,
 			}
 		}
 
-		std::shared_ptr<vkPrimitive> newPrimitive =
-			std::make_shared<vkPrimitive>(indexStart, indexCount, materials[primitive.material]);
+		vkPrimitive* newPrimitive =
+			new vkPrimitive(indexStart, indexCount, vertexStart, vertexCount, materials[primitive.material]);
 		newMesh->primitives.push_back(newPrimitive);
 	}
 	newNode->mesh = newMesh;
 }
 
 void readTinygltfNode(tinygltf::Node& gltfNode, uint32_t nodeIndex, tinygltf::Model& gltfModel, glm::mat4& transform,
-		std::shared_ptr<vkNode> parent, std::vector<std::shared_ptr<vkMaterial>>& materials,
-		std::vector<std::shared_ptr<vkNode>>& nodes, std::vector<std::shared_ptr<vkNode>>& linearNodes,
+		vkNode* parent, std::vector<vkMaterial*>& materials,
+		std::vector<vkNode*>& nodes, std::vector<vkNode*>& linearNodes,
 		std::vector<uint32_t>& indices, std::vector<Vertex>& vertices,
 		unsigned int numFrames, VkDevice& logicalDevice, VkPhysicalDevice& pDevice)
 {
-	std::shared_ptr<vkNode> newNode;
+	vkNode* newNode;
 	// Generate local node matrix
 	if ((gltfNode.translation.size() == 3) && (gltfNode.rotation.size() == 4) && (gltfNode.scale.size() == 3) && (gltfNode.matrix.size() == 16))
 	{
@@ -608,12 +617,12 @@ void readTinygltfNode(tinygltf::Node& gltfNode, uint32_t nodeIndex, tinygltf::Mo
 		const double* rotationData = gltfNode.rotation.data();
 		const double* scaleData = gltfNode.scale.data();
 		const double* matrixData = gltfNode.matrix.data();
-		newNode = std::make_shared<vkNode>(nodeIndex, parent, gltfNode.name,
+		newNode = new vkNode(nodeIndex, parent, gltfNode.name,
 			glm::make_vec3(translationData), glm::make_quat(rotationData), glm::make_vec3(scaleData), glm::make_mat4x4(matrixData), transform);
 	}
 	else
 	{
-		newNode = std::make_shared<vkNode>(nodeIndex, parent, gltfNode.name,
+		newNode = new vkNode(nodeIndex, parent, gltfNode.name,
 			glm::vec3(1.0f), glm::quat(glm::vec4(0.0)), glm::vec3(1.0f), glm::mat4(1.0f), transform);
 	}
 	

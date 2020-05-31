@@ -40,15 +40,15 @@ namespace loadingUtil
 		const std::string meshFilePath, const std::vector<std::string>& textureFilePaths, bool areTexturesMipMapped,
 		VkDevice& logicalDevice, VkPhysicalDevice& pDevice, VkQueue& graphicsQueue, VkCommandPool& commandPool);
 	bool loadGLTF(std::vector<Vertex>& vertexBuffer, std::vector<uint32_t>& indexBuffer,
-		std::vector<std::shared_ptr<Texture2D>>& textures, std::vector<std::shared_ptr<vkMaterial>>& materials,
-		std::vector<std::shared_ptr<vkNode>>& nodes, std::vector<std::shared_ptr<vkNode>>& linearNodes,
-		const std::string filename, glm::mat4& transform, uint32_t& uboCount, unsigned int numFrames,
+		std::vector<std::shared_ptr<Texture2D>>& textures, std::vector<vkMaterial*>& materials,
+		std::vector<vkNode*>& nodes, std::vector<vkNode*>& linearNodes,
+		const std::string filename, glm::mat4& transform, uint32_t& primitiveCount, uint32_t& materialCount, unsigned int numFrames,
 		VkDevice& logicalDevice, VkPhysicalDevice& pDevice, VkQueue& graphicsQueue, VkCommandPool& commandPool);
 
-	void convertObjToNodeStructure(Indices& indices,
-		std::vector<std::shared_ptr<Texture2D>>& textures, std::vector<std::shared_ptr<vkMaterial>>& materials,
-		std::vector<std::shared_ptr<vkNode>>& nodes, std::vector<std::shared_ptr<vkNode>>& linearNodes,
-		const std::string filename, glm::mat4& transform, uint32_t& uboCount, unsigned int numFrames,
+	void convertObjToNodeStructure(Vertices& vertices, Indices& indices,
+		std::vector<std::shared_ptr<Texture2D>>& textures, std::vector<vkMaterial*>& materials,
+		std::vector<vkNode*>& nodes, std::vector<vkNode*>& linearNodes,
+		const std::string filename, glm::mat4& transform, uint32_t& primitiveCount, uint32_t& materialCount, unsigned int numFrames,
 		VkDevice& logicalDevice, VkPhysicalDevice& pDevice, VkQueue& graphicsQueue, VkCommandPool& commandPool);
 		
 	JSONContents loadJSON(const std::string jsonFilePath);

@@ -1,6 +1,6 @@
 #include "vulkanManager.h"
 
-const uint32_t maxFramesInFlight = 3;
+const static uint32_t maxFramesInFlight = 3;
 
 VulkanManager::VulkanManager(GLFWwindow* _window, const char* applicationName)
 {
@@ -38,6 +38,13 @@ VulkanManager::~VulkanManager()
 {
 	vkDeviceWaitIdle(getLogicalDevice());
 
+	for (size_t i = 0; i < maxFramesInFlight; i++)
+	{
+		vkDestroySemaphore(m_logicalDevice, m_renderFinishedSemaphores[i], nullptr);
+		vkDestroySemaphore(m_logicalDevice, m_imageAvailableSemaphores[i], nullptr);
+		vkDestroyFence(m_logicalDevice, m_framesInFlight[i], nullptr);
+	}
+
 	if (ENABLE_VALIDATION)
 	{
 		destroyDebugUtilsMessengerEXT(m_instance, m_debugMessenger, nullptr);
@@ -49,23 +56,17 @@ VulkanManager::~VulkanManager()
 }
 void VulkanManager::cleanup()
 {
+	vkDeviceWaitIdle(m_logicalDevice);
+
 	vkDestroySwapchainKHR(m_logicalDevice, m_swapChain, nullptr);
 	for (size_t i = 0; i < m_swapChainImageViews.size(); i++)
 	{
 		vkDestroyImageView(m_logicalDevice, m_swapChainImageViews[i], nullptr);
 	}
-
-	for (size_t i = 0; i < maxFramesInFlight; i++)
-	{
-		vkDestroySemaphore(m_logicalDevice, m_renderFinishedSemaphores[i], nullptr);
-		vkDestroySemaphore(m_logicalDevice, m_imageAvailableSemaphores[i], nullptr);
-		vkDestroyFence(m_logicalDevice, m_inFlightFences[i], nullptr);
-	}
 }
 void VulkanManager::recreate(GLFWwindow* window)
 {
 	createPresentationObjects(window);
-	createSyncObjects();
 }
 
 void VulkanManager::initVulkanInstance(const char* applicationName, unsigned int additionalExtensionCount, const char** additionalExtensions)
@@ -231,7 +232,7 @@ bool VulkanManager::acquireNextSwapChainImage()
 	// It is possible to use a semaphore, fence, or both as the synchronization objects that are to be signaled 
 	// when the presentation engine is finished using the image
 	VkResult result = vkAcquireNextImageKHR(m_logicalDevice, m_swapChain, std::numeric_limits<uint64_t>::max(),
-		m_imageAvailableSemaphores[m_currentFrameIndex], VK_NULL_HANDLE, &m_imageIndex);
+		m_imageAvailableSemaphores[m_currentFrame], VK_NULL_HANDLE, &m_currentImage);
 
 	// The vkAcquireNextImageKHR function can return the following special values to indicate that it's time to recreate the swapchain.
 	// -- VK_ERROR_OUT_OF_DATE_KHR: The swap chain has become incompatible with the surface and can no longer be used for rendering.
@@ -251,15 +252,13 @@ bool VulkanManager::acquireNextSwapChainImage()
 }
 bool VulkanManager::presentImageToSwapChain()
 {
-	VkSemaphore signalSemaphores[] = { m_renderFinishedSemaphores[m_currentFrameIndex] };
-
 	VkPresentInfoKHR presentInfo = {};
 	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	presentInfo.waitSemaphoreCount = 1;
-	presentInfo.pWaitSemaphores = signalSemaphores;
+	presentInfo.pWaitSemaphores = &m_renderFinishedSemaphores[m_currentFrame];
 	presentInfo.swapchainCount = 1;
 	presentInfo.pSwapchains = &m_swapChain;
-	presentInfo.pImageIndices = &m_imageIndex;
+	presentInfo.pImageIndices = &m_currentImage;
 	presentInfo.pResults = nullptr; // Optional
 
 	VkResult result = vkQueuePresentKHR(getQueue(QueueFlags::Present), &presentInfo);
@@ -277,16 +276,29 @@ bool VulkanManager::presentImageToSwapChain()
 
 void VulkanManager::advanceCurrentFrameIndex()
 {
-	m_currentFrameIndex = (m_currentFrameIndex + 1) % maxFramesInFlight;
+	m_currentFrame = (m_currentFrame + 1) % maxFramesInFlight;
 }
 
-void VulkanManager::waitForAndResetInFlightFence()
+void VulkanManager::waitForFrameInFlightFence()
 {
-	VkFence& inFlightFence = m_inFlightFences[m_currentFrameIndex];
 	// The VK_TRUE we pass in vkWaitForFences indicates that we want to wait for all fences.
-	vkWaitForFences(m_logicalDevice, 1, &inFlightFence, VK_TRUE, std::numeric_limits<uint64_t>::max());
-	vkResetFences(m_logicalDevice, 1, &inFlightFence);
+	vkWaitForFences(m_logicalDevice, 1, &m_framesInFlight[m_currentFrame], VK_TRUE, UINT64_MAX);
 }
+void VulkanManager::resetFrameInFlightFence()
+{
+	vkResetFences(m_logicalDevice, 1, &m_framesInFlight[m_currentFrame]);
+}
+void VulkanManager::waitForImageInFlightFence()
+{
+	// Check if a previous frame is using this image (i.e. there is its fence to wait on)
+	// This is possible if vkAcquireNextImageKHR returns images out of order.
+	if (m_imagesInFlight[m_currentImage] != VK_NULL_HANDLE) {
+		vkWaitForFences(m_logicalDevice, 1, &m_imagesInFlight[m_currentImage], VK_TRUE, UINT64_MAX);
+	}
+	// Mark the image as now being in use by this frame
+	m_imagesInFlight[m_currentImage] = m_framesInFlight[m_currentFrame];
+}
+
 
 void VulkanManager::transitionSwapChainImageLayout(uint32_t index, VkImageLayout oldLayout, VkImageLayout newLayout, VkCommandBuffer& graphicsCmdBuffer, VkCommandPool& graphicsCmdPool)
 {
@@ -406,7 +418,8 @@ void VulkanManager::createSyncObjects()
 	// Create Semaphores
 	m_imageAvailableSemaphores.resize(maxFramesInFlight);
 	m_renderFinishedSemaphores.resize(maxFramesInFlight);
-	m_inFlightFences.resize(maxFramesInFlight);
+	m_framesInFlight.resize(maxFramesInFlight);
+	m_imagesInFlight.resize(maxFramesInFlight, VK_NULL_HANDLE);
 
 	VkSemaphoreCreateInfo semaphoreInfo = {};
 	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -419,7 +432,7 @@ void VulkanManager::createSyncObjects()
 	{
 		if (vkCreateSemaphore(m_logicalDevice, &semaphoreInfo, nullptr, &m_imageAvailableSemaphores[i]) != VK_SUCCESS ||
 			vkCreateSemaphore(m_logicalDevice, &semaphoreInfo, nullptr, &m_renderFinishedSemaphores[i]) != VK_SUCCESS ||
-			vkCreateFence(m_logicalDevice, &fenceInfo, nullptr, &m_inFlightFences[i]) != VK_SUCCESS)
+			vkCreateFence(m_logicalDevice, &fenceInfo, nullptr, &m_framesInFlight[i]) != VK_SUCCESS)
 		{
 			throw std::runtime_error("Failed to create synchronization objects for a frame");
 		}

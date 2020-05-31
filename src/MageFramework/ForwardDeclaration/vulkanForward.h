@@ -6,6 +6,8 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
+#pragma warning( disable : 26812 ) // C26812: Prefer 'enum class' over 'enum' (Enum.3);
+
 enum QueueFlags
 {
 	Graphics,

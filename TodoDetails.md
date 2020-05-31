@@ -1,5 +1,7 @@
 # How to List for future todo items
 
+## 
+
 ## Batched Drawcalls
 - We need to use texture arrays for this. (Textures need to be of the same size so you would need to add up and down scaling for textures cpu side).
 - Add a new element to the Vertex struct which determines the index in the texture array that a vertex/fragment would access in this batched draw call. 

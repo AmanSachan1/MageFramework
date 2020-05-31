@@ -48,6 +48,7 @@ public:
 
 	void cleanup() {} //specifically clean up resources that are recreated on frame resizing
 	void createScene(JSONItem::Scene& scene);
+	void recreate();
 	void updateSceneInfrequent() {}
 	void updateUniforms(uint32_t currentImageIndex);
 

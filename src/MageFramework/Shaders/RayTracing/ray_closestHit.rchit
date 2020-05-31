@@ -1,48 +1,22 @@
 #version 460
+#extension GL_GOOGLE_include_directive : require
 #extension GL_NV_ray_tracing : require
 #extension GL_EXT_nonuniform_qualifier : enable
-
-struct Vertex
-{
-  vec3 pos;
-  vec3 normal;
-  vec2 uv;
-};
-
-struct RayPayload {
-	vec3 color;
-	float distance;
-	vec3 normal;
-	float reflector;
-};
+#include "global.glsl"
 
 layout(binding = 0, set = 0) uniform accelerationStructureNV topLevelAS;
 layout(binding = 3, set = 0) uniform LightsUBO
 {
     vec4 lightPos;
 } lights;
-layout(binding = 4, set = 0) buffer Vertices { vec4 v[]; } vertices;
-layout(binding = 5, set = 0) buffer Indices { uint i[]; } indices;
+layout(binding = 4, set = 0) readonly buffer Vertices { vec4 v[]; } vertices;
+layout(binding = 5, set = 0) readonly buffer Indices { uint i[]; } indices;
 
 layout(location = 0) rayPayloadInNV RayPayload rayPayload;
 layout(location = 2) rayPayloadNV bool shadowed;
 hitAttributeNV vec3 hitAttribs;
 
-const float T_MIN = 0.001f;
-const float T_MAX = 10000.0f;
-const uint CULL_MASK = 0xFF;
-
-Vertex unpack(uint index)
-{
-	vec4 data0 = vertices.v[3 * index + 0];
-	vec4 data1 = vertices.v[3 * index + 1];
-
-	Vertex v;
-	v.pos = data0.xyz;
-	v.normal = vec3(data0.w, data1.x, data1.y);
-	v.uv = vec2(data1.zw);
-	return v;
-}
+#include "utility.glsl"
 
 void main() 
 {

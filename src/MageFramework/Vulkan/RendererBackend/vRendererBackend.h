@@ -5,6 +5,8 @@
 #include <Vulkan/Utilities/vDescriptorUtil.h>
 #include <Vulkan/Utilities/vShaderUtil.h>
 #include <Vulkan/Utilities/vRenderUtil.h>
+#include <Vulkan/RendererBackend/vAccelerationStructure.h>
+#include <Vulkan/Utilities/vAccelerationStructureUtil.h>
 #include <Utilities/generalUtility.h>
 #include <Vulkan/vulkanManager.h>
 
@@ -16,8 +18,8 @@
 struct DescriptorSetLayouts
 {
 	std::vector<VkDescriptorSetLayout> computeDSL;
-	std::vector<VkDescriptorSetLayout> compositeComputeOntoRasterDSL;
-	std::vector<VkDescriptorSetLayout> geomDSL;
+	std::vector<VkDescriptorSetLayout> rasterDSL;
+	std::vector<VkDescriptorSetLayout> raytraceDSL;
 };
 
 struct ComputePipelineLayouts
@@ -26,12 +28,6 @@ struct ComputePipelineLayouts
 	VkPipelineLayout clouds;
 	VkPipelineLayout grass;	
 	VkPipelineLayout water;
-};
-
-struct DescriptorSetDependencies
-{
-	std::vector<std::shared_ptr<Texture2D>> computeImages;
-	std::vector<VkDescriptorImageInfo> geomRenderPassImageSet;
 };
 
 
@@ -57,7 +53,7 @@ public:
 	void expandDescriptorPool(std::vector<VkDescriptorPoolSize>& poolSizes);
 	void createDescriptorPool(std::vector<VkDescriptorPoolSize>& poolSizes);
 	void createDescriptors(VkDescriptorPool descriptorPool);
-	void writeToAndUpdateDescriptorSets(DescriptorSetDependencies& descSetDependencies);
+	void writeToAndUpdateDescriptorSets();
 
 	// Synchronization Objects
 	void createSyncObjects();
@@ -65,21 +61,8 @@ public:
 	// Command Buffers
 	void recreateCommandBuffers();
 	void submitCommandBuffers();
-
 	void recordAllCommandBuffers(std::shared_ptr<Camera> m_camera, std::shared_ptr<Scene> m_scene);
-	void recordCommandBuffer_rayTracingCmds(
-		unsigned int frameIndex, VkCommandBuffer& rayTracingCmdBuffer, std::shared_ptr<Camera> m_camera, std::shared_ptr<Scene> m_scene);
-	void recordCommandBuffer_ComputeCmds(
-		unsigned int frameIndex, VkCommandBuffer& ComputeCmdBuffer, std::shared_ptr<Scene> scene);
-	void recordCommandBuffer_GraphicsCmds(
-		unsigned int frameIndex, VkCommandBuffer& graphicsCmdBuffer, std::shared_ptr<Scene> scene, std::shared_ptr<Camera> camera,
-		VkRect2D renderArea, uint32_t clearValueCount, const VkClearValue* clearValues);
-	void recordCommandBuffer_PostProcessCmds(
-		unsigned int frameIndex, VkCommandBuffer& postProcessCmdBuffer, std::shared_ptr<Scene> scene,
-		VkRect2D renderArea, uint32_t clearValueCount, const VkClearValue* clearValues);
-	void recordCommandBuffer_FinalCmds(
-		unsigned int frameIndex, VkCommandBuffer& cmdBuffer);
-
+	
 
 	// Getters
 	VkDescriptorSet getDescriptorSet(DSL_TYPE type, int frameIndex, int postProcessIndex = 0);
@@ -91,13 +74,6 @@ public:
 
 	// Setters
 	void setWindowExtents(VkExtent2D windowExtent) { m_windowExtents = windowExtent; }
-
-public:
-	// --- Render Passes --- 
-	// RPI stands for Render Pass Info
-	// RenderPasses render to their own framebuffers unless otherwise specified
-	RenderPassInfo m_compositeComputeOntoRasterRPI; // Composites compute work (if that compute work was meant to be composited directly) onto the results of the raster render pass below 
-	RenderPassInfo m_rasterRPI; // Typical Forward render pass
 
 private:
 	void cleanupPipelines();
@@ -115,37 +91,49 @@ private:
 	
 	// Pipelines
 	void createComputePipeline(VkPipeline& computePipeline, VkPipelineLayout computePipelineLayout, const std::string &pathToShader);
-public:
 	void createRayTracePipeline(std::vector<VkDescriptorSetLayout>& rayTraceDSL);
-private:
 	void createRasterizationRenderPipeline(std::vector<VkDescriptorSetLayout>& rasterizationDSL);
-	void createCompositeComputeOntoRasterPipeline(std::vector<VkDescriptorSetLayout>&  compositeDSL);
 
 	// Command Buffers
 	void createCommandPoolsAndBuffers();
+	void recordCommandBuffer_rayTracingCmds(
+		unsigned int frameIndex, VkCommandBuffer& rayTracingCmdBuffer, std::shared_ptr<Camera> m_camera, std::shared_ptr<Scene> m_scene);
+	void recordCommandBuffer_ComputeCmds(
+		unsigned int frameIndex, VkCommandBuffer& ComputeCmdBuffer, std::shared_ptr<Scene> scene);
+	void recordCommandBuffer_GraphicsCmds(
+		unsigned int frameIndex, VkCommandBuffer& graphicsCmdBuffer, std::shared_ptr<Scene> scene, std::shared_ptr<Camera> camera,
+		VkRect2D renderArea, uint32_t clearValueCount, const VkClearValue* clearValues);
+	void recordCommandBuffer_PostProcessCmds(
+		unsigned int frameIndex, VkCommandBuffer& postProcessCmdBuffer, std::shared_ptr<Scene> scene,
+		VkRect2D renderArea, uint32_t clearValueCount, const VkClearValue* clearValues);
+	void recordCommandBuffer_FinalCmds(unsigned int frameIndex, VkCommandBuffer& cmdBuffer);
 
 
 	// Ray Tracing
 public:
-	void setupRayTracing(std::shared_ptr<Camera> camera, std::shared_ptr<Scene> scene);
+	void getRayTracingFunctionPointers();
 	void cleanupRayTracing();
 	void destroyRayTracing();
-private:
+
 	void createDescriptors_rayTracing(VkDescriptorPool descriptorPool);
 	void writeToAndUpdateDescriptorSets_rayTracing(std::shared_ptr<Camera> camera, std::shared_ptr<Scene> scene);
 
 	void createStorageImages();
-	void createScene_RayTracing(std::shared_ptr<Scene> scene);
-	void submitRayTracingCommandBuffers();
+	void createAndBuildAccelerationStructures(std::shared_ptr<Scene> scene);
 
-	void getRayTracingFunctionPointers();
-	void createBottomLevelAccelerationStructure(uint32_t geometryCount, const VkGeometryNV* geometries);
-	void createTopLevelAccelerationStructure();
-	void buildAccelerationStructures(mageVKBuffer& scratchBuffer, mageVKBuffer& instanceBuffer, uint32_t geometryCount, const VkGeometryNV* geometries);
-
+	void createAllBottomLevelAccelerationStructures(std::shared_ptr<Scene> scene);
+	void createGeometryInstancesForTLAS(std::shared_ptr<Scene> scene);
+	void createTopLevelAccelerationStructure(bool allowUpdate);
+	void buildAccelerationStructures(std::shared_ptr<Scene> scene, std::vector<GeometryInstance>& geometryInstances);
+	
 	void createShaderBindingTable();
+	void mapShaderBindingTable();
+
+	// Helpers
+	VkDeviceSize getScratchBufferSize(std::shared_ptr<Scene> scene);
 	VkDeviceSize copyShaderIdentifier(uint8_t* data, const uint8_t* shaderHandleStorage, uint32_t groupIndex);
 	
+private:
 
 	// Post Process
 	void expandDescriptorPool_PostProcess(std::vector<VkDescriptorPoolSize>& poolSizes);
@@ -184,22 +172,24 @@ private:
 	VkFormat m_depthFormat;
 
 	VkDescriptorPool m_descriptorPool;
+public:
 	// --- Descriptor Sets ---
-	VkDescriptorSetLayout m_DSL_compositeComputeOntoRaster;
-	std::vector<VkDescriptorSet> m_DS_compositeComputeOntoRaster;
 	VkDescriptorSetLayout m_DSL_rayTrace;
 	std::vector<VkDescriptorSet> m_DS_rayTrace;
-	
+private:
+	// --- Render Passes --- 
+	// RPI stands for Render Pass Info
+	// RenderPasses render to their own framebuffers unless otherwise specified
+	RenderPassInfo m_rasterRPI; // Typical Forward render pass
+
 	// --- Pipelines ---
 	// Pipelines -- P
 	VkPipeline m_rayTrace_P;
 	VkPipeline m_rasterization_P;
-	VkPipeline m_compositeComputeOntoRaster_P;
 	VkPipeline m_compute_P;
 	// Pipeline Layouts -- PLs
 	VkPipelineLayout m_rayTrace_PL;
 	VkPipelineLayout m_rasterization_PL;
-	VkPipelineLayout m_compositeComputeOntoRaster_PL;
 	VkPipelineLayout m_compute_PL;	
 		
 	// --- Frame Buffer Attachments --- 
@@ -235,10 +225,7 @@ private:
 	std::vector<VkCommandBuffer> m_postProcessCommandBuffers;
 
 	// Synchronization
-	std::vector<VkSemaphore> m_forwardRenderOperationsFinishedSemaphores;
-public:
-	std::vector<VkSemaphore> m_rayTracingOperationsFinishedSemaphores;
-private:
+	std::vector<VkSemaphore> m_renderOperationsFinishedSemaphores;
 	std::vector<VkSemaphore> m_computeOperationsFinishedSemaphores;
 	std::vector<VkSemaphore> m_postProcessFinishedSemaphores;
 
@@ -247,20 +234,23 @@ private:
 	VkQueue m_computeQueue;
 
 	// --- Ray Tracing ---
+public:
 	PFN_vkCreateAccelerationStructureNV vkCreateAccelerationStructureNV;
 	PFN_vkDestroyAccelerationStructureNV vkDestroyAccelerationStructureNV;
 	PFN_vkBindAccelerationStructureMemoryNV vkBindAccelerationStructureMemoryNV;
 	PFN_vkGetAccelerationStructureHandleNV vkGetAccelerationStructureHandleNV;
 	PFN_vkGetAccelerationStructureMemoryRequirementsNV vkGetAccelerationStructureMemoryRequirementsNV;
 	PFN_vkCmdBuildAccelerationStructureNV vkCmdBuildAccelerationStructureNV;
+private:
 	PFN_vkCreateRayTracingPipelinesNV vkCreateRayTracingPipelinesNV;
 	PFN_vkGetRayTracingShaderGroupHandlesNV vkGetRayTracingShaderGroupHandlesNV;
 	PFN_vkCmdTraceRaysNV vkCmdTraceRaysNV;
 
 	VkPhysicalDeviceRayTracingPropertiesNV m_rayTracingProperties{};
 	std::vector<std::shared_ptr<Texture2D>> m_rayTracedImages;
-	AccelerationStructure m_bottomLevelAS;
-	AccelerationStructure m_topLevelAS;
+	
+	vTLAS m_topLevelAS;
+	uint32_t m_sbtSize;
 	mageVKBuffer m_shaderBindingTable;
 };
 

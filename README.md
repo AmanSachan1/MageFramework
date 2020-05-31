@@ -32,13 +32,15 @@ I use a copy image command instead of using a subpass because:
 4) The framework has a design goal of efficiency in the individual techniques rather than the framework itself. Because trying to optimize a framework/engine is it's own beast.
 
 ## Render Order
-Compute passes
-forward render pass / deferred rendering
+Compute passes -- for things that dont run on a per pixel basis
+Forward render pass / Deferred rendering / RayTracing
 Composite compute onto forward render
 Post process Passes:
+	- First few high res passes make use of compute results to render additional scene elements like grass or the sky.
 	- High Res passes
 	- Tone Map
 	- Low Res passes
+	- Last post process also does gamma correction
 Copy last post process pass's framebuffer into swapchain
 render imgui UI to the swapchain 
 

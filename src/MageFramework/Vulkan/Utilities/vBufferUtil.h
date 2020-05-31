@@ -120,7 +120,7 @@ namespace BufferUtil
 	}
 
 	inline void copyBuffer(VkDevice& logicalDevice, VkQueue& queue, VkCommandPool& cmdPool,
-		VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize srcOffset, VkDeviceSize dstOffset, VkDeviceSize size)
+		VkBuffer& srcBuffer, VkBuffer& dstBuffer, VkDeviceSize srcOffset, VkDeviceSize dstOffset, VkDeviceSize size)
 	{
 		// Memory transfer operations are executed using command buffers, just like drawing commands.
 		// Therefore we must first allocate a temporary command buffer. 

@@ -78,7 +78,7 @@ namespace DescriptorUtil
 		}
 	}
 
-	inline VkDescriptorBufferInfo createDescriptorBufferInfo(VkBuffer buffer, VkDeviceSize offset, VkDeviceSize range)
+	inline VkDescriptorBufferInfo createDescriptorBufferInfo(VkBuffer& buffer, VkDeviceSize offset, VkDeviceSize range)
 	{
 		VkDescriptorBufferInfo l_descriptorBufferInfo = {};
 		l_descriptorBufferInfo.buffer = buffer;

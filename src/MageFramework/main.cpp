@@ -14,7 +14,8 @@ namespace InputUtil
 {
 	void resizeCallback(GLFWwindow* window, int width, int height)
 	{
-		renderer->recreate();
+		renderer->m_windowResized = true;
+		//renderer->recreate();
 	}
 
 	static bool leftMouseDown = false;
@@ -74,8 +75,8 @@ namespace InputUtil
 			camera->rotateAboutUp(-deltaForRotation);
 		}
 
-		camera->updateUniformBuffer(vulkanManager->getIndex());
-		camera->copyToGPUMemory(vulkanManager->getIndex());
+		camera->updateUniformBuffer(vulkanManager->getFrameIndex());
+		camera->copyToGPUMemory(vulkanManager->getFrameIndex());
 	}
 
 	void mouseDownCallback(GLFWwindow* window, int button, int action, int mods)
@@ -168,15 +169,15 @@ void GraphicsPlaygroundApplication::initialize()
 	// Loads in the main camera and the scene
 	// JSONContents jsonContent = loadingUtil::loadJSON("gltfTest_box.json");
 	// JSONContents jsonContent = loadingUtil::loadJSON("emptyScene.json");
-	JSONContents jsonContent = loadingUtil::loadJSON("objTestChalet.json");
-	//JSONContents jsonContent = loadingUtil::loadJSON("gltfTest_gltf_and_obj.json");
+	// JSONContents jsonContent = loadingUtil::loadJSON("objTestChalet.json");
+	JSONContents jsonContent = loadingUtil::loadJSON("gltfTest_gltf_and_obj.json");
 	const int window_width = jsonContent.mainCamera.width;
 	const int window_height = jsonContent.mainCamera.height;
 
 	RendererOptions rendererOptions =
 	{
 		RENDER_API::VULKAN, // API
-		RENDER_TYPE::RAYTRACE, //    RASTERIZATION
+		RENDER_TYPE::RAYTRACE, // RAYTRACE   RASTERIZATION
 		false, false, false, // Anti-Aliasing 
 		false, 1.0f, // Sample Rate Shading
 		true, 16.0f // Anisotropy

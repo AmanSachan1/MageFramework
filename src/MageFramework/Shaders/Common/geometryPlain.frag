@@ -34,6 +34,6 @@ void main()
 		normal = f_nor;
 	}
 	 
-	//outColor = vec4(baseColor, 1.0); // baseColorFactor;//
-	outColor = vec4((baseColor + normal)*0.5f, 1.0);
+	outColor = vec4(baseColor, 1.0); // baseColorFactor;//
+	//outColor = vec4((baseColor + normal)*0.5f, 1.0);
 }

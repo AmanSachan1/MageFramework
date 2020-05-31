@@ -4,7 +4,7 @@
 namespace VulkanCommandUtil
 {
 	inline void copyCommandBuffer(VkDevice& logicalDevice, VkCommandBuffer& cmdBuffer,
-		VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize srcOffset, VkDeviceSize dstOffset, VkDeviceSize size)
+		VkBuffer& srcBuffer, VkBuffer& dstBuffer, VkDeviceSize srcOffset, VkDeviceSize dstOffset, VkDeviceSize size)
 	{
 		VkBufferCopy copyRegion = {};
 		copyRegion.srcOffset = srcOffset;
@@ -44,10 +44,7 @@ namespace VulkanCommandUtil
 		allocInfo.level = level;
 		allocInfo.commandBufferCount = cmdBufferCount;
 
-		if (vkAllocateCommandBuffers(logicalDevice, &allocInfo, cmdBufferPointer) != VK_SUCCESS)
-		{
-			throw std::runtime_error("failed to allocate command buffers!");
-		}
+		VK_CHECK_RESULT(vkAllocateCommandBuffers(logicalDevice, &allocInfo, cmdBufferPointer));
 	}
 
 	inline void allocateCommandBuffers(VkDevice& logicalDevice, VkCommandPool& cmdPool, std::vector<VkCommandBuffer>& cmdBuffers)
@@ -110,10 +107,7 @@ namespace VulkanCommandUtil
 
 	inline void endCommandBuffer(VkCommandBuffer& cmdBuffer)
 	{
-		if (vkEndCommandBuffer(cmdBuffer) != VK_SUCCESS)
-		{
-			throw std::runtime_error("Failed to record the compute command buffer");
-		}
+		VK_CHECK_RESULT(vkEndCommandBuffer(cmdBuffer));
 	}
 
 	inline void submitToQueueSynced(VkQueue queue, uint32_t commandBufferCount, const VkCommandBuffer* pCommandBuffers,
@@ -133,11 +127,7 @@ namespace VulkanCommandUtil
 		submitInfo.signalSemaphoreCount = signalSemaphoreCount;
 		submitInfo.pSignalSemaphores = pSignalSemaphores;
 
-		VkResult res = vkQueueSubmit(queue, 1, &submitInfo, inFlightFence);
-		if (res != VK_SUCCESS)
-		{
-			throw std::runtime_error("failed to submit command buffer to queue!");
-		}
+		VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, inFlightFence));
 	}
 
 	inline void submitToQueue(uint32_t cmdBufferCount, const VkCommandBuffer& cmdBuffer, VkQueue& queue, VkDevice& logicalDevice)
@@ -155,35 +145,21 @@ namespace VulkanCommandUtil
 		// instead of executing one at a time. That may give the driver more opportunities to optimize.
 
 		// Create fence to ensure that the command buffer has finished executing
-		//VkFenceCreateInfo fenceInfo = { VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, 0 };
-		//VkFence fence;
-		//vkCreateFence(logicalDevice, &fenceInfo, nullptr, &fence);
+		VkFenceCreateInfo fenceInfo = { VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, 0 };
+		VkFence fence;
+		vkCreateFence(logicalDevice, &fenceInfo, nullptr, &fence);
 
-		VkResult res = vkQueueSubmit(queue, 1, &submitInfo, nullptr);
-		if (res != VK_SUCCESS)
-		{
-			throw std::runtime_error("failed to submit command buffer to queue!");
-		}
+		VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, fence));
 
 		// Wait for the fence to signal that command buffer has finished executing
-		//vkWaitForFences(logicalDevice, 1, &fence, VK_TRUE, DEFAULT_FENCE_TIMEOUT);
-		//vkDestroyFence(logicalDevice, fence, nullptr);
+		vkWaitForFences(logicalDevice, 1, &fence, VK_TRUE, DEFAULT_FENCE_TIMEOUT);
+		vkDestroyFence(logicalDevice, fence, nullptr);
 		vkQueueWaitIdle(queue);
 	}
 
 	inline void beginSingleTimeCommand(VkDevice& logicalDevice, VkCommandPool& cmdPool, VkCommandBuffer& cmdBuffer)
 	{
-		// Allocate Single Command Buffer
-		VkCommandBufferAllocateInfo allocInfo = {};
-		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-		allocInfo.commandPool = cmdPool;
-		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-		allocInfo.commandBufferCount = 1;
-
-		if (vkAllocateCommandBuffers(logicalDevice, &allocInfo, &cmdBuffer) != VK_SUCCESS)
-		{
-			throw std::runtime_error("failed to allocate command buffers!");
-		}
+		VulkanCommandUtil::allocateCommandBuffers(logicalDevice, cmdPool, 1, &cmdBuffer, VK_COMMAND_BUFFER_LEVEL_PRIMARY);
 
 		// Begin Single Command Buffer
 		VkCommandBufferBeginInfo beginInfo = {};

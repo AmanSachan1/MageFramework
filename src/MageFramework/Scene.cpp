@@ -67,6 +67,26 @@ void Scene::createScene(JSONItem::Scene& scene)
 		m_textureMap.insert({ name, texture });
 	}
 }
+void Scene::recreate()
+{
+	// Delete compute texture and recreate it
+	{
+		const VkExtent2D windowExtents = m_vulkanManager->getSwapChainVkExtent();
+		for (uint32_t i = 0; i < m_numSwapChainImages; i++)
+		{
+			std::string name = "compute" + std::to_string(i);
+			m_textureMap.erase(name);
+
+			std::shared_ptr<Texture2D> texture = std::make_shared<Texture2D>(m_vulkanManager, m_graphicsQueue, m_graphicsCmdPool, VK_FORMAT_R8G8B8A8_UNORM);
+			texture->createEmptyTexture(windowExtents.width, windowExtents.height, 1, 1,
+				m_graphicsQueue, m_graphicsCmdPool, false,
+				VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+				VK_IMAGE_TILING_OPTIMAL,
+				VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT);
+			m_textureMap.insert({ name, texture });
+		}
+	}
+}
 
 void Scene::updateUniforms(uint32_t currentImageIndex)
 {
@@ -185,7 +205,7 @@ void Scene::createDescriptors(VkDescriptorPool descriptorPool)
 		}		
 
 		// COMPUTE
-		VkDescriptorSetLayoutBinding computeLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
+		VkDescriptorSetLayoutBinding computeLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_ALL, nullptr };
 		DescriptorUtil::createDescriptorSetLayout(m_logicalDevice, m_DSL_compute, 1, &computeLayoutBinding);
 		
 		// TIME

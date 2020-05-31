@@ -32,8 +32,8 @@ private:
 	void cleanup();
 
 	// Render Loop Helpers
-	void updateRenderState();
 	void acquireNextSwapChainImage();
+	void updateRenderState();
 	void presentCurrentImageToSwapChainImage();
 			
 	// Descriptors
@@ -42,6 +42,9 @@ private:
 
 	// Pipelines
 	void createAllPipelines();	
+
+public:
+	bool m_windowResized = false;
 
 private:
 	GLFWwindow* m_window;

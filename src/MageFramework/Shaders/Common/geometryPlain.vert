@@ -23,17 +23,17 @@ layout(set = 1, binding = 0) uniform ModelUBO
 	mat4 modelMatrix;
 };
 
-layout(location = 0) in vec3 inPos;
-layout(location = 1) in vec3 inNor;
-layout(location = 2) in vec2 inUV;
+layout(location = 0) in vec4 inPos;
+layout(location = 1) in vec4 inNor;
+layout(location = 2) in vec4 inUV;
 
 layout(location = 0) out vec2 f_uv;
 layout(location = 1) out vec3 f_nor;
 
 void main() 
 {
-    gl_Position = proj * view * modelMatrix * vec4(inPos, 1.0);
+    gl_Position = proj * view * modelMatrix * vec4(inPos.xyz, 1.0);
 
-	f_uv = inUV;
-	f_nor = inNor;
+	f_uv = inUV.xy;
+	f_nor = inNor.xyz;
 }

@@ -1,12 +1,8 @@
 #version 460
+#extension GL_GOOGLE_include_directive : require
 #extension GL_NV_ray_tracing : require
+#include "global.glsl"
 
-struct RayPayload {
-	vec3 color;
-	float distance;
-	vec3 normal;
-	float reflector;
-};
 layout(location = 0) rayPayloadInNV RayPayload rayPayload;
 
 void main() 

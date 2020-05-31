@@ -1,5 +1,7 @@
 #version 460
+#extension GL_GOOGLE_include_directive : require
 #extension GL_NV_ray_tracing : require
+#include "global.glsl"
 
 layout(binding = 0, set = 0) uniform accelerationStructureNV topLevelAS;
 layout(binding = 1, set = 0, rgba8) uniform image2D rayTracedImage;
@@ -13,19 +15,7 @@ layout(binding = 2, set = 0) uniform CameraUBO
     vec2 tanFovBy2;
 } cam;
 
-struct RayPayload {
-	vec3 color;
-	float distance;
-	vec3 normal;
-	float reflector;
-};
 layout(location = 0) rayPayloadNV RayPayload rayPayload;
-
-// Max recursion depth is passed via a specialization constant
-layout (constant_id = 0) const int MAX_RECURSION_DEPTH = 0;
-const float T_MIN = 0.001f;
-const float T_MAX = 10000.0f;
-const uint CULL_MASK = 0xFF;
 
 void main() 
 {

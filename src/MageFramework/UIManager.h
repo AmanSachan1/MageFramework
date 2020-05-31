@@ -73,11 +73,11 @@ private:
 	// we separate UI vulkan stuff.
 	// Because we reset command buffers, we may run into an issue where we are still using a command buffer and then we try to reset it, 
 	// to avoid this we just double the number of command buffers we use.
-	unsigned int cmdBufferIndex;
 	VkCommandPool m_UICommandPool;
 	std::vector<VkCommandBuffer> m_UICommandBuffers;
-	VkDescriptorPool m_UIDescriptorPool;
+	std::vector<VkFence> m_inFlightFences;
 
+	VkDescriptorPool m_UIDescriptorPool;
 	VkRenderPass m_UIRenderPass;
 	std::vector<VkFramebuffer> m_UIFrameBuffers;
 
@@ -99,6 +99,7 @@ private:
 	void uploadFonts();
 
 	void setupVulkanObjectsForImgui();
+	void createSyncObjects();
 	void createCommandPoolAndCommandBuffers();
 	void createDescriptorPool();
 	void createRenderPass();

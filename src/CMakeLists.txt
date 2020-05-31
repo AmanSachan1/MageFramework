@@ -14,7 +14,7 @@ function(buildSource SAMPLE_NAME)
 		${SAMPLE_NAME}/Shaders/Common/*.geom
 		${SAMPLE_NAME}/Shaders/Common/*.comp
 		${SAMPLE_NAME}/Shaders/Common/*.tese
-		${SAMPLE_NAME}/Shaders/Common/*.tesc
+		${SAMPLE_NAME}/Shaders/Common/*.tesc 
 		${SAMPLE_NAME}/Shaders/PostProcessEffects/*.vert
 		${SAMPLE_NAME}/Shaders/PostProcessEffects/*.frag
 		${SAMPLE_NAME}/Shaders/PostProcessEffects/*.geom
@@ -30,18 +30,21 @@ function(buildSource SAMPLE_NAME)
 		${SAMPLE_NAME}/Shaders/Common/*.geom
 		${SAMPLE_NAME}/Shaders/Common/*.comp
 		${SAMPLE_NAME}/Shaders/Common/*.tese
-		${SAMPLE_NAME}/Shaders/Common/*.tesc )
+		${SAMPLE_NAME}/Shaders/Common/*.tesc 
+		${SAMPLE_NAME}/Shaders/Common/*.glsl)
 	file(GLOB_RECURSE POSTPROCESS_SHADER_SOURCES
 		${SAMPLE_NAME}/Shaders/PostProcessEffects/*.vert
 		${SAMPLE_NAME}/Shaders/PostProcessEffects/*.frag
 		${SAMPLE_NAME}/Shaders/PostProcessEffects/*.geom
 		${SAMPLE_NAME}/Shaders/PostProcessEffects/*.comp
 		${SAMPLE_NAME}/Shaders/PostProcessEffects/*.tese
-		${SAMPLE_NAME}/Shaders/PostProcessEffects/*.tesc )
+		${SAMPLE_NAME}/Shaders/PostProcessEffects/*.tesc
+		${SAMPLE_NAME}/Shaders/PostProcessEffects/*.glsl )
 	file(GLOB_RECURSE RAYTRACING_SHADER_SOURCES
 		${SAMPLE_NAME}/Shaders/RayTracing/*.rgen
 		${SAMPLE_NAME}/Shaders/RayTracing/*.rchit
-		${SAMPLE_NAME}/Shaders/RayTracing/*.rmiss )
+		${SAMPLE_NAME}/Shaders/RayTracing/*.rmiss
+		${SAMPLE_NAME}/Shaders/RayTracing/*.glsl )
 
 	file(GLOB UTILITY_SOURCES 
 		${SAMPLE_NAME}/Utilities/*.cpp 

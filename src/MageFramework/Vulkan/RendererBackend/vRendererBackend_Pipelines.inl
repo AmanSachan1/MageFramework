@@ -3,14 +3,12 @@
 
 inline void VulkanRendererBackend::cleanupPipelines()
 {
+	// Compute Pipeline
+	vkDestroyPipeline(m_logicalDevice, m_compute_P, nullptr);
+	vkDestroyPipelineLayout(m_logicalDevice, m_compute_PL, nullptr);
+
 	if (m_rendererOptions.renderType == RENDER_TYPE::RASTERIZATION)
 	{
-		// Compute Pipeline
-		vkDestroyPipeline(m_logicalDevice, m_compute_P, nullptr);
-		vkDestroyPipelineLayout(m_logicalDevice, m_compute_PL, nullptr);
-		// Composite Compute Onto Raster Pipeline
-		vkDestroyPipeline(m_logicalDevice, m_compositeComputeOntoRaster_P, nullptr);
-		vkDestroyPipelineLayout(m_logicalDevice, m_compositeComputeOntoRaster_PL, nullptr);
 		// Rasterization Pipeline
 		vkDestroyPipeline(m_logicalDevice, m_rasterization_P, nullptr);
 		vkDestroyPipelineLayout(m_logicalDevice, m_rasterization_PL, nullptr);
@@ -33,31 +31,6 @@ inline void VulkanRendererBackend::createComputePipeline(VkPipeline& computePipe
 
 	// No need for the shader modules anymore, so we destory them!
 	vkDestroyShaderModule(m_logicalDevice, compShaderModule, nullptr);
-}
-inline void VulkanRendererBackend::createCompositeComputeOntoRasterPipeline(std::vector<VkDescriptorSetLayout>& compositeDSL)
-{
-	// -------- Create Pipeline Layout -------------
-	m_compositeComputeOntoRaster_PL = VulkanPipelineCreation::createPipelineLayout(m_logicalDevice, compositeDSL, 0, nullptr);
-
-	// -------- Empty Vertex Input --------
-	VkPipelineVertexInputStateCreateInfo vertexInput = VulkanPipelineStructures::vertexInputInfo(0, nullptr, 0, nullptr);
-
-	// -------- Create Shader Stages -------------
-	const uint32_t stageCount = 2;
-	VkShaderModule vertShaderModule, fragShaderModule;
-	std::vector<VkPipelineShaderStageCreateInfo> shaderStages; shaderStages.resize(2);
-
-	ShaderUtil::createShaderStageInfos_RenderToQuad(shaderStages, "compositeComputeOntoRaster", vertShaderModule, fragShaderModule, m_logicalDevice);
-
-	// -------- Create graphics pipeline ---------	
-	VulkanPipelineCreation::createGraphicsPipeline(m_logicalDevice,
-		m_compositeComputeOntoRaster_P, m_compositeComputeOntoRaster_PL,
-		m_compositeComputeOntoRasterRPI.renderPass, 0,
-		stageCount, shaderStages.data(), vertexInput, m_vulkanManager->getSwapChainVkExtent());
-
-	// No need for the shader modules anymore, so we destory them!
-	vkDestroyShaderModule(m_logicalDevice, vertShaderModule, nullptr);
-	vkDestroyShaderModule(m_logicalDevice, fragShaderModule, nullptr);
 }
 inline void VulkanRendererBackend::createRasterizationRenderPipeline(std::vector<VkDescriptorSetLayout>& rasterizationDSL)
 {
@@ -106,17 +79,23 @@ inline void VulkanRendererBackend::createRayTracePipeline(std::vector<VkDescript
 	const uint32_t shaderIndexClosestHit = 3;
 	const uint32_t shaderIndexShadowClosestHit = 4;
 
+	std::array<VkShaderModule, 5> rayTraceShaderModules;
 	std::array<VkPipelineShaderStageCreateInfo, 5> rayTraceShaderStageInfos;
 	ShaderUtil::createRayTracingShaderStageInfo(
-		rayTraceShaderStageInfos[shaderIndexRaygen], "ray_generation.rgen", VK_SHADER_STAGE_RAYGEN_BIT_NV, m_logicalDevice);
+		rayTraceShaderStageInfos[shaderIndexRaygen], "ray_generation.rgen", VK_SHADER_STAGE_RAYGEN_BIT_NV, 
+		rayTraceShaderModules[shaderIndexRaygen], m_logicalDevice);
 	ShaderUtil::createRayTracingShaderStageInfo(
-		rayTraceShaderStageInfos[shaderIndexMiss], "ray_miss.rmiss", VK_SHADER_STAGE_MISS_BIT_NV, m_logicalDevice);
+		rayTraceShaderStageInfos[shaderIndexMiss], "ray_miss.rmiss", VK_SHADER_STAGE_MISS_BIT_NV, 
+		rayTraceShaderModules[shaderIndexMiss], m_logicalDevice);
 	ShaderUtil::createRayTracingShaderStageInfo(
-		rayTraceShaderStageInfos[shaderIndexShadowMiss], "shadows.rmiss", VK_SHADER_STAGE_MISS_BIT_NV, m_logicalDevice);
+		rayTraceShaderStageInfos[shaderIndexShadowMiss], "shadows.rmiss", VK_SHADER_STAGE_MISS_BIT_NV, 
+		rayTraceShaderModules[shaderIndexShadowMiss], m_logicalDevice);
 	ShaderUtil::createRayTracingShaderStageInfo(
-		rayTraceShaderStageInfos[shaderIndexClosestHit], "ray_closestHit.rchit", VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV, m_logicalDevice);
+		rayTraceShaderStageInfos[shaderIndexClosestHit], "ray_closestHit.rchit", VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV, 
+		rayTraceShaderModules[shaderIndexClosestHit], m_logicalDevice);
 	ShaderUtil::createRayTracingShaderStageInfo(
-		rayTraceShaderStageInfos[shaderIndexShadowClosestHit], "shadows_closestHit.rchit", VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV, m_logicalDevice);
+		rayTraceShaderStageInfos[shaderIndexShadowClosestHit], "shadows_closestHit.rchit", VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV, 
+		rayTraceShaderModules[shaderIndexShadowClosestHit], m_logicalDevice);
 
 	// Pass recursion depth for reflections to ray generation shader via specialization constant
 	VkSpecializationMapEntry specializationMapEntry = { 0, 0, sizeof(uint32_t) };
@@ -164,4 +143,10 @@ inline void VulkanRendererBackend::createRayTracePipeline(std::vector<VkDescript
 	rayPipelineInfo.maxRecursionDepth = MAX_RECURSION_DEPTH;
 	rayPipelineInfo.layout = m_rayTrace_PL;
 	VK_CHECK_RESULT(vkCreateRayTracingPipelinesNV(m_logicalDevice, VK_NULL_HANDLE, 1, &rayPipelineInfo, nullptr, &m_rayTrace_P));
+	
+	// No need for the shader modules anymore, so we destory them!
+	for (VkShaderModule rayTraceShaderModule : rayTraceShaderModules)
+	{
+		vkDestroyShaderModule(m_logicalDevice, rayTraceShaderModule, nullptr);
+	}	
 }
